@@ -1,0 +1,567 @@
+require('dotenv').config();
+const express  = require('express');
+const http     = require('http');
+const { Server } = require('socket.io');
+const { spawn } = require('child_process');
+const path     = require('path');
+const fs       = require('fs');
+const crypto   = require('crypto');
+const QRCode   = require('qrcode');
+const bcrypt   = require('bcryptjs');
+const jwt      = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+
+const app    = express();
+const server = http.createServer(app);
+const io     = new Server(server);
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+
+// ===== Paths =====
+const DATA_DIR      = path.join(__dirname, 'data');
+const ADMINS_FILE   = path.join(DATA_DIR, 'admins.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const USERS_FILE    = path.join(DATA_DIR, 'users.json');
+const PROMOS_FILE   = path.join(DATA_DIR, 'promos.json');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// ===== JWT Secret =====
+const SECRET_FILE = path.join(DATA_DIR, '.jwt_secret');
+const JWT_SECRET  = fs.existsSync(SECRET_FILE)
+  ? fs.readFileSync(SECRET_FILE, 'utf8').trim()
+  : (() => { const s = crypto.randomBytes(48).toString('hex'); fs.writeFileSync(SECRET_FILE, s); return s; })();
+
+// ===== Admins =====
+let admins = [];
+if (fs.existsSync(ADMINS_FILE)) {
+  admins = JSON.parse(fs.readFileSync(ADMINS_FILE, 'utf8'));
+} else {
+  admins = [{
+    id: '1',
+    email: 'sh1154252@gmail.com',
+    passwordHash: bcrypt.hashSync('Hh1040714.0714', 10),
+    role: 'super-admin',
+    createdAt: new Date().toISOString()
+  }];
+  fs.writeFileSync(ADMINS_FILE, JSON.stringify(admins, null, 2));
+  console.log('Created default admin account.');
+}
+function saveAdmins() { fs.writeFileSync(ADMINS_FILE, JSON.stringify(admins, null, 2)); }
+
+// ===== Settings =====
+const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
+let settings = fs.existsSync(SETTINGS_FILE)
+  ? { ...defaultSettings, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) }
+  : defaultSettings;
+function saveSettings() { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); }
+if (!fs.existsSync(SETTINGS_FILE)) saveSettings();
+
+// ===== Users =====
+let users = fs.existsSync(USERS_FILE) ? JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')) : [];
+function saveUsers() { fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); }
+
+// ===== Promos =====
+let promos = fs.existsSync(PROMOS_FILE) ? JSON.parse(fs.readFileSync(PROMOS_FILE, 'utf8')) : [];
+function savePromos() { fs.writeFileSync(PROMOS_FILE, JSON.stringify(promos, null, 2)); }
+
+// ===== Stats =====
+const stats = {
+  startTime:        Date.now(),
+  totalConnections: 0,
+  peakConnections:  0,
+  messagesRelayed:  0,
+  filesRelayed:     0,
+  bytesRelayed:     0
+};
+const activityHistory = [];
+setInterval(() => {
+  const entry = { t: Date.now(), c: io.engine.clientsCount, r: rooms.size };
+  activityHistory.push(entry);
+  if (activityHistory.length > 30) activityHistory.shift();
+}, 60000);
+
+function getStats() {
+  const cur = io.engine.clientsCount;
+  if (cur > stats.peakConnections) stats.peakConnections = cur;
+  return {
+    uptime:           Math.floor((Date.now() - stats.startTime) / 1000),
+    currentConns:     cur,
+    peakConnections:  stats.peakConnections,
+    activeRooms:      rooms.size,
+    totalConnections: stats.totalConnections,
+    messagesRelayed:  stats.messagesRelayed,
+    filesRelayed:     stats.filesRelayed,
+    bytesRelayed:     stats.bytesRelayed,
+    history:          activityHistory
+  };
+}
+
+function getRoomList() {
+  return Array.from(rooms.entries()).map(([roomId, peers]) => ({
+    roomId,
+    peerCount: peers.size,
+    peers: Array.from(peers.values()).map(p => p.name),
+    createdAt: roomsMeta.get(roomId)?.createdAt || null
+  }));
+}
+
+function getUserEffectiveLimit(userId) {
+  const user = users.find(u => u.id === userId);
+  if (!user) return settings.maxFileSizeMB;
+  if (user.customFileSizeMB != null) return user.customFileSizeMB;
+  if (!user.activePromoId) return settings.maxFileSizeMB;
+  const promo = promos.find(p => p.id === user.activePromoId && p.enabled);
+  if (!promo) return settings.maxFileSizeMB;
+  if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) return settings.maxFileSizeMB;
+  return promo.maxFileSizeMB;
+}
+
+function getUserList() {
+  return users.map(u => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    createdAt: u.createdAt,
+    activePromoId: u.activePromoId || null,
+    customFileSizeMB: u.customFileSizeMB ?? null,
+    effectiveMaxFileSizeMB: getUserEffectiveLimit(u.id),
+    banned: !!u.banned,
+    banReason: u.banReason || null,
+    bannedAt: u.bannedAt || null
+  }));
+}
+
+// ===== Auth Middleware =====
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    req.adminUser = jwt.verify(auth.slice(7), JWT_SECRET);
+    next();
+  } catch { res.status(401).json({ error: 'Invalid or expired token' }); }
+}
+function requireSuperAdmin(req, res, next) {
+  if (req.adminUser.role !== 'super-admin') return res.status(403).json({ error: 'Forbidden' });
+  next();
+}
+function requireUser(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    if (payload.type !== 'user') return res.status(401).json({ error: 'Invalid token' });
+    req.user = payload;
+    next();
+  } catch { res.status(401).json({ error: 'Invalid or expired token' }); }
+}
+
+// ===== Express Middleware =====
+app.use(express.json());
+
+app.use((req, res, next) => {
+  if (settings.maintenanceMode
+    && !req.path.startsWith('/admin')
+    && !req.path.startsWith('/socket.io')
+    && !req.path.startsWith('/api/')) {
+    return res.status(503).send('<!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:80px"><h1>🔧 Under Maintenance</h1><p>WebDrop is temporarily unavailable. Please try again soon.</p></body></html>');
+  }
+  next();
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
+
+// ===== QR endpoint =====
+app.get('/qr', async (req, res) => {
+  try {
+    const url = req.query.url;
+    if (!url) return res.status(400).send('URL required');
+    const buf = await QRCode.toBuffer(url, { width: 256, margin: 2, color: { dark: '#000', light: '#fff' } });
+    res.type('png').send(buf);
+  } catch { res.status(500).send('QR generation failed'); }
+});
+
+// ===== Config endpoint =====
+app.get('/api/config', (req, res) => {
+  res.json({ googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null });
+});
+
+// ===== User Auth API =====
+app.post('/api/auth/google', async (req, res) => {
+  if (!googleClient) return res.status(501).json({ error: 'Google auth not configured' });
+  const { idToken } = req.body || {};
+  if (!idToken) return res.status(400).json({ error: 'ID token required' });
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID });
+    const p = ticket.getPayload();
+    let user = users.find(u => u.googleId === p.sub || u.email?.toLowerCase() === p.email.toLowerCase());
+    if (!user) {
+      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, createdAt: new Date().toISOString() };
+      users.push(user);
+      saveUsers();
+      adminNsp.emit('users', getUserList());
+    } else if (!user.googleId) {
+      user.googleId = p.sub;
+      saveUsers();
+    }
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
+  } catch { res.status(401).json({ error: 'Invalid Google token' }); }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, name } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (users.find(u => u.email?.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Email already registered' });
+  const user = {
+    id: crypto.randomUUID(),
+    email,
+    name: name || email.split('@')[0],
+    googleId: null,
+    passwordHash: await bcrypt.hash(password, 10),
+    activePromoId: null,
+    customFileSizeMB: null,
+    banned: false,
+    banReason: null,
+    bannedAt: null,
+    createdAt: new Date().toISOString()
+  };
+  users.push(user);
+  saveUsers();
+  adminNsp.emit('users', getUserList());
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+  res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB } });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+  if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+  if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
+});
+
+app.get('/api/auth/me', requireUser, (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) });
+});
+
+app.post('/api/auth/redeem', requireUser, (req, res) => {
+  const { code } = req.body || {};
+  if (!code) return res.status(400).json({ error: 'Promo code required' });
+  const promo = promos.find(p => p.code.toUpperCase() === code.trim().toUpperCase() && p.enabled);
+  if (!promo) return res.status(404).json({ error: 'Invalid or disabled promo code' });
+  if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) return res.status(400).json({ error: 'Promo code has expired' });
+  if (promo.usageLimit > 0 && promo.usedCount >= promo.usageLimit) return res.status(400).json({ error: 'Promo code usage limit reached' });
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.activePromoId = promo.id;
+  promo.usedCount++;
+  saveUsers();
+  savePromos();
+  adminNsp.emit('promos', promos);
+  adminNsp.emit('users', getUserList());
+  res.json({ ok: true, promo: { code: promo.code, description: promo.description, maxFileSizeMB: promo.maxFileSizeMB }, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) });
+});
+
+// ===== Admin API =====
+app.post('/admin/api/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const admin = admins.find(a => a.email.toLowerCase() === email.toLowerCase());
+  if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
+  const valid = await bcrypt.compare(password, admin.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, JWT_SECRET, { expiresIn: '24h' });
+  res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
+});
+
+app.get('/admin/api/stats',    requireAdmin, (req, res) => res.json(getStats()));
+app.get('/admin/api/rooms',    requireAdmin, (req, res) => res.json(getRoomList()));
+app.get('/admin/api/admins',   requireAdmin, (req, res) => res.json(admins.map(({ passwordHash, ...a }) => a)));
+app.get('/admin/api/settings', requireAdmin, (req, res) => res.json(settings));
+app.get('/admin/api/promos',   requireAdmin, (req, res) => res.json(promos));
+app.get('/admin/api/users',    requireAdmin, (req, res) => res.json(getUserList()));
+
+app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { customFileSizeMB, banned, banReason } = req.body || {};
+  if (customFileSizeMB !== undefined) {
+    user.customFileSizeMB = customFileSizeMB === null ? null : parseInt(customFileSizeMB);
+  }
+  if (banned !== undefined) {
+    user.banned = !!banned;
+    if (banned) {
+      user.banReason = banReason || null;
+      user.bannedAt  = new Date().toISOString();
+    } else {
+      user.banReason = null;
+      user.bannedAt  = null;
+    }
+  }
+  saveUsers();
+  adminNsp.emit('users', getUserList());
+  res.json({ ok: true });
+});
+
+app.put('/admin/api/settings', requireAdmin, requireSuperAdmin, (req, res) => {
+  settings = { ...settings, ...req.body };
+  saveSettings();
+  io.emit('settings-updated', { maintenanceMode: settings.maintenanceMode });
+  adminNsp.emit('settings', settings);
+  res.json(settings);
+});
+
+app.post('/admin/api/admins', requireAdmin, requireSuperAdmin, async (req, res) => {
+  const { email, password, role } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (admins.find(a => a.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Admin already exists' });
+  const newAdmin = { id: Date.now().toString(), email, passwordHash: await bcrypt.hash(password, 10), role: role === 'super-admin' ? 'super-admin' : 'admin', createdAt: new Date().toISOString() };
+  admins.push(newAdmin);
+  saveAdmins();
+  const { passwordHash, ...safe } = newAdmin;
+  adminNsp.emit('admins', admins.map(({ passwordHash: h, ...a }) => a));
+  res.status(201).json(safe);
+});
+
+app.delete('/admin/api/admins/:id', requireAdmin, requireSuperAdmin, (req, res) => {
+  const { id } = req.params;
+  if (id === req.adminUser.id) return res.status(400).json({ error: 'Cannot remove yourself' });
+  const idx = admins.findIndex(a => a.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Admin not found' });
+  const superAdmins = admins.filter(a => a.role === 'super-admin');
+  if (superAdmins.length === 1 && admins[idx].role === 'super-admin') return res.status(400).json({ error: 'Cannot remove the last super-admin' });
+  admins.splice(idx, 1);
+  saveAdmins();
+  adminNsp.emit('admins', admins.map(({ passwordHash, ...a }) => a));
+  res.json({ ok: true });
+});
+
+app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
+  const { roomId } = req.params;
+  if (!rooms.has(roomId)) return res.status(404).json({ error: 'Room not found' });
+  io.in(roomId).emit('room-closed', { reason: 'Closed by admin' });
+  io.in(roomId).disconnectSockets(true);
+  rooms.delete(roomId);
+  roomsMeta.delete(roomId);
+  adminNsp.emit('rooms', getRoomList());
+  res.json({ ok: true });
+});
+
+// Admin Promo CRUD
+app.post('/admin/api/promos', requireAdmin, requireSuperAdmin, (req, res) => {
+  const { code, description, maxFileSizeMB, usageLimit, expiresAt } = req.body || {};
+  if (!code || !maxFileSizeMB) return res.status(400).json({ error: 'Code and maxFileSizeMB required' });
+  if (promos.find(p => p.code.toUpperCase() === code.trim().toUpperCase())) return res.status(409).json({ error: 'Promo code already exists' });
+  const promo = { id: crypto.randomUUID(), code: code.trim().toUpperCase(), description: description || '', maxFileSizeMB: parseInt(maxFileSizeMB), usageLimit: parseInt(usageLimit) || 0, usedCount: 0, expiresAt: expiresAt || null, enabled: true, createdAt: new Date().toISOString() };
+  promos.push(promo);
+  savePromos();
+  adminNsp.emit('promos', promos);
+  res.status(201).json(promo);
+});
+
+app.put('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) => {
+  const promo = promos.find(p => p.id === req.params.id);
+  if (!promo) return res.status(404).json({ error: 'Promo not found' });
+  const { description, maxFileSizeMB, usageLimit, expiresAt, enabled } = req.body || {};
+  if (description !== undefined) promo.description = description;
+  if (maxFileSizeMB !== undefined) promo.maxFileSizeMB = parseInt(maxFileSizeMB);
+  if (usageLimit !== undefined) promo.usageLimit = parseInt(usageLimit);
+  if (expiresAt !== undefined) promo.expiresAt = expiresAt || null;
+  if (enabled !== undefined) promo.enabled = !!enabled;
+  savePromos();
+  adminNsp.emit('promos', promos);
+  res.json(promo);
+});
+
+app.delete('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) => {
+  const idx = promos.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Promo not found' });
+  promos.splice(idx, 1);
+  savePromos();
+  adminNsp.emit('promos', promos);
+  res.json({ ok: true });
+});
+
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
+
+// ===== Admin Socket Namespace =====
+const adminNsp = io.of('/admin');
+adminNsp.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try { socket.adminUser = jwt.verify(token, JWT_SECRET); next(); }
+  catch { next(new Error('Invalid token')); }
+});
+adminNsp.on('connection', (socket) => {
+  socket.emit('stats',    getStats());
+  socket.emit('rooms',    getRoomList());
+  socket.emit('admins',   admins.map(({ passwordHash, ...a }) => a));
+  socket.emit('settings', settings);
+  socket.emit('promos',   promos);
+  socket.emit('users',    getUserList());
+
+  const tick = setInterval(() => {
+    socket.emit('stats', getStats());
+    socket.emit('rooms', getRoomList());
+  }, 2000);
+
+  socket.on('disconnect', () => clearInterval(tick));
+});
+
+// ===== Main Socket.io =====
+const rooms     = new Map();
+const roomsMeta = new Map();
+let publicUrl   = null;
+let tunnelProc  = null;
+
+io.use((socket, next) => {
+  if (settings.maintenanceMode) return next(new Error('Under maintenance'));
+  socket.effectiveMaxFileSizeMB = settings.maxFileSizeMB;
+  const userToken = socket.handshake.auth?.userToken;
+  if (userToken) {
+    try {
+      const payload = jwt.verify(userToken, JWT_SECRET);
+      if (payload.type === 'user') {
+        const user = users.find(u => u.id === payload.id);
+        if (user?.banned) return next(new Error('Your account has been suspended'));
+        socket.userId = payload.id;
+        socket.effectiveMaxFileSizeMB = getUserEffectiveLimit(payload.id);
+      }
+    } catch {}
+  }
+  next();
+});
+
+io.on('connection', (socket) => {
+  stats.totalConnections++;
+  if (io.engine.clientsCount > stats.peakConnections) stats.peakConnections = io.engine.clientsCount;
+  socket.currentRoom = null;
+  if (publicUrl) socket.emit('tunnel-url', publicUrl);
+
+  socket.on('join-room', ({ roomId, name }) => {
+    if (socket.currentRoom) {
+      const room = rooms.get(socket.currentRoom);
+      if (room) {
+        room.delete(socket.id);
+        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); }
+        else socket.to(socket.currentRoom).emit('peer-left', socket.id);
+      }
+      socket.leave(socket.currentRoom);
+    }
+    const existing = rooms.get(roomId);
+    if (existing && existing.size >= settings.maxPeersPerRoom) {
+      socket.emit('error', { message: 'Room is full' });
+      return;
+    }
+    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now() }); }
+    const room = rooms.get(roomId);
+    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name }));
+    room.set(socket.id, { name });
+    socket.join(roomId);
+    socket.currentRoom = roomId;
+    socket.emit('room-joined', { roomId, peers: existingPeers });
+    socket.to(roomId).emit('peer-joined', { id: socket.id, name });
+    adminNsp.emit('rooms', getRoomList());
+  });
+
+  socket.on('offer',         ({ to, offer })     => io.to(to).emit('offer',         { from: socket.id, offer }));
+  socket.on('answer',        ({ to, answer })    => io.to(to).emit('answer',        { from: socket.id, answer }));
+  socket.on('ice-candidate', ({ to, candidate }) => io.to(to).emit('ice-candidate', { from: socket.id, candidate }));
+
+  socket.on('relay-msg', ({ to, text }) => {
+    if (!settings.allowMessageRelay) { socket.emit('relay-error', { error: 'Message relay is disabled' }); return; }
+    stats.messagesRelayed++;
+    io.to(to).emit('relay-msg', { from: socket.id, text });
+    adminNsp.emit('stats', getStats());
+  });
+  socket.on('relay-file-start', ({ to, meta }) => {
+    if (!settings.allowFileRelay) { socket.emit('relay-error', { error: 'File relay is disabled' }); return; }
+    const maxBytes = socket.effectiveMaxFileSizeMB * 1024 * 1024;
+    if (meta.size > maxBytes) { socket.emit('relay-error', { error: `File exceeds ${socket.effectiveMaxFileSizeMB} MB limit` }); return; }
+    io.to(to).emit('relay-file-start', { from: socket.id, meta });
+  });
+  socket.on('relay-file-chunk', ({ to, chunk }) => {
+    const size = Buffer.isBuffer(chunk) ? chunk.length : (chunk?.byteLength || 0);
+    stats.bytesRelayed += size;
+    io.to(to).emit('relay-file-chunk', { from: socket.id, chunk });
+  });
+  socket.on('relay-file-end', ({ to, fileId, name }) => {
+    stats.filesRelayed++;
+    io.to(to).emit('relay-file-end', { from: socket.id, fileId, name });
+    adminNsp.emit('stats', getStats());
+  });
+
+  socket.on('disconnect', () => {
+    if (socket.currentRoom) {
+      const room = rooms.get(socket.currentRoom);
+      if (room) {
+        room.delete(socket.id);
+        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); }
+        else socket.to(socket.currentRoom).emit('peer-left', socket.id);
+      }
+      adminNsp.emit('rooms', getRoomList());
+    }
+  });
+});
+
+// ===== Tunnel =====
+function startCloudflareTunnel(port) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], { stdio: ['ignore','pipe','pipe'] });
+    tunnelProc = proc;
+    let resolved = false;
+    const check = d => {
+      if (resolved) return;
+      const m = d.toString().match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+      if (m) { resolved = true; resolve(m[0]); }
+    };
+    proc.stdout.on('data', check);
+    proc.stderr.on('data', check);
+    proc.on('error', e => { if (!resolved) reject(e); });
+    proc.on('exit', code => {
+      if (!resolved) reject(new Error(`cloudflared exited ${code}`));
+      else { publicUrl = null; io.emit('tunnel-url', null); setTimeout(() => startTunnel(port), 3000); }
+    });
+    setTimeout(() => { if (!resolved) reject(new Error('Timeout')); }, 30000);
+  });
+}
+async function startTunnel(port) {
+  if (process.env.PUBLIC_URL) {
+    publicUrl = process.env.PUBLIC_URL.replace(/\/$/, '');
+    console.log(`\nPublic URL (env): ${publicUrl}\n`);
+    io.emit('tunnel-url', publicUrl);
+    return;
+  }
+  try {
+    publicUrl = await startCloudflareTunnel(port);
+    console.log(`\nPublic URL: ${publicUrl}\n`);
+    io.emit('tunnel-url', publicUrl);
+    return;
+  } catch (e) { console.warn('cloudflared:', e.message); }
+  try {
+    const lt = require('localtunnel');
+    const tunnel = await lt({ port });
+    publicUrl = tunnel.url;
+    console.log(`\nPublic URL (lt): ${publicUrl}\n`);
+    io.emit('tunnel-url', publicUrl);
+    tunnel.on('close', () => { publicUrl = null; io.emit('tunnel-url', null); setTimeout(() => startTunnel(port), 5000); });
+  } catch (e) { console.warn('All tunnels failed:', e.message); io.emit('tunnel-url', null); }
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`WebDrop running at http://localhost:${PORT}`);
+  console.log(`Admin panel   at http://localhost:${PORT}/admin`);
+  startTunnel(PORT);
+});
+process.on('exit',   () => { if (tunnelProc) tunnelProc.kill(); });
+process.on('SIGINT', () => { if (tunnelProc) tunnelProc.kill(); process.exit(); });

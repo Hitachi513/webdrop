@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebDrop Admin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== Login ===== -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 36 36" fill="none">
+        <defs>
+          <linearGradient id="lg" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#4361ee"/>
+            <stop offset="100%" stop-color="#7b2ff7"/>
+          </linearGradient>
+        </defs>
+        <circle cx="18" cy="18" r="16" stroke="url(#lg)" stroke-width="2"/>
+        <path d="M18 10L18 26M12 16L18 10L24 16" stroke="url(#lg)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 22h12" stroke="url(#lg)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <h1>WebDrop</h1>
+    </div>
+    <h2>Admin Panel</h2>
+    <p class="login-sub">Sign in to manage your WebDrop instance</p>
+    <form id="login-form">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="admin@example.com" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <p id="login-error" class="login-error"></p>
+      <button type="submit" id="login-btn">Sign In</button>
+    </form>
+    <a href="/" class="back-link">← Back to WebDrop</a>
+  </div>
+</div>
+
+<!-- ===== Dashboard ===== -->
+<div id="dashboard" style="display:none">
+  <aside id="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="url(#lg2)" stroke-width="2">
+        <defs>
+          <linearGradient id="lg2" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#4361ee"/><stop offset="100%" stop-color="#7b2ff7"/>
+          </linearGradient>
+        </defs>
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 8v8M8 12h8" stroke-linecap="round"/>
+      </svg>
+      <span>WebDrop</span>
+    </div>
+    <nav>
+      <a class="nav-item active" data-section="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </a>
+      <a class="nav-item" data-section="rooms">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Live Rooms
+        <span id="rooms-badge" class="sidebar-badge">0</span>
+      </a>
+      <a class="nav-item" data-section="users">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Users
+        <span id="users-badge" class="sidebar-badge" style="display:none">0</span>
+      </a>
+      <a class="nav-item" data-section="admins">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Admins
+      </a>
+      <a class="nav-item" data-section="promos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Promo Codes
+      </a>
+      <a class="nav-item" data-section="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a href="/" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Back to App
+      </a>
+      <button class="nav-item logout-btn" id="logout-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Logout
+      </button>
+    </div>
+  </aside>
+
+  <div id="content">
+    <header class="content-header">
+      <button id="sidebar-toggle" class="icon-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="header-title" id="section-title">Overview</div>
+      <div class="header-user">
+        <div class="user-avatar" id="user-initial">A</div>
+        <span id="user-email"></span>
+      </div>
+    </header>
+
+    <!-- Overview -->
+    <section id="section-overview" class="section active">
+      <div class="stat-grid">
+        <div class="stat-card live">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="s-uptime">—</div>
+            <div class="stat-label">Uptime</div>
+          </div>
+        </div>
+        <div class="stat-card live">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="s-conns"><span class="live-dot"></span><span id="s-conns-val">0</span></div>
+            <div class="stat-label">Connected Users <small>(peak: <span id="s-peak">0</span>)</small></div>
+          </div>
+        </div>
+        <div class="stat-card live">
+          <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="s-rooms">0</div>
+            <div class="stat-label">Active Rooms</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="s-msgs">0</div>
+            <div class="stat-label">Messages Relayed</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="s-files">0</div>
+            <div class="stat-label">Files Transferred</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="stat-body">
+            <div class="stat-value" id="s-bytes">0 B</div>
+            <div class="stat-label">Data Relayed</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Connection Activity <small>(last 30 min, updates every min)</small></h3>
+        </div>
+        <div class="chart-area" id="activity-chart">
+          <div class="chart-empty">Collecting data...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rooms -->
+    <section id="section-rooms" class="section">
+      <div class="section-header">
+        <h2>Live Rooms</h2>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="text" id="rooms-search" class="search-input" placeholder="Search room ID or member…">
+          <span class="badge-pill" id="room-count-pill">0 rooms</span>
+        </div>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Room ID</th><th>Peers</th><th>Members</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="rooms-tbody"><tr><td colspan="5" class="empty-row">No active rooms</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Users -->
+    <section id="section-users" class="section">
+      <div class="section-header">
+        <h2>Registered Users</h2>
+        <span class="badge-pill" id="user-count-pill">0 users</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn-primary" id="show-active-users" style="padding:6px 14px;font-size:.8rem">Active</button>
+        <button class="btn-ghost" id="show-banned-users" style="padding:6px 14px;font-size:.8rem">Banned</button>
+        <input type="text" id="users-search" class="search-input" placeholder="Search by name or email…" style="flex:1;min-width:180px;">
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>User</th><th>Joined</th><th>File Limit</th><th>Promo</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="6" class="empty-row">No users registered</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Admins -->
+    <section id="section-admins" class="section">
+      <div class="section-header">
+        <h2>Admin Accounts</h2>
+        <button class="btn-primary" id="open-add-admin">+ Add Admin</button>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Email</th><th>Role</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="admins-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Add Admin Form -->
+      <div id="add-admin-form" class="form-card" style="display:none">
+        <h3>Add Admin</h3>
+        <div class="field-row">
+          <div class="field"><label>Email</label><input type="email" id="new-admin-email" placeholder="user@example.com"></div>
+          <div class="field"><label>Password</label><input type="password" id="new-admin-pass" placeholder="••••••••"></div>
+          <div class="field"><label>Role</label>
+            <select id="new-admin-role"><option value="admin">Admin (read-only)</option><option value="super-admin">Super Admin</option></select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" id="cancel-add-admin">Cancel</button>
+          <button class="btn-primary" id="submit-add-admin">Create Admin</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Promo Codes -->
+    <section id="section-promos" class="section">
+      <div class="section-header">
+        <h2>Promo Codes</h2>
+        <button class="btn-primary" id="open-add-promo">+ New Code</button>
+      </div>
+
+      <!-- Add Promo Form -->
+      <div id="add-promo-form" class="form-card" style="display:none">
+        <h3>Create Promo Code</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>Code</label>
+            <input type="text" id="new-promo-code" placeholder="SUMMER2024" style="text-transform:uppercase">
+          </div>
+          <div class="field">
+            <label>Description</label>
+            <input type="text" id="new-promo-desc" placeholder="Summer promotion">
+          </div>
+          <div class="field">
+            <label>File Limit (MB)</label>
+            <input type="number" id="new-promo-mb" min="1" max="10000" placeholder="1000">
+          </div>
+          <div class="field">
+            <label>Usage Limit <small>(0 = unlimited)</small></label>
+            <input type="number" id="new-promo-limit" min="0" placeholder="0">
+          </div>
+          <div class="field">
+            <label>Expires At <small>(optional)</small></label>
+            <input type="datetime-local" id="new-promo-expires">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" id="cancel-add-promo">Cancel</button>
+          <button class="btn-primary" id="submit-add-promo">Create Code</button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Description</th>
+              <th>File Limit</th>
+              <th>Usage</th>
+              <th>Expires</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="promos-tbody">
+            <tr><td colspan="7" class="empty-row">No promo codes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="section-settings" class="section">
+      <div class="section-header"><h2>App Settings</h2></div>
+      <div class="settings-grid">
+        <div class="setting-card">
+          <h3>Limits</h3>
+          <div class="setting-row">
+            <div><label>Max peers per room</label><p class="setting-desc">How many devices can join one room</p></div>
+            <input type="number" id="set-maxpeers" min="2" max="50" value="10">
+          </div>
+          <div class="setting-row">
+            <div><label>Max file size (MB)</label><p class="setting-desc">Maximum size for relay transfers</p></div>
+            <input type="number" id="set-maxfile" min="1" max="2000" value="500">
+          </div>
+        </div>
+        <div class="setting-card">
+          <h3>Features</h3>
+          <div class="setting-row">
+            <div><label>Message relay</label><p class="setting-desc">Allow messages to be forwarded via server</p></div>
+            <label class="toggle"><input type="checkbox" id="set-msgrelay"><span class="slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div><label>File relay</label><p class="setting-desc">Allow files to be forwarded via server</p></div>
+            <label class="toggle"><input type="checkbox" id="set-filerelay"><span class="slider"></span></label>
+          </div>
+        </div>
+        <div class="setting-card danger-card">
+          <h3>Maintenance</h3>
+          <div class="setting-row">
+            <div><label>Maintenance mode</label><p class="setting-desc">Blocks all users from accessing WebDrop</p></div>
+            <label class="toggle"><input type="checkbox" id="set-maintenance"><span class="slider red"></span></label>
+          </div>
+        </div>
+      </div>
+      <button class="btn-primary" id="save-settings">Save Settings</button>
+    </section>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

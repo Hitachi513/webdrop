@@ -317,6 +317,9 @@ app.put('/admin/api/settings', requireAdmin, requireSuperAdmin, (req, res) => {
   saveSettings();
   io.emit('settings-updated', { maintenanceMode: settings.maintenanceMode });
   adminNsp.emit('settings', settings);
+  if (settings.maintenanceMode) {
+    io.sockets.sockets.forEach(s => s.disconnect(true));
+  }
   res.json(settings);
 });
 

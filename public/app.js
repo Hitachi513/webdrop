@@ -446,6 +446,9 @@ socket.on('room-closed', ({ reason } = {}) => {
 });
 
 socket.on('connect_error', (e) => {
+  if (e.message === 'Under maintenance') {
+    document.getElementById('maintenance-overlay').style.display = 'flex';
+  }
   if (e.message === 'Your account has been suspended') {
     localStorage.removeItem('wd-user-token');
     userToken = null;

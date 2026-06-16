@@ -419,6 +419,7 @@ let roomClosedByAdmin = false;
 const socket = io({ auth: { userToken: userToken || null } });
 
 socket.on('connect', () => {
+  document.getElementById('maintenance-overlay').style.display = 'none';
   if (roomClosedByAdmin) return;
   socket.emit('join-room', { roomId, name: myName });
 });

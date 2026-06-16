@@ -541,6 +541,11 @@ async function startTunnel(port) {
     io.emit('tunnel-url', publicUrl);
     return;
   }
+  // On cloud platforms, skip tunnel — clients use window.location.origin
+  if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+    console.log('Cloud environment detected, skipping tunnel.');
+    return;
+  }
   try {
     publicUrl = await startCloudflareTunnel(port);
     console.log(`\nPublic URL: ${publicUrl}\n`);

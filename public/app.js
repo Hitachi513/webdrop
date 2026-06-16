@@ -141,6 +141,7 @@ function onLoginSuccess(data, isNew = false) {
     document.getElementById('promo-modal').classList.add('active');
   } else {
     toast(`Signed in as ${currentUser.email}`, 'success');
+    qrModal.classList.add('active');
   }
 }
 
@@ -213,6 +214,7 @@ document.getElementById('auth-password').addEventListener('keydown', e => {
 
 document.getElementById('auth-guest-btn').addEventListener('click', () => {
   authModal.classList.remove('active');
+  qrModal.classList.add('active');
 });
 
 document.getElementById('signin-btn').addEventListener('click', () => {
@@ -246,12 +248,13 @@ function initGoogleAuth() {
 document.getElementById('promo-skip-btn').addEventListener('click', () => {
   document.getElementById('promo-modal').classList.remove('active');
   toast('Signed in! You can redeem a promo code later from your account.', 'info');
+  qrModal.classList.add('active');
 });
 document.getElementById('promo-submit-btn').addEventListener('click', async () => {
   await redeemCode(
     document.getElementById('promo-input'),
     document.getElementById('promo-error'),
-    () => document.getElementById('promo-modal').classList.remove('active')
+    () => { document.getElementById('promo-modal').classList.remove('active'); qrModal.classList.add('active'); }
   );
 });
 document.getElementById('promo-input').addEventListener('keydown', e => {

@@ -519,6 +519,16 @@ socket.on('settings-updated', ({ maintenanceMode }) => {
   }
 });
 
+socket.on('admin-switch-room', ({ roomId: newRoomId }) => {
+  if (!newRoomId || newRoomId === roomId) return;
+  roomId = newRoomId;
+  history.replaceState(null, '', `#${roomId}`);
+  roomCodeEl.textContent = roomId;
+  setShareUrl(null);
+  socket.emit('join-room', { roomId, name: myName });
+  toast('房間 ID 已由管理員更新', 'info');
+});
+
 socket.on('offer', async ({ from, offer }) => {
   const peer = peers.get(from);
   if (!peer) return;

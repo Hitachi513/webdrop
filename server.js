@@ -627,9 +627,10 @@ async function init() {
 
   // Admins
   const storedAdmins = await dbGet('admins');
-  if (storedAdmins && storedAdmins.length) {
+  if (Array.isArray(storedAdmins) && storedAdmins.length) {
     admins = storedAdmins;
   } else {
+    if (storedAdmins && !Array.isArray(storedAdmins)) console.error('admins from DB was not an array, resetting:', typeof storedAdmins);
     admins = [{
       id: '1',
       email: 'sh1154252@gmail.com',
@@ -642,14 +643,16 @@ async function init() {
   }
 
   // Settings
-  settings = { ...defaultSettings, ...((await dbGet('settings')) || {}) };
+  const storedSettings = await dbGet('settings');
+  settings = { ...defaultSettings, ...(Array.isArray(storedSettings) || typeof storedSettings !== 'object' ? {} : (storedSettings || {})) };
   settings.maintenanceMode = false;
 
   // Users & Promos
-  const rawUsers = (await dbGet('users')) || [];
+  const rawUsers = await dbGet('users');
   users  = Array.isArray(rawUsers) ? rawUsers : [];
-  if (!Array.isArray(rawUsers)) console.error('users from DB was not an array:', typeof rawUsers, JSON.stringify(rawUsers).slice(0, 200));
-  promos = (await dbGet('promos')) || [];
+  if (rawUsers && !Array.isArray(rawUsers)) console.error('users from DB was not an array, resetting:', typeof rawUsers);
+  const rawPromos = await dbGet('promos');
+  promos = Array.isArray(rawPromos) ? rawPromos : [];
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

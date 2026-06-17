@@ -248,6 +248,9 @@ header {
 .dropdown-email { padding:2px 16px 8px; font-size:.73rem; color:var(--text-muted); }
 .dropdown-limit { padding:6px 16px 8px; font-size:.76rem; color:var(--text-muted); display:flex; align-items:center; gap:5px; }
 .dropdown-limit strong { color:var(--primary); }
+.dropdown-lang  { padding:4px 16px 8px; display:flex; align-items:center; gap:6px; }
+.dropdown-lang select { background:var(--bg); color:var(--text); border:1px solid var(--border-strong); border-radius:6px; font-size:.76rem; padding:3px 6px; cursor:pointer; flex:1; outline:none; }
+.dropdown-lang select:hover { border-color:var(--primary); }
 .dropdown-hr    { border:none; border-top:1px solid var(--border); margin:4px 0; }
 
 .dropdown-item {

@@ -128,7 +128,8 @@ function getUserList() {
     effectiveMaxFileSizeMB: getUserEffectiveLimit(u.id),
     banned: !!u.banned,
     banReason: u.banReason || null,
-    bannedAt: u.bannedAt || null
+    bannedAt: u.bannedAt || null,
+    language: u.language || null
   }));
 }
 
@@ -197,7 +198,7 @@ app.post('/api/auth/google', async (req, res) => {
     const p = ticket.getPayload();
     let user = users.find(u => u.googleId === p.sub || u.email?.toLowerCase() === p.email.toLowerCase());
     if (!user) {
-      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, createdAt: new Date().toISOString() };
+      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, createdAt: new Date().toISOString() };
       users.push(user);
       saveUsers();
       adminNsp.emit('users', getUserList());
@@ -226,6 +227,7 @@ app.post('/api/auth/register', async (req, res) => {
     banned: false,
     banReason: null,
     bannedAt: null,
+    language: null,
     createdAt: new Date().toISOString()
   };
   users.push(user);
@@ -250,7 +252,16 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) });
+  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null });
+});
+
+app.put('/api/auth/profile', requireUser, (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (req.body.language !== undefined) user.language = req.body.language || null;
+  saveUsers();
+  adminNsp.emit('users', getUserList());
+  res.json({ ok: true });
 });
 
 app.post('/api/auth/redeem', requireUser, (req, res) => {

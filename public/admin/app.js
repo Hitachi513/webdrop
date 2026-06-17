@@ -266,6 +266,7 @@ document.getElementById('save-settings').addEventListener('click', async () => {
 });
 
 // ===== Users =====
+const LANG_FLAGS = { en:'🇺🇸','zh-TW':'🇹🇼','zh-CN':'🇨🇳',ja:'🇯🇵',ko:'🇰🇷',es:'🇪🇸',fr:'🇫🇷',de:'🇩🇪',pt:'🇧🇷',it:'🇮🇹',ru:'🇷🇺',th:'🇹🇭',vi:'🇻🇳',id:'🇮🇩' };
 let allUsers = [];
 let showBannedUsers = false;
 let usersQuery = '';
@@ -288,7 +289,7 @@ function renderUsersTable() {
     (u.name || '').toLowerCase().includes(q));
   if (!list.length) {
     const msg = q ? 'No users match your search' : (showBannedUsers ? 'No banned users' : 'No active users');
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-row">${msg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(u => {
@@ -308,6 +309,9 @@ function renderUsersTable() {
       : `<button class="btn-sm" onclick="setUserLimit('${u.id}','${esc(u.email)}',${u.customFileSizeMB ?? ''})">Limit</button>
          ${u.customFileSizeMB != null ? `<button class="btn-sm" onclick="clearUserLimit('${u.id}')">Reset</button> ` : ''}
          <button class="btn-danger" onclick="banUser('${u.id}','${esc(u.email)}')">Ban</button>`;
+    const langDisplay = u.language
+      ? `<span title="${esc(u.language)}">${LANG_FLAGS[u.language] || '🌐'} ${esc(u.language)}</span>`
+      : `<span style="color:var(--muted);font-size:.75rem">—</span>`;
     return `
       <tr class="${u.banned ? 'user-banned-row' : ''}">
         <td>
@@ -315,6 +319,7 @@ function renderUsersTable() {
           <div style="color:var(--muted);font-size:.75rem">${esc(u.email)}</div>
         </td>
         <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+        <td style="font-size:.82rem">${langDisplay}</td>
         <td>${effLabel}${customInfo}</td>
         <td>${promoLabel}</td>
         <td>${statusBadge}</td>

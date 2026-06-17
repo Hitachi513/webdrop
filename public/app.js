@@ -151,6 +151,9 @@ function onLoginSuccess(data, isNew = false) {
   socket.disconnect();
   socket.connect();
   showUserBadge(currentUser);
+  if (data.user.language) i18n.set(data.user.language);
+  const langSel = document.getElementById('user-lang-select');
+  if (langSel) langSel.value = data.user.language || '';
   document.getElementById('auth-modal').classList.remove('active');
   if (isNew) {
     // Show promo prompt after registration
@@ -318,6 +321,23 @@ async function redeemCode(inputEl, errorEl, onSuccess) {
     errorEl.textContent = e.message;
   }
 }
+
+// ===== User Language Select =====
+document.getElementById('user-lang-select').addEventListener('change', async (e) => {
+  const lang = e.target.value;
+  if (lang) {
+    i18n.set(lang);
+  } else {
+    localStorage.removeItem('wd-lang');
+    const nav = (navigator.language || 'en').replace('_', '-');
+    const auto = nav.startsWith('zh') ? (nav.includes('TW') || nav.includes('HK') ? 'zh-TW' : 'zh-CN') : nav.split('-')[0];
+    i18n.lang = auto;
+    i18n.apply();
+  }
+  if (userToken) {
+    try { await authApi('PUT', '/api/auth/profile', { language: lang || null }); } catch {}
+  }
+});
 
 // ===== User Badge Dropdown =====
 document.getElementById('user-badge-btn').addEventListener('click', (e) => {
@@ -854,6 +874,9 @@ window.addEventListener('load', async () => {
       const data = await authApi('GET', '/api/auth/me');
       currentUser = data;
       showUserBadge(currentUser);
+      if (data.language) i18n.set(data.language);
+      const langSel = document.getElementById('user-lang-select');
+      if (langSel) langSel.value = data.language || '';
     } catch {
       localStorage.removeItem('wd-user-token');
       userToken = null;

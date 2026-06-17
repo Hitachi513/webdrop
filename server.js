@@ -107,8 +107,36 @@ function getRoomList() {
     roomId,
     peerCount: peers.size,
     peers: Array.from(peers.values()).map(p => p.name),
-    createdAt: roomsMeta.get(roomId)?.createdAt || null
+    createdAt: roomsMeta.get(roomId)?.createdAt || null,
+    geo: roomsMeta.get(roomId)?.geo || null
   }));
+}
+
+// IP Geolocation (ip-api.com, free tier, HTTP only)
+const geoCache = new Map();
+function geolocateIp(ip) {
+  const clean = (ip || '').replace(/^::ffff:/, '');
+  if (!clean || clean === '::1' || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(clean)) return Promise.resolve(null);
+  if (geoCache.has(clean)) return Promise.resolve(geoCache.get(clean));
+  return new Promise(resolve => {
+    const req = http.get(`http://ip-api.com/json/${clean}?fields=status,country,countryCode,regionName,city,lat,lon`, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          if (j.status === 'success') {
+            const geo = { country: j.country, countryCode: j.countryCode, regionName: j.regionName, city: j.city, lat: j.lat, lon: j.lon };
+            geoCache.set(clean, geo);
+            return resolve(geo);
+          }
+        } catch {}
+        resolve(null);
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(3000, () => { req.destroy(); resolve(null); });
+  });
 }
 
 function getUserEffectiveLimit(userId) {
@@ -520,8 +548,11 @@ adminNsp.on('connection', (socket) => {
     try {
       socket.emit('stats', getStats());
       socket.emit('rooms', getRoomList());
+      const locs = [];
+      io.sockets.sockets.forEach(s => { if (s.geo) locs.push(s.geo); });
+      socket.emit('conn-locations', locs);
     } catch (e) { console.error('Admin tick error:', e.message); }
-  }, 2000);
+  }, 3000);
 
   socket.on('disconnect', () => clearInterval(tick));
 });
@@ -555,7 +586,11 @@ io.on('connection', (socket) => {
   stats.totalConnections++;
   if (io.engine.clientsCount > stats.peakConnections) stats.peakConnections = io.engine.clientsCount;
   socket.currentRoom = null;
+  socket.geo = null;
   if (publicUrl) socket.emit('tunnel-url', publicUrl);
+  // Geolocate asynchronously after connection established
+  const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
+  geolocateIp(clientIp).then(geo => { socket.geo = geo; });
 
   socket.on('join-room', ({ roomId, name }) => {
     if (socket.currentRoom) {
@@ -572,7 +607,7 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Room is full' });
       return;
     }
-    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now() }); }
+    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null }); }
     const room = rooms.get(roomId);
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null }));
     room.set(socket.id, { name, role: socket.userRole || null });

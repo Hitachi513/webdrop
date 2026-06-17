@@ -473,6 +473,14 @@ tbody tr:hover { background:#f9fafc; }
 .setting-row input[type=number]:focus { border-color:var(--primary); }
 
 /* Role Privileges Table */
+/* Map */
+#admin-map {
+  height: 380px;
+  border-radius: 0 0 12px 12px;
+  z-index: 0;
+}
+.leaflet-popup-content { font-size: .82rem; line-height: 1.5; }
+
 .role-privs-card { grid-column: 1 / -1; }
 .role-privs-table { width: 100%; }
 .role-privs-header {

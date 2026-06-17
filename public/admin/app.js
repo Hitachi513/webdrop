@@ -34,6 +34,7 @@ function showDashboard(admin) {
   document.getElementById('user-email').textContent      = admin.email;
   document.getElementById('user-initial').textContent    = admin.email[0].toUpperCase();
   connectAdminSocket();
+  setTimeout(initMap, 200);
 }
 
 function logout() {
@@ -90,12 +91,63 @@ function connectAdminSocket() {
     if (e.message === 'Invalid token' || e.message === 'Authentication required') logout();
   });
 
-  adminSocket.on('stats',    renderStats);
-  adminSocket.on('rooms',    renderRooms);
-  adminSocket.on('users',    renderUsers);
-  adminSocket.on('admins',   renderAdmins);
-  adminSocket.on('settings', renderSettings);
-  adminSocket.on('promos',   renderPromos);
+  adminSocket.on('stats',          renderStats);
+  adminSocket.on('rooms',          renderRooms);
+  adminSocket.on('users',          renderUsers);
+  adminSocket.on('admins',         renderAdmins);
+  adminSocket.on('settings',       renderSettings);
+  adminSocket.on('promos',         renderPromos);
+  adminSocket.on('conn-locations', updateMapMarkers);
+}
+
+// ===== Map =====
+let adminMap = null;
+const mapMarkers = [];
+
+function initMap() {
+  if (adminMap) return;
+  adminMap = L.map('admin-map', { zoomControl: true, attributionControl: true }).setView([20, 10], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 18
+  }).addTo(adminMap);
+}
+
+function countryFlag(code) {
+  if (!code || code.length !== 2) return '';
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+function updateMapMarkers(locs) {
+  if (!adminMap) return;
+  mapMarkers.forEach(m => adminMap.removeLayer(m));
+  mapMarkers.length = 0;
+
+  const grouped = new Map();
+  locs.forEach(loc => {
+    if (!loc?.lat || !loc?.lon) return;
+    const key = `${loc.lat.toFixed(2)},${loc.lon.toFixed(2)}`;
+    if (!grouped.has(key)) grouped.set(key, { ...loc, count: 0 });
+    grouped.get(key).count++;
+  });
+
+  grouped.forEach(loc => {
+    const r = Math.min(7 + loc.count * 3, 22);
+    const m = L.circleMarker([loc.lat, loc.lon], {
+      radius: r,
+      color: '#4361ee',
+      fillColor: '#4361ee',
+      fillOpacity: 0.55,
+      weight: 2
+    }).addTo(adminMap);
+    const flag = countryFlag(loc.countryCode);
+    m.bindPopup(`<b>${flag} ${esc(loc.country || '?')}</b><br><small>${esc(loc.city || '')}${loc.regionName ? ', ' + esc(loc.regionName) : ''}</small><br>連線數：<b>${loc.count}</b>`);
+    mapMarkers.push(m);
+  });
+
+  const total = locs.length;
+  const countEl = document.getElementById('map-conn-count');
+  if (countEl) countEl.textContent = total ? `${total} 個活躍連線` : '';
 }
 
 // ===== Navigation =====
@@ -110,6 +162,7 @@ function switchSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === `section-${id}`));
   document.getElementById('section-title').textContent = sections[id] || id;
   document.getElementById('sidebar').classList.remove('open');
+  if (id === 'overview') setTimeout(initMap, 50);
 }
 
 document.getElementById('sidebar-toggle').addEventListener('click', () => {
@@ -172,17 +225,24 @@ function renderRoomsTable() {
         r.peers.some(p => p.toLowerCase().includes(q)))
     : allRooms;
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-row">${q ? 'No rooms match your search' : 'No active rooms'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-row">${q ? 'No rooms match your search' : 'No active rooms'}</td></tr>`;
     return;
   }
-  tbody.innerHTML = list.map(r => `
+  tbody.innerHTML = list.map(r => {
+    const geo = r.geo;
+    const locHtml = geo
+      ? `<span title="${esc(geo.city || '')}${geo.regionName ? ', ' + esc(geo.regionName) : ''}, ${esc(geo.country || '')}">${countryFlag(geo.countryCode)} ${esc(geo.country || '')}</span>`
+      : `<span style="color:var(--muted)">—</span>`;
+    return `
     <tr>
-      <td><code>${r.roomId}</code></td>
+      <td><code>${esc(r.roomId)}</code></td>
       <td><strong>${r.peerCount}</strong></td>
       <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p)}</span>`).join('')}</div></td>
+      <td style="font-size:.82rem">${locHtml}</td>
       <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}</td>
       <td><button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 document.getElementById('rooms-search').addEventListener('input', e => {

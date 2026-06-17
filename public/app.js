@@ -181,6 +181,27 @@ function onLoginSuccess(data, isNew = false) {
   }
 }
 
+const ROLE_META = {
+  admin: { label: '★ Admin', color: '#f59e0b', glow: '0 0 0 2px #f59e0b, 0 0 10px #f59e0b55' },
+  vip:   { label: '♦ VIP',   color: '#a855f7', glow: '0 0 0 2px #a855f7, 0 0 10px #a855f755' },
+};
+
+function applyRoleStyle(role) {
+  const badgeBtn = document.getElementById('user-badge-btn');
+  const roleBadgeEl = document.getElementById('dropdown-role-badge');
+  const meta = ROLE_META[role];
+  if (meta) {
+    badgeBtn.style.boxShadow = meta.glow;
+    badgeBtn.style.borderColor = meta.color;
+    roleBadgeEl.innerHTML = `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.5px;background:${meta.color}22;color:${meta.color};border:1px solid ${meta.color}66;margin:2px 0 4px">${meta.label}</span>`;
+    roleBadgeEl.style.display = 'block';
+  } else {
+    badgeBtn.style.boxShadow = '';
+    badgeBtn.style.borderColor = '';
+    roleBadgeEl.style.display = 'none';
+  }
+}
+
 function showUserBadge(user) {
   const initial = (user.name || user.email || '?')[0].toUpperCase();
   document.getElementById('user-initial-badge').textContent = initial;
@@ -190,6 +211,7 @@ function showUserBadge(user) {
   document.getElementById('dropdown-email').textContent = user.email;
   const mb = user.effectiveMaxFileSizeMB || 500;
   document.getElementById('dropdown-limit-val').textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
+  applyRoleStyle(user.role);
 }
 
 function showGuestMode() {
@@ -546,6 +568,13 @@ socket.on('room-closed', ({ reason } = {}) => {
   document.getElementById('room-closed-msg').textContent =
     reason || 'This room has been closed by the administrator.';
   document.getElementById('room-closed-modal').classList.add('active');
+});
+
+socket.on('role-updated', ({ role }) => {
+  if (currentUser) {
+    currentUser.role = role;
+    applyRoleStyle(role);
+  }
 });
 
 socket.on('account-banned', ({ reason } = {}) => {

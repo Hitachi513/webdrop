@@ -133,7 +133,8 @@ function getUserList() {
     bannedAt: u.bannedAt || null,
     language: u.language || null,
     customRoomId: u.customRoomId || null,
-    canCustomRoom: !!u.canCustomRoom
+    canCustomRoom: !!u.canCustomRoom,
+    role: u.role || null
   }));
 }
 
@@ -202,7 +203,7 @@ app.post('/api/auth/google', async (req, res) => {
     const p = ticket.getPayload();
     let user = users.find(u => u.googleId === p.sub || u.email?.toLowerCase() === p.email.toLowerCase());
     if (!user) {
-      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, createdAt: new Date().toISOString() };
+      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, createdAt: new Date().toISOString() };
       users.push(user);
       saveUsers();
       adminNsp.emit('users', getUserList());
@@ -211,7 +212,7 @@ app.post('/api/auth/google', async (req, res) => {
       saveUsers();
     }
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null } });
   } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
 });
 
@@ -235,13 +236,14 @@ app.post('/api/auth/register', async (req, res) => {
       language: null,
       customRoomId: null,
       canCustomRoom: false,
+      role: null,
       createdAt: new Date().toISOString()
     };
     users.push(user);
     saveUsers();
     adminNsp.emit('users', getUserList());
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null, canCustomRoom: false } });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null, canCustomRoom: false, role: null } });
   } catch (e) { console.error('Register error:', e.message); res.status(500).json({ error: 'Registration failed' }); }
 });
 
@@ -255,14 +257,14 @@ app.post('/api/auth/login', async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null } });
   } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
 app.get('/api/auth/me', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom });
+  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null });
 });
 
 app.put('/api/auth/profile', requireUser, (req, res) => {
@@ -335,7 +337,7 @@ app.get('/admin/api/users',    requireAdmin, (req, res) => res.json(getUserList(
 app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const { customFileSizeMB, banned, banReason, customRoomId } = req.body || {};
+  const { customFileSizeMB, banned, banReason, customRoomId, role } = req.body || {};
   if (customFileSizeMB !== undefined) {
     user.customFileSizeMB = customFileSizeMB === null ? null : parseInt(customFileSizeMB);
   }
@@ -368,6 +370,15 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
         if (s.userId === user.id) s.emit('admin-switch-room', { roomId: id });
       });
     }
+  }
+  if (role !== undefined) {
+    const allowed = [null, '', 'admin', 'vip'];
+    const normalized = role || null;
+    if (!allowed.includes(normalized)) return res.status(400).json({ error: 'Invalid role' });
+    user.role = normalized;
+    io.sockets.sockets.forEach(s => {
+      if (s.userId === user.id) s.emit('role-updated', { role: normalized });
+    });
   }
   saveUsers();
   adminNsp.emit('users', getUserList());

@@ -289,7 +289,7 @@ function renderUsersTable() {
     (u.name || '').toLowerCase().includes(q));
   if (!list.length) {
     const msg = q ? 'No users match your search' : (showBannedUsers ? 'No banned users' : 'No active users');
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-row">${msg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-row">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(u => {
@@ -316,6 +316,12 @@ function renderUsersTable() {
       ? `<code style="color:var(--primary);font-size:.8rem">${esc(u.customRoomId)}</code>
          <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`
       : `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>`;
+    const ROLE_COLORS = { admin: '#f59e0b', vip: '#a855f7' };
+    const roleDisplay = u.role
+      ? `<span style="display:inline-block;padding:1px 8px;border-radius:12px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[u.role] || '#6b7280'}22;color:${ROLE_COLORS[u.role] || '#6b7280'};border:1px solid ${ROLE_COLORS[u.role] || '#6b7280'}55">${esc(u.role)}</span>
+         <button class="btn-sm" style="margin-left:2px" onclick="setUserRole('${u.id}','${esc(u.email)}','${esc(u.role || '')}')">✎</button>
+         <button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>`
+      : `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>`;
     return `
       <tr class="${u.banned ? 'user-banned-row' : ''}">
         <td>
@@ -325,6 +331,7 @@ function renderUsersTable() {
         <td>${new Date(u.createdAt).toLocaleDateString()}</td>
         <td style="font-size:.82rem">${langDisplay}</td>
         <td>${roomDisplay}</td>
+        <td style="font-size:.82rem">${roleDisplay}</td>
         <td>${effLabel}${customInfo}</td>
         <td>${promoLabel}</td>
         <td>${statusBadge}</td>
@@ -364,6 +371,24 @@ async function clearUserRoom(id) {
   try {
     await api('PUT', `/admin/api/users/${id}`, { customRoomId: null });
     toast('Room ID cleared', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function setUserRole(id, email, current) {
+  const val = prompt(`Role for ${email}\nOptions: admin, vip (leave empty to remove):`, current || '');
+  if (val === null) return;
+  const role = val.trim().toLowerCase() || null;
+  if (role && !['admin', 'vip'].includes(role)) { toast('Invalid role. Use: admin or vip', 'error'); return; }
+  try {
+    await api('PUT', `/admin/api/users/${id}`, { role });
+    toast(role ? `Role set to ${role}` : 'Role removed', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function clearUserRole(id) {
+  try {
+    await api('PUT', `/admin/api/users/${id}`, { role: null });
+    toast('Role removed', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 

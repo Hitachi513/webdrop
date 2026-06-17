@@ -181,13 +181,13 @@ function onLoginSuccess(data, isNew = false) {
   }
 }
 
-const ROLE_LABELS = { admin: '👑 Admin', vip: '💎 VIP' };
+const ROLE_LABELS = { admin: '👑 Admin', vip: '💎 VIP', business: '💼 Business' };
 
 function applyRoleStyle(role) {
   const badgeBtn = document.getElementById('user-badge-btn');
   const roleBadgeEl = document.getElementById('dropdown-role-badge');
   badgeBtn.classList.remove('role-admin', 'role-vip');
-  if (role === 'admin' || role === 'vip') {
+  if (role === 'admin' || role === 'vip' || role === 'business') {
     badgeBtn.classList.add(`role-${role}`);
     roleBadgeEl.innerHTML = `<span class="role-badge-display role-${role}">${ROLE_LABELS[role]}</span>`;
     roleBadgeEl.style.display = 'flex';
@@ -879,8 +879,9 @@ fileInputChatEl.addEventListener('change', () => { handleFiles([...fileInputChat
 
 // ===== UI: Peers =====
 const PEER_ROLE_BADGE = {
-  admin: `<span class="peer-role-badge peer-role-admin">👑 Admin</span>`,
-  vip:   `<span class="peer-role-badge peer-role-vip">💎 VIP</span>`,
+  admin:    `<span class="peer-role-badge peer-role-admin">👑 Admin</span>`,
+  vip:      `<span class="peer-role-badge peer-role-vip">💎 VIP</span>`,
+  business: `<span class="peer-role-badge peer-role-business">💼 Business</span>`,
 };
 
 function createPeerEl(peerId, name, role) {

@@ -58,7 +58,7 @@ let settings = {};
 let users    = [];
 let promos   = [];
 
-const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, vipFileSizeMB: 2048, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
+const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, vipFileSizeMB: 2048, businessFileSizeMB: 5120, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
 
 function saveAdmins()   { dbSet('admins',   admins);   }
 function saveSettings() { dbSet('settings', settings); }
@@ -111,6 +111,7 @@ function getUserEffectiveLimit(userId) {
   if (!user) return settings.maxFileSizeMB;
   if (user.role === 'admin') return 999999;
   if (user.customFileSizeMB != null) return user.customFileSizeMB;
+  if (user.role === 'business') return settings.businessFileSizeMB || settings.maxFileSizeMB;
   if (user.role === 'vip') return settings.vipFileSizeMB || settings.maxFileSizeMB;
   if (!user.activePromoId) return settings.maxFileSizeMB;
   const promo = promos.find(p => p.id === user.activePromoId && p.enabled);
@@ -374,11 +375,11 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
     }
   }
   if (role !== undefined) {
-    const allowed = [null, '', 'admin', 'vip'];
+    const allowed = [null, '', 'admin', 'vip', 'business'];
     const normalized = role || null;
     if (!allowed.includes(normalized)) return res.status(400).json({ error: 'Invalid role' });
     user.role = normalized;
-    if (normalized === 'admin' || normalized === 'vip') user.canCustomRoom = true;
+    if (normalized === 'admin' || normalized === 'vip' || normalized === 'business') user.canCustomRoom = true;
     const newLimit = getUserEffectiveLimit(user.id);
     io.sockets.sockets.forEach(s => {
       if (s.userId === user.id) {

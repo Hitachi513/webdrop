@@ -512,6 +512,21 @@ header {
   50%      { background-position: 100% 50%; }
 }
 
+.user-badge-btn.role-business {
+  background: linear-gradient(135deg, #059669, #10b981, #34d399, #10b981, #059669);
+  background-size: 300% 300%;
+  animation: roleGradBiz 3s ease infinite;
+  box-shadow: 0 0 0 2px rgba(16,185,129,.55), 0 0 18px rgba(16,185,129,.4), 0 0 40px rgba(16,185,129,.15);
+}
+.user-badge-btn.role-business:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2.5px #10b981, 0 0 30px rgba(16,185,129,.6), 0 0 60px rgba(16,185,129,.25);
+}
+@keyframes roleGradBiz {
+  0%,100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
 /* Dropdown badge */
 .role-badge-display {
   display: inline-flex;
@@ -553,6 +568,13 @@ header {
   text-shadow: 0 0 10px rgba(168,85,247,.7);
   box-shadow: 0 0 12px rgba(168,85,247,.2), inset 0 1px 0 rgba(255,255,255,.08);
 }
+.role-badge-display.role-business {
+  background: linear-gradient(90deg, rgba(16,185,129,.15), rgba(52,211,153,.25), rgba(16,185,129,.15));
+  border: 1px solid rgba(16,185,129,.45);
+  color: #34d399;
+  text-shadow: 0 0 10px rgba(16,185,129,.7);
+  box-shadow: 0 0 12px rgba(16,185,129,.2), inset 0 1px 0 rgba(255,255,255,.08);
+}
 
 /* Peer bubble when peer has a role */
 .peer-bubble.has-admin .peer-icon {
@@ -567,6 +589,12 @@ header {
 }
 .peer-bubble.has-vip .peer-icon svg { color: #a855f7; }
 .peer-bubble.has-vip .peer-name { color: #a855f7; }
+.peer-bubble.has-business .peer-icon {
+  border-color: rgba(16,185,129,.65);
+  box-shadow: 0 0 16px rgba(16,185,129,.38);
+}
+.peer-bubble.has-business .peer-icon svg { color: #10b981; }
+.peer-bubble.has-business .peer-name { color: #10b981; }
 
 /* Peer role badge pill */
 .peer-role-badge {
@@ -598,6 +626,12 @@ header {
   color: #c084fc;
   border: 1px solid rgba(168,85,247,.6);
   text-shadow: 0 0 6px rgba(168,85,247,.65);
+}
+.peer-role-business {
+  background: linear-gradient(90deg, rgba(16,185,129,.2), rgba(52,211,153,.3));
+  color: #34d399;
+  border: 1px solid rgba(16,185,129,.6);
+  text-shadow: 0 0 6px rgba(16,185,129,.65);
 }
 
 .status-dot {

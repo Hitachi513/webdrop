@@ -246,7 +246,8 @@ function renderSettings(s) {
   currentSettings = s;
   document.getElementById('set-maxpeers').value      = s.maxPeersPerRoom;
   document.getElementById('set-maxfile').value       = s.maxFileSizeMB;
-  document.getElementById('set-vipfile').value       = s.vipFileSizeMB || 2048;
+  document.getElementById('set-vipfile').value        = s.vipFileSizeMB || 2048;
+  document.getElementById('set-bizfile').value        = s.businessFileSizeMB || 5120;
   document.getElementById('set-msgrelay').checked    = s.allowMessageRelay;
   document.getElementById('set-filerelay').checked   = s.allowFileRelay;
   document.getElementById('set-maintenance').checked = s.maintenanceMode;
@@ -257,6 +258,7 @@ document.getElementById('save-settings').addEventListener('click', async () => {
     maxPeersPerRoom:    parseInt(document.getElementById('set-maxpeers').value) || 10,
     maxFileSizeMB:      parseInt(document.getElementById('set-maxfile').value) || 500,
     vipFileSizeMB:      parseInt(document.getElementById('set-vipfile').value) || 2048,
+    businessFileSizeMB: parseInt(document.getElementById('set-bizfile').value) || 5120,
     allowMessageRelay:  document.getElementById('set-msgrelay').checked,
     allowFileRelay:     document.getElementById('set-filerelay').checked,
     maintenanceMode:    document.getElementById('set-maintenance').checked
@@ -318,7 +320,7 @@ function renderUsersTable() {
       ? `<code style="color:var(--primary);font-size:.8rem">${esc(u.customRoomId)}</code>
          <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`
       : `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>`;
-    const ROLE_COLORS = { admin: '#f59e0b', vip: '#a855f7' };
+    const ROLE_COLORS = { admin: '#f59e0b', vip: '#a855f7', business: '#10b981' };
     const roleDisplay = u.role
       ? `<span style="display:inline-block;padding:1px 8px;border-radius:12px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[u.role] || '#6b7280'}22;color:${ROLE_COLORS[u.role] || '#6b7280'};border:1px solid ${ROLE_COLORS[u.role] || '#6b7280'}55">${esc(u.role)}</span>
          <button class="btn-sm" style="margin-left:2px" onclick="setUserRole('${u.id}','${esc(u.email)}','${esc(u.role || '')}')">✎</button>
@@ -377,10 +379,10 @@ async function clearUserRoom(id) {
 }
 
 async function setUserRole(id, email, current) {
-  const val = prompt(`Role for ${email}\nOptions: admin, vip (leave empty to remove):`, current || '');
+  const val = prompt(`Role for ${email}\nOptions: admin, vip, business (leave empty to remove):`, current || '');
   if (val === null) return;
   const role = val.trim().toLowerCase() || null;
-  if (role && !['admin', 'vip'].includes(role)) { toast('Invalid role. Use: admin or vip', 'error'); return; }
+  if (role && !['admin', 'vip', 'business'].includes(role)) { toast('Invalid role. Use: admin, vip or business', 'error'); return; }
   try {
     await api('PUT', `/admin/api/users/${id}`, { role });
     toast(role ? `Role set to ${role}` : 'Role removed', 'success');

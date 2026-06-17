@@ -60,9 +60,36 @@ let promos   = [];
 
 const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
 
+// Strip default/null fields before writing to Redis; restore on read
+function packUser(u) {
+  const p = { id: u.id, email: u.email, name: u.name, createdAt: u.createdAt };
+  if (u.googleId)                p.googleId = u.googleId;
+  if (u.passwordHash)            p.passwordHash = u.passwordHash;
+  if (u.activePromoId)           p.activePromoId = u.activePromoId;
+  if (u.customFileSizeMB != null) p.customFileSizeMB = u.customFileSizeMB;
+  if (u.banned)                  { p.banned = true; if (u.banReason) p.banReason = u.banReason; if (u.bannedAt) p.bannedAt = u.bannedAt; }
+  if (u.language)                p.language = u.language;
+  return p;
+}
+function unpackUser(p) {
+  return {
+    id: p.id, email: p.email,
+    name: p.name || p.email.split('@')[0],
+    googleId: p.googleId || null,
+    passwordHash: p.passwordHash || null,
+    activePromoId: p.activePromoId || null,
+    customFileSizeMB: p.customFileSizeMB ?? null,
+    banned: !!p.banned,
+    banReason: p.banReason || null,
+    bannedAt: p.bannedAt || null,
+    language: p.language || null,
+    createdAt: p.createdAt
+  };
+}
+
 function saveAdmins()   { dbSet('admins',   admins);   }
 function saveSettings() { dbSet('settings', settings); }
-function saveUsers()    { dbSet('users',    users);    }
+function saveUsers()    { dbSet('users', users.map(packUser)); }
 function savePromos()   { dbSet('promos',   promos);   }
 
 // ===== Stats =====
@@ -608,7 +635,7 @@ async function init() {
   settings.maintenanceMode = false;
 
   // Users & Promos
-  users  = (await dbGet('users'))  || [];
+  users  = ((await dbGet('users'))  || []).map(unpackUser);
   promos = (await dbGet('promos')) || [];
 
   const PORT = process.env.PORT || 3000;

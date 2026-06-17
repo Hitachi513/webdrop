@@ -208,45 +208,49 @@ app.post('/api/auth/google', async (req, res) => {
     }
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
-  } catch { res.status(401).json({ error: 'Invalid Google token' }); }
+  } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
 });
 
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-  if (users.find(u => u.email?.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Email already registered' });
-  const user = {
-    id: crypto.randomUUID(),
-    email,
-    name: name || email.split('@')[0],
-    googleId: null,
-    passwordHash: await bcrypt.hash(password, 10),
-    activePromoId: null,
-    customFileSizeMB: null,
-    banned: false,
-    banReason: null,
-    bannedAt: null,
-    language: null,
-    createdAt: new Date().toISOString()
-  };
-  users.push(user);
-  saveUsers();
-  adminNsp.emit('users', getUserList());
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-  res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB } });
+  try {
+    const { email, password, name } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (users.find(u => u.email?.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Email already registered' });
+    const user = {
+      id: crypto.randomUUID(),
+      email,
+      name: name || email.split('@')[0],
+      googleId: null,
+      passwordHash: await bcrypt.hash(password, 10),
+      activePromoId: null,
+      customFileSizeMB: null,
+      banned: false,
+      banReason: null,
+      bannedAt: null,
+      language: null,
+      createdAt: new Date().toISOString()
+    };
+    users.push(user);
+    saveUsers();
+    adminNsp.emit('users', getUserList());
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB } });
+  } catch (e) { console.error('Register error:', e.message); res.status(500).json({ error: 'Registration failed' }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-  if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-  if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
+  } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
 app.get('/api/auth/me', requireUser, (req, res) => {
@@ -406,6 +410,12 @@ app.delete('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) 
 });
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
+
+// ===== Global error handler (prevents unhandled errors from crashing the server) =====
+app.use((err, req, res, next) => {
+  console.error('Unhandled route error:', err.message);
+  if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+});
 
 // ===== Admin Socket Namespace =====
 const adminNsp = io.of('/admin');
@@ -608,7 +618,9 @@ async function init() {
   settings.maintenanceMode = false;
 
   // Users & Promos
-  users  = (await dbGet('users'))  || [];
+  const rawUsers = (await dbGet('users')) || [];
+  users  = Array.isArray(rawUsers) ? rawUsers : [];
+  if (!Array.isArray(rawUsers)) console.error('users from DB was not an array:', typeof rawUsers, JSON.stringify(rawUsers).slice(0, 200));
   promos = (await dbGet('promos')) || [];
 
   const PORT = process.env.PORT || 3000;

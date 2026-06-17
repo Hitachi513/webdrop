@@ -181,23 +181,18 @@ function onLoginSuccess(data, isNew = false) {
   }
 }
 
-const ROLE_META = {
-  admin: { label: '★ Admin', color: '#f59e0b', glow: '0 0 0 2px #f59e0b, 0 0 10px #f59e0b55' },
-  vip:   { label: '♦ VIP',   color: '#a855f7', glow: '0 0 0 2px #a855f7, 0 0 10px #a855f755' },
-};
+const ROLE_LABELS = { admin: '👑 Admin', vip: '💎 VIP' };
 
 function applyRoleStyle(role) {
   const badgeBtn = document.getElementById('user-badge-btn');
   const roleBadgeEl = document.getElementById('dropdown-role-badge');
-  const meta = ROLE_META[role];
-  if (meta) {
-    badgeBtn.style.boxShadow = meta.glow;
-    badgeBtn.style.borderColor = meta.color;
-    roleBadgeEl.innerHTML = `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.5px;background:${meta.color}22;color:${meta.color};border:1px solid ${meta.color}66;margin:2px 0 4px">${meta.label}</span>`;
-    roleBadgeEl.style.display = 'block';
+  badgeBtn.classList.remove('role-admin', 'role-vip');
+  if (role === 'admin' || role === 'vip') {
+    badgeBtn.classList.add(`role-${role}`);
+    roleBadgeEl.innerHTML = `<span class="role-badge-display role-${role}">${ROLE_LABELS[role]}</span>`;
+    roleBadgeEl.style.display = 'flex';
+    roleBadgeEl.style.justifyContent = 'center';
   } else {
-    badgeBtn.style.boxShadow = '';
-    badgeBtn.style.borderColor = '';
     roleBadgeEl.style.display = 'none';
   }
 }
@@ -884,13 +879,13 @@ fileInputChatEl.addEventListener('change', () => { handleFiles([...fileInputChat
 
 // ===== UI: Peers =====
 const PEER_ROLE_BADGE = {
-  admin: `<span class="peer-role-badge peer-role-admin">★ Admin</span>`,
-  vip:   `<span class="peer-role-badge peer-role-vip">♦ VIP</span>`,
+  admin: `<span class="peer-role-badge peer-role-admin">👑 Admin</span>`,
+  vip:   `<span class="peer-role-badge peer-role-vip">💎 VIP</span>`,
 };
 
 function createPeerEl(peerId, name, role) {
   const el = document.createElement('div');
-  el.className = 'peer-bubble';
+  el.className = 'peer-bubble' + (role ? ` has-${role}` : '');
   const badge = PEER_ROLE_BADGE[role] || '';
   el.innerHTML = `
     <div class="peer-icon">${getDeviceIcon(name)}<div class="status-dot"></div></div>

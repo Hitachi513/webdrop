@@ -476,9 +476,129 @@ header {
 }
 
 .peer-name { font-size:.66rem; color:var(--text-muted); white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis; text-align:center; transition:color .22s; display:flex; flex-direction:column; align-items:center; gap:2px; }
-.peer-role-badge { font-size:.55rem; font-weight:700; letter-spacing:.4px; padding:1px 6px; border-radius:10px; white-space:nowrap; }
-.peer-role-admin { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b66; }
-.peer-role-vip   { background:#a855f722; color:#a855f7; border:1px solid #a855f766; }
+
+/* ===========================
+   Role: Admin / VIP
+   =========================== */
+
+/* Avatar button states */
+.user-badge-btn.role-admin {
+  background: linear-gradient(135deg, #d97706, #f59e0b, #fbbf24, #f59e0b, #d97706);
+  background-size: 300% 300%;
+  animation: roleGradAdmin 3s ease infinite;
+  box-shadow: 0 0 0 2px rgba(245,158,11,.55), 0 0 18px rgba(245,158,11,.4), 0 0 40px rgba(245,158,11,.15);
+}
+.user-badge-btn.role-admin:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2.5px #f59e0b, 0 0 30px rgba(245,158,11,.6), 0 0 60px rgba(245,158,11,.25);
+}
+@keyframes roleGradAdmin {
+  0%,100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+.user-badge-btn.role-vip {
+  background: linear-gradient(135deg, #6d28d9, #a855f7, #c084fc, #a855f7, #6d28d9);
+  background-size: 300% 300%;
+  animation: roleGradVip 3s ease infinite;
+  box-shadow: 0 0 0 2px rgba(168,85,247,.55), 0 0 18px rgba(168,85,247,.4), 0 0 40px rgba(168,85,247,.15);
+}
+.user-badge-btn.role-vip:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2.5px #a855f7, 0 0 30px rgba(168,85,247,.6), 0 0 60px rgba(168,85,247,.25);
+}
+@keyframes roleGradVip {
+  0%,100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* Dropdown badge */
+.role-badge-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  margin: 2px 0 5px;
+  position: relative;
+  overflow: hidden;
+}
+.role-badge-display::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.18) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: badgeShimmer 2.4s ease-in-out infinite;
+}
+@keyframes badgeShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.role-badge-display.role-admin {
+  background: linear-gradient(90deg, rgba(245,158,11,.15), rgba(251,191,36,.25), rgba(245,158,11,.15));
+  border: 1px solid rgba(245,158,11,.45);
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(245,158,11,.7);
+  box-shadow: 0 0 12px rgba(245,158,11,.2), inset 0 1px 0 rgba(255,255,255,.08);
+}
+.role-badge-display.role-vip {
+  background: linear-gradient(90deg, rgba(168,85,247,.15), rgba(192,132,252,.25), rgba(168,85,247,.15));
+  border: 1px solid rgba(168,85,247,.45);
+  color: #c084fc;
+  text-shadow: 0 0 10px rgba(168,85,247,.7);
+  box-shadow: 0 0 12px rgba(168,85,247,.2), inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+/* Peer bubble when peer has a role */
+.peer-bubble.has-admin .peer-icon {
+  border-color: rgba(245,158,11,.65);
+  box-shadow: 0 0 16px rgba(245,158,11,.38);
+}
+.peer-bubble.has-admin .peer-icon svg { color: #f59e0b; }
+.peer-bubble.has-admin .peer-name { color: #f59e0b; }
+.peer-bubble.has-vip .peer-icon {
+  border-color: rgba(168,85,247,.65);
+  box-shadow: 0 0 16px rgba(168,85,247,.38);
+}
+.peer-bubble.has-vip .peer-icon svg { color: #a855f7; }
+.peer-bubble.has-vip .peer-name { color: #a855f7; }
+
+/* Peer role badge pill */
+.peer-role-badge {
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .5px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+.peer-role-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+  background-size: 200% 100%;
+  animation: badgeShimmer 2.4s ease-in-out infinite;
+}
+.peer-role-admin {
+  background: linear-gradient(90deg, rgba(245,158,11,.2), rgba(251,191,36,.3));
+  color: #fbbf24;
+  border: 1px solid rgba(245,158,11,.6);
+  text-shadow: 0 0 6px rgba(245,158,11,.65);
+}
+.peer-role-vip {
+  background: linear-gradient(90deg, rgba(168,85,247,.2), rgba(192,132,252,.3));
+  color: #c084fc;
+  border: 1px solid rgba(168,85,247,.6);
+  text-shadow: 0 0 6px rgba(168,85,247,.65);
+}
 
 .status-dot {
   position: absolute;

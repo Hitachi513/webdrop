@@ -313,17 +313,35 @@
             <div><label>Max peers per room</label><p class="setting-desc">How many devices can join one room</p></div>
             <input type="number" id="set-maxpeers" min="2" max="50" value="10">
           </div>
-          <div class="setting-row">
-            <div><label>Max file size (MB)</label><p class="setting-desc">Maximum size for relay transfers</p></div>
-            <input type="number" id="set-maxfile" min="1" max="999999" value="500">
-          </div>
-          <div class="setting-row">
-            <div><label>VIP file size (MB)</label><p class="setting-desc">File limit for users with VIP role</p></div>
-            <input type="number" id="set-vipfile" min="1" max="999999" value="2048">
-          </div>
-          <div class="setting-row">
-            <div><label>Business file size (MB)</label><p class="setting-desc">File limit for users with Business role</p></div>
-            <input type="number" id="set-bizfile" min="1" max="999999" value="5120">
+        </div>
+        <div class="setting-card role-privs-card">
+          <h3>Role Privileges</h3>
+          <div class="role-privs-table">
+            <div class="role-privs-header">
+              <span>Role</span>
+              <span>File Limit (MB)</span>
+              <span>Custom Room ID</span>
+            </div>
+            <div class="role-privs-row rp-default">
+              <span class="rp-label"><span class="rp-dot rp-dot-default"></span>Default (no role)</span>
+              <input type="number" id="set-maxfile" min="1" max="999999" value="500" placeholder="500">
+              <label class="toggle"><input type="checkbox" id="set-default-room"><span class="slider"></span></label>
+            </div>
+            <div class="role-privs-row rp-biz">
+              <span class="rp-label"><span class="rp-dot rp-dot-biz"></span>💼 Business</span>
+              <input type="number" id="set-bizfile" min="1" max="999999" value="5120" placeholder="5120">
+              <label class="toggle"><input type="checkbox" id="set-biz-room" checked><span class="slider"></span></label>
+            </div>
+            <div class="role-privs-row rp-vip">
+              <span class="rp-label"><span class="rp-dot rp-dot-vip"></span>💎 VIP</span>
+              <input type="number" id="set-vipfile" min="1" max="999999" value="2048" placeholder="2048">
+              <label class="toggle"><input type="checkbox" id="set-vip-room" checked><span class="slider"></span></label>
+            </div>
+            <div class="role-privs-row rp-admin">
+              <span class="rp-label"><span class="rp-dot rp-dot-admin"></span>👑 Admin</span>
+              <input type="number" id="set-adminfile" min="1" max="999999" value="999999" placeholder="999999">
+              <label class="toggle"><input type="checkbox" id="set-admin-room" checked><span class="slider"></span></label>
+            </div>
           </div>
         </div>
         <div class="setting-card">

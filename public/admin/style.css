@@ -472,6 +472,69 @@ tbody tr:hover { background:#f9fafc; }
 }
 .setting-row input[type=number]:focus { border-color:var(--primary); }
 
+/* Role Privileges Table */
+.role-privs-card { grid-column: 1 / -1; }
+.role-privs-table { width: 100%; }
+.role-privs-header {
+  display: grid;
+  grid-template-columns: 1fr 150px 130px;
+  padding: 6px 14px 10px;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.role-privs-row {
+  display: grid;
+  grid-template-columns: 1fr 150px 130px;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  margin-bottom: 5px;
+  border: 1px solid transparent;
+  transition: background .15s;
+}
+.rp-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.rp-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.rp-dot-default { background: var(--muted); }
+.rp-dot-biz     { background: #10b981; box-shadow: 0 0 6px #10b98155; }
+.rp-dot-vip     { background: #a855f7; box-shadow: 0 0 6px #a855f755; }
+.rp-dot-admin   { background: #f59e0b; box-shadow: 0 0 6px #f59e0b55; }
+
+.rp-default { background: rgba(0,0,0,.02); border-color: var(--border); }
+.rp-biz     { background: rgba(16,185,129,.06); border-color: rgba(16,185,129,.18); }
+.rp-vip     { background: rgba(168,85,247,.06); border-color: rgba(168,85,247,.18); }
+.rp-admin   { background: rgba(245,158,11,.06); border-color: rgba(245,158,11,.18); }
+
+.role-privs-row input[type=number] {
+  width: 130px;
+  padding: 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: .88rem;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+  text-align: center;
+}
+.rp-default input[type=number]:focus { border-color: var(--primary); }
+.rp-biz input[type=number]:focus     { border-color: #10b981; }
+.rp-vip input[type=number]:focus     { border-color: #a855f7; }
+.rp-admin input[type=number]:focus   { border-color: #f59e0b; }
+
 /* Toggle Switch */
 .toggle { position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0; cursor:pointer; }
 .toggle input { opacity:0; width:0; height:0; }

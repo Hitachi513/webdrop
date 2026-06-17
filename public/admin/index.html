@@ -197,8 +197,8 @@
       </div>
       <div class="table-card">
         <table>
-          <thead><tr><th>User</th><th>Joined</th><th>Lang</th><th>File Limit</th><th>Promo</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="users-tbody"><tr><td colspan="7" class="empty-row">No users registered</td></tr></tbody>
+          <thead><tr><th>User</th><th>Joined</th><th>Lang</th><th>Room ID</th><th>File Limit</th><th>Promo</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="8" class="empty-row">No users registered</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -264,6 +264,10 @@
             <label>Expires At <small>(optional)</small></label>
             <input type="datetime-local" id="new-promo-expires">
           </div>
+          <div class="field">
+            <label>Custom Room ID <small>(optional, 3–20 chars)</small></label>
+            <input type="text" id="new-promo-room" placeholder="MYROOM" style="text-transform:uppercase">
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn-ghost" id="cancel-add-promo">Cancel</button>
@@ -278,6 +282,7 @@
               <th>Code</th>
               <th>Description</th>
               <th>File Limit</th>
+              <th>Room ID</th>
               <th>Usage</th>
               <th>Expires</th>
               <th>Status</th>
@@ -285,7 +290,7 @@
             </tr>
           </thead>
           <tbody id="promos-tbody">
-            <tr><td colspan="7" class="empty-row">No promo codes</td></tr>
+            <tr><td colspan="8" class="empty-row">No promo codes</td></tr>
           </tbody>
         </table>
       </div>

@@ -289,7 +289,7 @@ function renderUsersTable() {
     (u.name || '').toLowerCase().includes(q));
   if (!list.length) {
     const msg = q ? 'No users match your search' : (showBannedUsers ? 'No banned users' : 'No active users');
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${msg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-row">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(u => {
@@ -312,6 +312,10 @@ function renderUsersTable() {
     const langDisplay = u.language
       ? `<span title="${esc(u.language)}">${LANG_FLAGS[u.language] || '🌐'} ${esc(u.language)}</span>`
       : `<span style="color:var(--muted);font-size:.75rem">—</span>`;
+    const roomDisplay = u.customRoomId
+      ? `<code style="color:var(--primary);font-size:.8rem">${esc(u.customRoomId)}</code>
+         <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`
+      : `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>`;
     return `
       <tr class="${u.banned ? 'user-banned-row' : ''}">
         <td>
@@ -320,6 +324,7 @@ function renderUsersTable() {
         </td>
         <td>${new Date(u.createdAt).toLocaleDateString()}</td>
         <td style="font-size:.82rem">${langDisplay}</td>
+        <td>${roomDisplay}</td>
         <td>${effLabel}${customInfo}</td>
         <td>${promoLabel}</td>
         <td>${statusBadge}</td>
@@ -345,6 +350,22 @@ document.getElementById('users-search').addEventListener('input', e => {
   usersQuery = e.target.value.trim();
   renderUsersTable();
 });
+
+async function setUserRoom(id, email) {
+  const val = prompt(`Custom room ID for ${email} (3–20 letters/numbers, leave empty to clear):`);
+  if (val === null) return;
+  try {
+    await api('PUT', `/admin/api/users/${id}`, { customRoomId: val.trim().toUpperCase() || null });
+    toast(val.trim() ? `Room ID set to ${val.trim().toUpperCase()}` : 'Room ID cleared', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function clearUserRoom(id) {
+  try {
+    await api('PUT', `/admin/api/users/${id}`, { customRoomId: null });
+    toast('Room ID cleared', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
 
 async function setUserLimit(id, email, current) {
   const val = prompt(`File limit for ${email} (MB). Leave empty to remove custom limit:`, current || '');
@@ -394,11 +415,13 @@ function renderPromos(promos) {
     const usageLabel = p.usageLimit > 0 ? `${p.usedCount} / ${p.usageLimit}` : `${p.usedCount} / ∞`;
     const expires = p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : '—';
     const expired = p.expiresAt && new Date(p.expiresAt) < new Date();
+    const roomLabel = p.customRoomId ? `<code style="color:var(--primary);font-size:.8rem">${esc(p.customRoomId)}</code>` : '<span style="color:var(--muted)">—</span>';
     return `
     <tr>
       <td><code style="font-weight:700;letter-spacing:1px">${esc(p.code)}</code></td>
       <td style="color:var(--muted)">${esc(p.description || '—')}</td>
       <td><strong style="color:var(--primary)">${mbLabel}</strong></td>
+      <td>${roomLabel}</td>
       <td>${usageLabel}</td>
       <td style="${expired ? 'color:var(--danger)' : ''}">${expires}${expired ? ' ⚠' : ''}</td>
       <td>
@@ -426,15 +449,17 @@ document.getElementById('submit-add-promo').addEventListener('click', async () =
   const maxFileSizeMB = parseInt(document.getElementById('new-promo-mb').value);
   const usageLimit  = parseInt(document.getElementById('new-promo-limit').value) || 0;
   const expiresAt   = document.getElementById('new-promo-expires').value || null;
+  const customRoomId = document.getElementById('new-promo-room').value.trim().toUpperCase() || null;
   if (!code || !maxFileSizeMB) { toast('Code and file limit required', 'error'); return; }
   try {
-    await api('POST', '/admin/api/promos', { code, description, maxFileSizeMB, usageLimit, expiresAt });
+    await api('POST', '/admin/api/promos', { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId });
     toast('Promo code created', 'success');
     document.getElementById('new-promo-code').value = '';
     document.getElementById('new-promo-desc').value = '';
     document.getElementById('new-promo-mb').value = '';
     document.getElementById('new-promo-limit').value = '';
     document.getElementById('new-promo-expires').value = '';
+    document.getElementById('new-promo-room').value = '';
     document.getElementById('add-promo-form').style.display = 'none';
     document.getElementById('open-add-promo').style.display = 'block';
   } catch (e) { toast(e.message, 'error'); }

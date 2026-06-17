@@ -142,10 +142,20 @@ async function authApi(method, path, body) {
   return data;
 }
 
+function applyCustomRoom(customRoomId) {
+  if (!customRoomId || customRoomId === roomId) return false;
+  roomId = customRoomId;
+  history.replaceState(null, '', `#${roomId}`);
+  roomCodeEl.textContent = roomId;
+  setShareUrl(null);
+  return true;
+}
+
 function onLoginSuccess(data, isNew = false) {
   userToken   = data.token;
   currentUser = data.user;
   localStorage.setItem('wd-user-token', userToken);
+  applyCustomRoom(data.user.customRoomId);
   // Update socket auth & reconnect to apply new per-user file limit
   socket.auth.userToken = userToken;
   socket.disconnect();
@@ -313,6 +323,7 @@ async function redeemCode(inputEl, errorEl, onSuccess) {
       currentUser.effectiveMaxFileSizeMB = mb;
       currentUser.activePromoId = true;
       document.getElementById('dropdown-limit-val').textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
+      if (data.customRoomId) { currentUser.customRoomId = data.customRoomId; applyCustomRoom(data.customRoomId); }
     }
     toast(`Code redeemed! File limit: ${mb} MB`, 'success');
     inputEl.value = '';
@@ -873,6 +884,7 @@ window.addEventListener('load', async () => {
     try {
       const data = await authApi('GET', '/api/auth/me');
       currentUser = data;
+      applyCustomRoom(data.customRoomId);
       showUserBadge(currentUser);
       if (data.language) i18n.set(data.language);
       const langSel = document.getElementById('user-lang-select');

@@ -117,6 +117,8 @@ function getUserEffectiveLimit(userId) {
   return promo.maxFileSizeMB;
 }
 
+const ROOM_ID_RE = /^[A-Z0-9]{3,20}$/;
+
 function getUserList() {
   return users.map(u => ({
     id: u.id,
@@ -129,7 +131,8 @@ function getUserList() {
     banned: !!u.banned,
     banReason: u.banReason || null,
     bannedAt: u.bannedAt || null,
-    language: u.language || null
+    language: u.language || null,
+    customRoomId: u.customRoomId || null
   }));
 }
 
@@ -198,7 +201,7 @@ app.post('/api/auth/google', async (req, res) => {
     const p = ticket.getPayload();
     let user = users.find(u => u.googleId === p.sub || u.email?.toLowerCase() === p.email.toLowerCase());
     if (!user) {
-      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, createdAt: new Date().toISOString() };
+      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, createdAt: new Date().toISOString() };
       users.push(user);
       saveUsers();
       adminNsp.emit('users', getUserList());
@@ -207,7 +210,7 @@ app.post('/api/auth/google', async (req, res) => {
       saveUsers();
     }
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null } });
   } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
 });
 
@@ -229,13 +232,14 @@ app.post('/api/auth/register', async (req, res) => {
       banReason: null,
       bannedAt: null,
       language: null,
+      customRoomId: null,
       createdAt: new Date().toISOString()
     };
     users.push(user);
     saveUsers();
     adminNsp.emit('users', getUserList());
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB } });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null } });
   } catch (e) { console.error('Register error:', e.message); res.status(500).json({ error: 'Registration failed' }); }
 });
 
@@ -249,14 +253,14 @@ app.post('/api/auth/login', async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null } });
   } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
 app.get('/api/auth/me', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null });
+  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null });
 });
 
 app.put('/api/auth/profile', requireUser, (req, res) => {
@@ -278,12 +282,13 @@ app.post('/api/auth/redeem', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   user.activePromoId = promo.id;
+  if (promo.customRoomId) user.customRoomId = promo.customRoomId;
   promo.usedCount++;
   saveUsers();
   savePromos();
   adminNsp.emit('promos', promos);
   adminNsp.emit('users', getUserList());
-  res.json({ ok: true, promo: { code: promo.code, description: promo.description, maxFileSizeMB: promo.maxFileSizeMB }, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id) });
+  res.json({ ok: true, promo: { code: promo.code, description: promo.description, maxFileSizeMB: promo.maxFileSizeMB, customRoomId: promo.customRoomId || null }, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null });
 });
 
 // ===== Admin API =====
@@ -308,7 +313,7 @@ app.get('/admin/api/users',    requireAdmin, (req, res) => res.json(getUserList(
 app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const { customFileSizeMB, banned, banReason } = req.body || {};
+  const { customFileSizeMB, banned, banReason, customRoomId } = req.body || {};
   if (customFileSizeMB !== undefined) {
     user.customFileSizeMB = customFileSizeMB === null ? null : parseInt(customFileSizeMB);
   }
@@ -320,6 +325,16 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
     } else {
       user.banReason = null;
       user.bannedAt  = null;
+    }
+  }
+  if (customRoomId !== undefined) {
+    if (customRoomId === null || customRoomId === '') {
+      user.customRoomId = null;
+    } else {
+      const id = customRoomId.toUpperCase().trim();
+      if (!ROOM_ID_RE.test(id)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
+      if (users.some(u => u.id !== req.params.id && u.customRoomId === id)) return res.status(409).json({ error: 'Room ID already assigned to another user' });
+      user.customRoomId = id;
     }
   }
   saveUsers();
@@ -376,10 +391,12 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
 
 // Admin Promo CRUD
 app.post('/admin/api/promos', requireAdmin, requireSuperAdmin, (req, res) => {
-  const { code, description, maxFileSizeMB, usageLimit, expiresAt } = req.body || {};
+  const { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId } = req.body || {};
   if (!code || !maxFileSizeMB) return res.status(400).json({ error: 'Code and maxFileSizeMB required' });
   if (promos.find(p => p.code.toUpperCase() === code.trim().toUpperCase())) return res.status(409).json({ error: 'Promo code already exists' });
-  const promo = { id: crypto.randomUUID(), code: code.trim().toUpperCase(), description: description || '', maxFileSizeMB: parseInt(maxFileSizeMB), usageLimit: parseInt(usageLimit) || 0, usedCount: 0, expiresAt: expiresAt || null, enabled: true, createdAt: new Date().toISOString() };
+  const rid = customRoomId ? customRoomId.toUpperCase().trim() : null;
+  if (rid && !ROOM_ID_RE.test(rid)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
+  const promo = { id: crypto.randomUUID(), code: code.trim().toUpperCase(), description: description || '', maxFileSizeMB: parseInt(maxFileSizeMB), usageLimit: parseInt(usageLimit) || 0, usedCount: 0, expiresAt: expiresAt || null, customRoomId: rid || null, enabled: true, createdAt: new Date().toISOString() };
   promos.push(promo);
   savePromos();
   adminNsp.emit('promos', promos);
@@ -389,12 +406,17 @@ app.post('/admin/api/promos', requireAdmin, requireSuperAdmin, (req, res) => {
 app.put('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) => {
   const promo = promos.find(p => p.id === req.params.id);
   if (!promo) return res.status(404).json({ error: 'Promo not found' });
-  const { description, maxFileSizeMB, usageLimit, expiresAt, enabled } = req.body || {};
+  const { description, maxFileSizeMB, usageLimit, expiresAt, enabled, customRoomId } = req.body || {};
   if (description !== undefined) promo.description = description;
   if (maxFileSizeMB !== undefined) promo.maxFileSizeMB = parseInt(maxFileSizeMB);
   if (usageLimit !== undefined) promo.usageLimit = parseInt(usageLimit);
   if (expiresAt !== undefined) promo.expiresAt = expiresAt || null;
   if (enabled !== undefined) promo.enabled = !!enabled;
+  if (customRoomId !== undefined) {
+    const rid = customRoomId ? customRoomId.toUpperCase().trim() : null;
+    if (rid && !ROOM_ID_RE.test(rid)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
+    promo.customRoomId = rid || null;
+  }
   savePromos();
   adminNsp.emit('promos', promos);
   res.json(promo);

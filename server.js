@@ -337,6 +337,10 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
       if (!ROOM_ID_RE.test(id)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
       if (users.some(u => u.id !== req.params.id && u.customRoomId === id)) return res.status(409).json({ error: 'Room ID already assigned to another user' });
       user.customRoomId = id;
+      // Notify the user's active socket(s) to switch rooms in real-time
+      io.sockets.sockets.forEach(s => {
+        if (s.userId === user.id) s.emit('admin-switch-room', { roomId: id });
+      });
     }
   }
   saveUsers();

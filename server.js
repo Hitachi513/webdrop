@@ -18,52 +18,52 @@ const io     = new Server(server);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
-// ===== Paths =====
+// ===== Storage (Upstash Redis or local files) =====
 const DATA_DIR      = path.join(__dirname, 'data');
-const ADMINS_FILE   = path.join(DATA_DIR, 'admins.json');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
-const USERS_FILE    = path.join(DATA_DIR, 'users.json');
-const PROMOS_FILE   = path.join(DATA_DIR, 'promos.json');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const UPSTASH_URL   = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const USE_UPSTASH   = !!(UPSTASH_URL && UPSTASH_TOKEN);
 
-// ===== JWT Secret =====
-const SECRET_FILE = path.join(DATA_DIR, '.jwt_secret');
-const JWT_SECRET  = fs.existsSync(SECRET_FILE)
-  ? fs.readFileSync(SECRET_FILE, 'utf8').trim()
-  : (() => { const s = crypto.randomBytes(48).toString('hex'); fs.writeFileSync(SECRET_FILE, s); return s; })();
-
-// ===== Admins =====
-let admins = [];
-if (fs.existsSync(ADMINS_FILE)) {
-  admins = JSON.parse(fs.readFileSync(ADMINS_FILE, 'utf8'));
-} else {
-  admins = [{
-    id: '1',
-    email: 'sh1154252@gmail.com',
-    passwordHash: bcrypt.hashSync('Hh1040714.0714', 10),
-    role: 'super-admin',
-    createdAt: new Date().toISOString()
-  }];
-  fs.writeFileSync(ADMINS_FILE, JSON.stringify(admins, null, 2));
-  console.log('Created default admin account.');
+async function dbGet(key) {
+  if (!USE_UPSTASH) {
+    const file = path.join(DATA_DIR, `${key}.json`);
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+  }
+  try {
+    const r = await fetch(`${UPSTASH_URL}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+    });
+    const json = await r.json();
+    return json.result != null ? JSON.parse(json.result) : null;
+  } catch (e) { console.error('dbGet error:', e.message); return null; }
 }
-function saveAdmins() { fs.writeFileSync(ADMINS_FILE, JSON.stringify(admins, null, 2)); }
 
-// ===== Settings =====
+function dbSet(key, value) {
+  if (!USE_UPSTASH) {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(path.join(DATA_DIR, `${key}.json`), JSON.stringify(value, null, 2));
+    return;
+  }
+  fetch(`${UPSTASH_URL}/set/${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(JSON.stringify(value))
+  }).catch(e => console.error('dbSet error:', e.message));
+}
+
+// ===== Runtime state (loaded during init) =====
+let JWT_SECRET;
+let admins   = [];
+let settings = {};
+let users    = [];
+let promos   = [];
+
 const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
-let settings = fs.existsSync(SETTINGS_FILE)
-  ? { ...defaultSettings, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) }
-  : defaultSettings;
-function saveSettings() { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); }
-if (!fs.existsSync(SETTINGS_FILE)) saveSettings();
 
-// ===== Users =====
-let users = fs.existsSync(USERS_FILE) ? JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')) : [];
-function saveUsers() { fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); }
-
-// ===== Promos =====
-let promos = fs.existsSync(PROMOS_FILE) ? JSON.parse(fs.readFileSync(PROMOS_FILE, 'utf8')) : [];
-function savePromos() { fs.writeFileSync(PROMOS_FILE, JSON.stringify(promos, null, 2)); }
+function saveAdmins()   { dbSet('admins',   admins);   }
+function saveSettings() { dbSet('settings', settings); }
+function saveUsers()    { dbSet('users',    users);    }
+function savePromos()   { dbSet('promos',   promos);   }
 
 // ===== Stats =====
 const stats = {
@@ -565,11 +565,49 @@ async function startTunnel(port) {
   } catch (e) { console.warn('All tunnels failed:', e.message); io.emit('tunnel-url', null); }
 }
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`WebDrop running at http://localhost:${PORT}`);
-  console.log(`Admin panel   at http://localhost:${PORT}/admin`);
-  startTunnel(PORT);
-});
+// ===== Init =====
+async function init() {
+  // JWT Secret
+  const storedSecret = await dbGet('jwt_secret');
+  if (storedSecret) {
+    JWT_SECRET = storedSecret;
+  } else {
+    JWT_SECRET = crypto.randomBytes(48).toString('hex');
+    dbSet('jwt_secret', JWT_SECRET);
+  }
+
+  // Admins
+  const storedAdmins = await dbGet('admins');
+  if (storedAdmins && storedAdmins.length) {
+    admins = storedAdmins;
+  } else {
+    admins = [{
+      id: '1',
+      email: 'sh1154252@gmail.com',
+      passwordHash: bcrypt.hashSync('Hh1040714.0714', 10),
+      role: 'super-admin',
+      createdAt: new Date().toISOString()
+    }];
+    saveAdmins();
+    console.log('Created default admin account.');
+  }
+
+  // Settings
+  settings = { ...defaultSettings, ...((await dbGet('settings')) || {}) };
+  settings.maintenanceMode = false;
+
+  // Users & Promos
+  users  = (await dbGet('users'))  || [];
+  promos = (await dbGet('promos')) || [];
+
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, () => {
+    console.log(`WebDrop running at http://localhost:${PORT}`);
+    console.log(`Admin panel   at http://localhost:${PORT}/admin`);
+    startTunnel(PORT);
+  });
+}
+
+init().catch(err => { console.error('Startup failed:', err); process.exit(1); });
 process.on('exit',   () => { if (tunnelProc) tunnelProc.kill(); });
 process.on('SIGINT', () => { if (tunnelProc) tunnelProc.kill(); process.exit(); });

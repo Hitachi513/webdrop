@@ -344,6 +344,12 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
     if (banned) {
       user.banReason = banReason || null;
       user.bannedAt  = new Date().toISOString();
+      io.sockets.sockets.forEach(s => {
+        if (s.userId === user.id) {
+          s.emit('account-banned', { reason: user.banReason });
+          s.disconnect(true);
+        }
+      });
     } else {
       user.banReason = null;
       user.bannedAt  = null;

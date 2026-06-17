@@ -548,6 +548,16 @@ socket.on('room-closed', ({ reason } = {}) => {
   document.getElementById('room-closed-modal').classList.add('active');
 });
 
+socket.on('account-banned', ({ reason } = {}) => {
+  localStorage.removeItem('wd-user-token');
+  userToken = null;
+  currentUser = null;
+  const overlay = document.getElementById('banned-overlay');
+  const reasonEl = document.getElementById('banned-reason-text');
+  if (reason && reasonEl) reasonEl.textContent = `原因：${reason}`;
+  overlay.style.display = 'flex';
+});
+
 socket.on('connect_error', (e) => {
   if (e.message === 'Under maintenance') {
     document.getElementById('maintenance-overlay').style.display = 'flex';

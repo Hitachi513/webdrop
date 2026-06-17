@@ -151,11 +151,17 @@ function applyCustomRoom(customRoomId) {
   return true;
 }
 
+function setEditRoomBtnVisible(visible) {
+  const btn = document.getElementById('edit-room-btn');
+  if (btn) btn.style.display = visible ? 'inline-flex' : 'none';
+}
+
 function onLoginSuccess(data, isNew = false) {
   userToken   = data.token;
   currentUser = data.user;
   localStorage.setItem('wd-user-token', userToken);
   applyCustomRoom(data.user.customRoomId);
+  setEditRoomBtnVisible(!!data.user.canCustomRoom);
   // Update socket auth & reconnect to apply new per-user file limit
   socket.auth.userToken = userToken;
   socket.disconnect();
@@ -274,6 +280,45 @@ function initGoogleAuth() {
   );
 }
 
+// ===== Set Room ID Modal =====
+const setRoomModal = document.getElementById('set-room-modal');
+const setRoomInput = document.getElementById('set-room-input');
+const setRoomError = document.getElementById('set-room-error');
+
+function openSetRoomModal() {
+  setRoomInput.value = '';
+  setRoomError.textContent = '';
+  setRoomModal.classList.add('active');
+}
+
+document.getElementById('edit-room-btn').addEventListener('click', () => {
+  document.getElementById('user-dropdown').classList.remove('open');
+  openSetRoomModal();
+});
+
+document.getElementById('set-room-skip').addEventListener('click', () => {
+  setRoomModal.classList.remove('active');
+});
+
+document.getElementById('set-room-submit').addEventListener('click', async () => {
+  const val = setRoomInput.value.trim().toUpperCase();
+  setRoomError.textContent = '';
+  if (!val) { setRoomError.textContent = '請輸入房號'; return; }
+  try {
+    const data = await authApi('PUT', '/api/auth/room', { roomId: val });
+    if (currentUser) currentUser.customRoomId = data.customRoomId;
+    applyCustomRoom(data.customRoomId);
+    socket.emit('join-room', { roomId, name: myName });
+    setRoomModal.classList.remove('active');
+    toast(`房號已設定為 ${data.customRoomId}`, 'success');
+  } catch (e) {
+    setRoomError.textContent = e.message;
+  }
+});
+
+setRoomInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('set-room-submit').click(); });
+setRoomModal.addEventListener('click', e => { if (e.target === setRoomModal) setRoomModal.classList.remove('active'); });
+
 // ===== Promo Modal (post-register) =====
 document.getElementById('promo-skip-btn').addEventListener('click', () => {
   document.getElementById('promo-modal').classList.remove('active');
@@ -324,10 +369,16 @@ async function redeemCode(inputEl, errorEl, onSuccess) {
       currentUser.activePromoId = true;
       document.getElementById('dropdown-limit-val').textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
       if (data.customRoomId) { currentUser.customRoomId = data.customRoomId; applyCustomRoom(data.customRoomId); }
+      if (data.canCustomRoom) { currentUser.canCustomRoom = true; setEditRoomBtnVisible(true); }
     }
     toast(`Code redeemed! File limit: ${mb} MB`, 'success');
     inputEl.value = '';
-    onSuccess();
+    if (data.canCustomRoom && !data.customRoomId) {
+      onSuccess();
+      document.getElementById('set-room-modal').classList.add('active');
+    } else {
+      onSuccess();
+    }
   } catch (e) {
     errorEl.textContent = e.message;
   }
@@ -895,6 +946,7 @@ window.addEventListener('load', async () => {
       const data = await authApi('GET', '/api/auth/me');
       currentUser = data;
       applyCustomRoom(data.customRoomId);
+      setEditRoomBtnVisible(!!data.canCustomRoom);
       showUserBadge(currentUser);
       if (data.language) i18n.set(data.language);
       const langSel = document.getElementById('user-lang-select');

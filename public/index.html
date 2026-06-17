@@ -30,6 +30,9 @@
     <div class="room-pill">
       <span class="room-label" data-i18n="room">Room</span>
       <code id="room-code"></code>
+      <button id="edit-room-btn" class="btn-icon" title="Set custom room ID" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
       <button id="copy-link" class="btn-icon" data-i18n-title="copy-link" title="Copy link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
       </button>
@@ -297,6 +300,23 @@
     <div class="modal-actions">
       <button id="promo-skip-btn" class="btn-ghost" data-i18n="skip">Skip</button>
       <button id="promo-submit-btn" class="btn-primary" data-i18n="redeem">Redeem</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Set Room ID Modal ===== -->
+<div id="set-room-modal" class="modal">
+  <div class="modal-box promo-box">
+    <div class="promo-icon">🏷️</div>
+    <h3>設定專屬房號</h3>
+    <p class="auth-sub">輸入你想要的房號（3–20 位大寫英數字）</p>
+    <div class="auth-field">
+      <input type="text" id="set-room-input" placeholder="MYROOM" maxlength="20" style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:600">
+    </div>
+    <p id="set-room-error" class="auth-error"></p>
+    <div class="modal-actions">
+      <button id="set-room-skip" class="btn-ghost">稍後再說</button>
+      <button id="set-room-submit" class="btn-primary">確認</button>
     </div>
   </div>
 </div>

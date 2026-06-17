@@ -268,6 +268,12 @@
             <label>Custom Room ID <small>(optional, 3–20 chars)</small></label>
             <input type="text" id="new-promo-room" placeholder="MYROOM" style="text-transform:uppercase">
           </div>
+          <div class="field" style="align-self:flex-end;padding-bottom:6px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="new-promo-can-custom-room">
+              允許用戶自訂房號
+            </label>
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn-ghost" id="cancel-add-promo">Cancel</button>
@@ -283,6 +289,7 @@
               <th>Description</th>
               <th>File Limit</th>
               <th>Room ID</th>
+              <th>自訂房號</th>
               <th>Usage</th>
               <th>Expires</th>
               <th>Status</th>

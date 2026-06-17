@@ -407,7 +407,7 @@ async function unbanUser(id, email) {
 function renderPromos(promos) {
   const tbody = document.getElementById('promos-tbody');
   if (!promos.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No promo codes yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-row">No promo codes yet</td></tr>';
     return;
   }
   tbody.innerHTML = promos.map(p => {
@@ -416,12 +416,14 @@ function renderPromos(promos) {
     const expires = p.expiresAt ? new Date(p.expiresAt).toLocaleDateString() : '—';
     const expired = p.expiresAt && new Date(p.expiresAt) < new Date();
     const roomLabel = p.customRoomId ? `<code style="color:var(--primary);font-size:.8rem">${esc(p.customRoomId)}</code>` : '<span style="color:var(--muted)">—</span>';
+    const canCustomLabel = p.canCustomRoom ? '<span style="color:var(--success);font-size:.85rem">✓ 可自訂</span>' : '<span style="color:var(--muted)">—</span>';
     return `
     <tr>
       <td><code style="font-weight:700;letter-spacing:1px">${esc(p.code)}</code></td>
       <td style="color:var(--muted)">${esc(p.description || '—')}</td>
       <td><strong style="color:var(--primary)">${mbLabel}</strong></td>
       <td>${roomLabel}</td>
+      <td>${canCustomLabel}</td>
       <td>${usageLabel}</td>
       <td style="${expired ? 'color:var(--danger)' : ''}">${expires}${expired ? ' ⚠' : ''}</td>
       <td>
@@ -450,9 +452,10 @@ document.getElementById('submit-add-promo').addEventListener('click', async () =
   const usageLimit  = parseInt(document.getElementById('new-promo-limit').value) || 0;
   const expiresAt   = document.getElementById('new-promo-expires').value || null;
   const customRoomId = document.getElementById('new-promo-room').value.trim().toUpperCase() || null;
+  const canCustomRoom = document.getElementById('new-promo-can-custom-room').checked;
   if (!code || !maxFileSizeMB) { toast('Code and file limit required', 'error'); return; }
   try {
-    await api('POST', '/admin/api/promos', { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId });
+    await api('POST', '/admin/api/promos', { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId, canCustomRoom });
     toast('Promo code created', 'success');
     document.getElementById('new-promo-code').value = '';
     document.getElementById('new-promo-desc').value = '';
@@ -460,6 +463,7 @@ document.getElementById('submit-add-promo').addEventListener('click', async () =
     document.getElementById('new-promo-limit').value = '';
     document.getElementById('new-promo-expires').value = '';
     document.getElementById('new-promo-room').value = '';
+    document.getElementById('new-promo-can-custom-room').checked = false;
     document.getElementById('add-promo-form').style.display = 'none';
     document.getElementById('open-add-promo').style.display = 'block';
   } catch (e) { toast(e.message, 'error'); }

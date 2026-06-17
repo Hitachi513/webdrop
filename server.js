@@ -293,14 +293,16 @@ app.post('/api/auth/redeem', requireUser, (req, res) => {
 
 // ===== Admin API =====
 app.post('/admin/api/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  const admin = admins.find(a => a.email.toLowerCase() === email.toLowerCase());
-  if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
-  const valid = await bcrypt.compare(password, admin.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, JWT_SECRET, { expiresIn: '24h' });
-  res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    const admin = admins.find(a => a.email.toLowerCase() === email.toLowerCase());
+    if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
+    const valid = await bcrypt.compare(password, admin.passwordHash);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
+  } catch (e) { console.error('Admin login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
 app.get('/admin/api/stats',    requireAdmin, (req, res) => res.json(getStats()));
@@ -448,16 +450,20 @@ adminNsp.use((socket, next) => {
   catch { next(new Error('Invalid token')); }
 });
 adminNsp.on('connection', (socket) => {
-  socket.emit('stats',    getStats());
-  socket.emit('rooms',    getRoomList());
-  socket.emit('admins',   admins.map(({ passwordHash, ...a }) => a));
-  socket.emit('settings', settings);
-  socket.emit('promos',   promos);
-  socket.emit('users',    getUserList());
+  try {
+    socket.emit('stats',    getStats());
+    socket.emit('rooms',    getRoomList());
+    socket.emit('admins',   admins.map(({ passwordHash, ...a }) => a));
+    socket.emit('settings', settings);
+    socket.emit('promos',   promos);
+    socket.emit('users',    getUserList());
+  } catch (e) { console.error('Admin socket init error:', e.message); }
 
   const tick = setInterval(() => {
-    socket.emit('stats', getStats());
-    socket.emit('rooms', getRoomList());
+    try {
+      socket.emit('stats', getStats());
+      socket.emit('rooms', getRoomList());
+    } catch (e) { console.error('Admin tick error:', e.message); }
   }, 2000);
 
   socket.on('disconnect', () => clearInterval(tick));

@@ -1,3 +1,20 @@
+// ===== i18n Init =====
+i18n.apply();
+document.getElementById('lang-toggle-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('lang-picker').classList.toggle('open');
+});
+document.querySelectorAll('.lang-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    i18n.set(btn.dataset.lang);
+    document.getElementById('lang-picker').classList.remove('open');
+  });
+});
+document.addEventListener('click', e => {
+  if (!document.getElementById('lang-picker').contains(e.target))
+    document.getElementById('lang-picker').classList.remove('open');
+});
+
 // ===== Constants =====
 const ICE_SERVERS = {
   iceServers: [
@@ -137,10 +154,10 @@ function onLoginSuccess(data, isNew = false) {
   document.getElementById('auth-modal').classList.remove('active');
   if (isNew) {
     // Show promo prompt after registration
-    document.getElementById('promo-greeting').textContent = `Welcome, ${currentUser.name || currentUser.email}!`;
+    document.getElementById('promo-greeting').textContent = `${i18n.t('signed-in-greeting').replace('!','')} ${currentUser.name || currentUser.email}!`;
     document.getElementById('promo-modal').classList.add('active');
   } else {
-    toast(`Signed in as ${currentUser.email}`, 'success');
+    toast(`${i18n.t('signed-in-as')} ${currentUser.email}`, 'success');
     qrModal.classList.add('active');
   }
 }
@@ -247,7 +264,7 @@ function initGoogleAuth() {
 // ===== Promo Modal (post-register) =====
 document.getElementById('promo-skip-btn').addEventListener('click', () => {
   document.getElementById('promo-modal').classList.remove('active');
-  toast('Signed in! You can redeem a promo code later from your account.', 'info');
+  toast(i18n.t('signed-in-promo'), 'info');
   qrModal.classList.add('active');
 });
 document.getElementById('promo-submit-btn').addEventListener('click', async () => {
@@ -340,10 +357,10 @@ myDeviceNameEl.textContent = myName;
 document.getElementById('my-device-svg').outerHTML = getDeviceIcon(myName).replace('<svg', '<svg id="my-device-svg"');
 
 copyLinkBtn.addEventListener('click', () =>
-  navigator.clipboard.writeText(shareUrl).then(() => toast('Link copied!', 'success')).catch(() => toast('Copy failed', 'error'))
+  navigator.clipboard.writeText(shareUrl).then(() => toast(i18n.t('link-copied'), 'success')).catch(() => toast(i18n.t('copy-failed'), 'error'))
 );
 copyQRUrlBtn.addEventListener('click', () =>
-  navigator.clipboard.writeText(shareUrl).then(() => toast('Link copied!', 'success')).catch(() => toast('Copy failed', 'error'))
+  navigator.clipboard.writeText(shareUrl).then(() => toast(i18n.t('link-copied'), 'success')).catch(() => toast(i18n.t('copy-failed'), 'error'))
 );
 showQRBtn.addEventListener('click', () => qrModal.classList.add('active'));
 closeQRBtn.addEventListener('click', () => qrModal.classList.remove('active'));
@@ -458,7 +475,7 @@ socket.on('connect_error', (e) => {
     userToken = null;
     currentUser = null;
     showGuestMode();
-    toast('Your account has been suspended. Please contact support.', 'error');
+    toast(i18n.t('suspended'), 'error');
   }
 });
 

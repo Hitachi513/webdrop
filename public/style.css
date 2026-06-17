@@ -1063,6 +1063,51 @@ header {
 .toast-info    { border-left-color:var(--info); }
 
 /* ===========================
+   Language Picker
+   =========================== */
+.lang-picker {
+  position: relative;
+}
+
+.lang-toggle {
+  font-size: 15px;
+}
+
+.lang-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 12px 40px var(--shadow-color);
+  z-index: 200;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lang-picker.open .lang-dropdown { display: flex; }
+
+.lang-opt {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+
+.lang-opt:hover { background: var(--primary-dim); color: var(--text); }
+.lang-opt.active { color: var(--primary); font-weight: 600; }
+
+/* ===========================
    Maintenance Overlay
    =========================== */
 .maintenance-overlay {

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>WebDrop</title>
   <link rel="stylesheet" href="style.css">
+  <script src="i18n.js"></script>
 </head>
 <body>
 <div id="app">
@@ -27,9 +28,9 @@
     </div>
 
     <div class="room-pill">
-      <span class="room-label">Room</span>
+      <span class="room-label" data-i18n="room">Room</span>
       <code id="room-code"></code>
-      <button id="copy-link" class="btn-icon" title="Copy link">
+      <button id="copy-link" class="btn-icon" data-i18n-title="copy-link" title="Copy link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
       </button>
       <button id="show-qr" class="btn-icon" title="QR Code">
@@ -42,13 +43,32 @@
     </div>
 
     <div class="header-actions">
+      <!-- Language picker -->
+      <div class="lang-picker" id="lang-picker">
+        <button class="btn-icon lang-toggle" id="lang-toggle-btn" title="Language">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+          </svg>
+        </button>
+        <div class="lang-dropdown" id="lang-dropdown">
+          <button class="lang-opt" data-lang="en">🇺🇸 English</button>
+          <button class="lang-opt" data-lang="zh-TW">🇹🇼 繁體中文</button>
+          <button class="lang-opt" data-lang="ja">🇯🇵 日本語</button>
+          <button class="lang-opt" data-lang="ko">🇰🇷 한국어</button>
+          <button class="lang-opt" data-lang="es">🇪🇸 Español</button>
+          <button class="lang-opt" data-lang="fr">🇫🇷 Français</button>
+        </div>
+      </div>
+
       <div class="user-area">
         <button id="user-badge-btn" class="user-badge-btn" style="display:none" title="Account">
           <span id="user-initial-badge">?</span>
         </button>
         <button id="signin-btn" class="btn-signin">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Sign In
+          <span data-i18n="sign-in">Sign In</span>
         </button>
       </div>
       <button id="theme-toggle" class="btn-icon" title="Toggle theme">
@@ -70,16 +90,16 @@
     <div class="dropdown-email" id="dropdown-email"></div>
     <div class="dropdown-limit">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      File limit: <strong id="dropdown-limit-val">—</strong>
+      <span data-i18n="file-limit">File limit:</span> <strong id="dropdown-limit-val">—</strong>
     </div>
     <hr class="dropdown-hr">
     <button id="redeem-code-btn" class="dropdown-item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-      Redeem Promo Code
+      <span data-i18n="redeem-promo">Redeem Promo Code</span>
     </button>
     <button id="user-logout-btn" class="dropdown-item dropdown-logout">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-      Sign Out
+      <span data-i18n="sign-out">Sign Out</span>
     </button>
   </div>
 
@@ -99,7 +119,7 @@
                 <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
               </svg>
             </div>
-            <span class="center-label" id="my-device-name">This Device</span>
+            <span class="center-label" id="my-device-name" data-i18n="this-device">This Device</span>
           </div>
           <div id="no-devices">
             <div class="no-dev-icon">
@@ -108,10 +128,10 @@
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
               </svg>
             </div>
-            <p class="no-dev-title">No devices nearby</p>
+            <p class="no-dev-title" data-i18n="no-devices">No devices nearby</p>
             <button id="open-share-btn" class="btn-share-room">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/><line x1="14" y1="14" x2="17" y2="14"/><line x1="20" y1="14" x2="20" y2="17"/><line x1="14" y1="17" x2="14" y2="20"/><line x1="14" y1="20" x2="17" y2="20"/></svg>
-              Share QR Code
+              <span data-i18n="share-qr">Share QR Code</span>
             </button>
           </div>
         </div>
@@ -124,8 +144,8 @@
             <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <p id="drop-label">Drop files or tap to select</p>
-        <p class="hint" id="drop-hint">Waiting for a device…</p>
+        <p id="drop-label" data-i18n="drop-files">Drop files or tap to select</p>
+        <p class="hint" id="drop-hint" data-i18n="waiting-device">Waiting for a device…</p>
       </div>
       <input type="file" id="file-input" multiple>
     </section>
@@ -134,22 +154,22 @@
     <section id="panel-chat" class="panel">
       <div class="chat-header-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        Messages
+        <span data-i18n="messages">Messages</span>
       </div>
       <div id="chat-messages">
         <div class="chat-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          <p>No messages yet</p>
-          <p class="hint">Messages and file history appear here</p>
+          <p data-i18n="no-messages">No messages yet</p>
+          <p class="hint" data-i18n="messages-hint">Messages and file history appear here</p>
         </div>
       </div>
       <div id="input-bar">
-        <label for="file-input-chat" class="btn-icon btn-attach" title="Attach file">
+        <label for="file-input-chat" class="btn-icon btn-attach" data-i18n-title="attach-title" title="Attach file">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         </label>
         <input type="file" id="file-input-chat" multiple>
-        <input type="text" id="message-input" placeholder="Type a message…" autocomplete="off">
-        <button id="send-btn" class="btn-send">
+        <input type="text" id="message-input" data-i18n-placeholder="type-message" placeholder="Type a message…" autocomplete="off">
+        <button id="send-btn" class="btn-send" data-i18n-title="send-btn-title" title="Send">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
@@ -157,15 +177,15 @@
 
   </div><!-- #main -->
 
-  <!-- Mobile tab bar (outside main, sticks to bottom) -->
+  <!-- Mobile tab bar -->
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="files">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      <span>Send Files</span>
+      <span data-i18n="tab-files">Send Files</span>
     </button>
     <button class="tab-btn" data-tab="chat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      <span>Messages</span>
+      <span data-i18n="tab-chat">Messages</span>
       <span id="chat-badge" class="badge" style="display:none"></span>
     </button>
   </nav>
@@ -176,9 +196,9 @@
 <div id="qr-modal" class="modal">
   <div class="modal-box">
     <div id="tunnel-status" class="tunnel-status tunnel-pending">
-      <span class="tunnel-dot"></span><span id="tunnel-status-text">Getting public link…</span>
+      <span class="tunnel-dot"></span><span id="tunnel-status-text" data-i18n="getting-link">Getting public link…</span>
     </div>
-    <h3>Scan to Join Room</h3>
+    <h3 data-i18n="scan-to-join">Scan to Join Room</h3>
     <div class="qr-wrapper">
       <img id="qr-image" alt="QR Code">
       <div id="qr-spinner" class="qr-spinner"></div>
@@ -187,9 +207,9 @@
     <div class="modal-actions">
       <button id="copy-qr-url" class="btn-ghost">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        Copy Link
+        <span data-i18n="copy-link">Copy Link</span>
       </button>
-      <button id="close-qr" class="btn-primary">Done</button>
+      <button id="close-qr" class="btn-primary" data-i18n="done">Done</button>
     </div>
   </div>
 </div>
@@ -205,29 +225,29 @@
       </svg>
       <span>WebDrop</span>
     </div>
-    <h2 id="auth-title">Welcome Back</h2>
-    <p class="auth-sub">Sign in to unlock promo codes &amp; higher limits</p>
+    <h2 id="auth-title" data-i18n="welcome-back">Welcome Back</h2>
+    <p class="auth-sub" data-i18n="auth-sub">Sign in to unlock promo codes &amp; higher limits</p>
     <div id="google-btn-wrap">
       <button id="google-signin-btn" class="btn-google">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Continue with Google
+        <span data-i18n="continue-google">Continue with Google</span>
       </button>
     </div>
     <div id="auth-divider" class="auth-divider"><span>or</span></div>
     <div class="auth-tabs">
-      <button class="auth-tab active" data-auth-tab="login">Sign In</button>
-      <button class="auth-tab" data-auth-tab="register">Register</button>
+      <button class="auth-tab active" data-auth-tab="login" data-i18n="sign-in-tab">Sign In</button>
+      <button class="auth-tab" data-auth-tab="register" data-i18n="register-tab">Register</button>
     </div>
     <div class="auth-field">
-      <input type="email" id="auth-email" placeholder="Email address" autocomplete="email">
+      <input type="email" id="auth-email" data-i18n-placeholder="email-placeholder" placeholder="Email address" autocomplete="email">
     </div>
     <div class="auth-field">
-      <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" minlength="6">
+      <input type="password" id="auth-password" data-i18n-placeholder="password-placeholder" placeholder="Password" autocomplete="current-password" minlength="6">
     </div>
     <p id="auth-error" class="auth-error"></p>
-    <button id="auth-submit-btn" class="btn-primary auth-submit">Sign In</button>
+    <button id="auth-submit-btn" class="btn-primary auth-submit" data-i18n="auth-submit">Sign In</button>
     <div class="auth-footer">
-      <button id="auth-guest-btn" class="btn-guest">Continue as Guest →</button>
+      <button id="auth-guest-btn" class="btn-guest" data-i18n="continue-guest">Continue as Guest →</button>
     </div>
   </div>
 </div>
@@ -236,15 +256,15 @@
 <div id="promo-modal" class="modal">
   <div class="modal-box promo-box">
     <div class="promo-icon">🎉</div>
-    <h3 id="promo-greeting">You're signed in!</h3>
-    <p class="auth-sub">Enter a promo code to unlock higher file limits</p>
+    <h3 id="promo-greeting" data-i18n="signed-in-greeting">You're signed in!</h3>
+    <p class="auth-sub" data-i18n="promo-sub">Enter a promo code to unlock higher file limits</p>
     <div class="auth-field">
-      <input type="text" id="promo-input" placeholder="PROMO CODE" style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:600">
+      <input type="text" id="promo-input" data-i18n-placeholder="promo-placeholder" placeholder="PROMO CODE" style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:600">
     </div>
     <p id="promo-error" class="auth-error"></p>
     <div class="modal-actions">
-      <button id="promo-skip-btn" class="btn-ghost">Skip</button>
-      <button id="promo-submit-btn" class="btn-primary">Redeem</button>
+      <button id="promo-skip-btn" class="btn-ghost" data-i18n="skip">Skip</button>
+      <button id="promo-submit-btn" class="btn-primary" data-i18n="redeem">Redeem</button>
     </div>
   </div>
 </div>
@@ -252,15 +272,15 @@
 <!-- ===== Redeem Modal ===== -->
 <div id="redeem-modal" class="modal">
   <div class="modal-box promo-box">
-    <h3>Redeem Promo Code</h3>
-    <p class="auth-sub">Enter your code to increase your file size limit</p>
+    <h3 data-i18n="redeem-title">Redeem Promo Code</h3>
+    <p class="auth-sub" data-i18n="redeem-sub">Enter your code to increase your file size limit</p>
     <div class="auth-field">
-      <input type="text" id="redeem-input" placeholder="PROMO CODE" style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:600">
+      <input type="text" id="redeem-input" data-i18n-placeholder="promo-placeholder" placeholder="PROMO CODE" style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:600">
     </div>
     <p id="redeem-error" class="auth-error"></p>
     <div class="modal-actions">
-      <button id="redeem-cancel-btn" class="btn-ghost">Cancel</button>
-      <button id="redeem-submit-btn" class="btn-primary">Redeem</button>
+      <button id="redeem-cancel-btn" class="btn-ghost" data-i18n="cancel">Cancel</button>
+      <button id="redeem-submit-btn" class="btn-primary" data-i18n="redeem">Redeem</button>
     </div>
   </div>
 </div>
@@ -271,10 +291,10 @@
     <div class="room-closed-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
     </div>
-    <h3>Room Closed</h3>
-    <p id="room-closed-msg" class="room-closed-msg">This room has been closed by the administrator.</p>
+    <h3 data-i18n="room-closed">Room Closed</h3>
+    <p id="room-closed-msg" class="room-closed-msg" data-i18n="room-closed-default">This room has been closed by the administrator.</p>
     <div class="modal-actions">
-      <button id="room-closed-new" class="btn-primary">Start New Room</button>
+      <button id="room-closed-new" class="btn-primary" data-i18n="start-new-room">Start New Room</button>
     </div>
   </div>
 </div>
@@ -289,8 +309,8 @@
         <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
       </svg>
     </div>
-    <h2>Under Maintenance</h2>
-    <p>WebDrop is temporarily unavailable while we make some improvements. Please check back soon.</p>
+    <h2 data-i18n="maintenance-title">Under Maintenance</h2>
+    <p data-i18n="maintenance-msg">WebDrop is temporarily unavailable while we make some improvements. Please check back soon.</p>
     <div class="maintenance-pulse">
       <span></span><span></span><span></span>
     </div>

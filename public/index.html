@@ -76,6 +76,7 @@
       <div class="user-area">
         <button id="user-badge-btn" class="user-badge-btn" style="display:none" title="Account">
           <span id="user-initial-badge">?</span>
+          <img id="user-avatar-img" class="user-avatar-img" style="display:none" alt="Avatar">
         </button>
         <button id="signin-btn" class="btn-signin">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -129,6 +130,10 @@
       </select>
     </div>
     <hr class="dropdown-hr">
+    <button id="edit-profile-btn" class="dropdown-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>編輯個人資料</span>
+    </button>
     <button id="redeem-code-btn" class="dropdown-item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
       <span data-i18n="redeem-promo">Redeem Promo Code</span>
@@ -334,6 +339,34 @@
     <div class="modal-actions">
       <button id="redeem-cancel-btn" class="btn-ghost" data-i18n="cancel">Cancel</button>
       <button id="redeem-submit-btn" class="btn-primary" data-i18n="redeem">Redeem</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Edit Profile Modal ===== -->
+<div id="edit-profile-modal" class="modal">
+  <div class="modal-box promo-box">
+    <h3>編輯個人資料</h3>
+    <div class="avatar-upload-area" id="avatar-upload-area">
+      <div class="avatar-preview" id="avatar-preview">
+        <img id="avatar-preview-img" style="display:none" alt="Avatar">
+        <span id="avatar-preview-initial">?</span>
+      </div>
+      <label class="avatar-upload-label" for="avatar-file-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        上傳頭像
+      </label>
+      <input type="file" id="avatar-file-input" accept="image/*" style="display:none">
+      <button id="avatar-clear-btn" class="btn-text-sm" style="display:none">移除頭像</button>
+      <canvas id="avatar-canvas" style="display:none"></canvas>
+    </div>
+    <div class="promo-input-row" style="margin-top:12px">
+      <input id="profile-name-input" type="text" placeholder="顯示名稱（最多20字）" maxlength="20" class="promo-input">
+    </div>
+    <p id="profile-error" style="color:#ef4444;font-size:.8rem;margin:6px 0 0;display:none"></p>
+    <div class="modal-actions">
+      <button id="profile-cancel-btn" class="btn-secondary">取消</button>
+      <button id="profile-save-btn" class="btn-primary">儲存</button>
     </div>
   </div>
 </div>

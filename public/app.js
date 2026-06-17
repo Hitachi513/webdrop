@@ -47,7 +47,8 @@ function getDeviceIcon(name) {
 }
 
 // ===== Room =====
-const myName = getDeviceName();
+let myName = getDeviceName();
+let myAvatar = null;
 let roomId = window.location.hash.slice(1);
 if (!roomId) {
   roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -199,7 +200,17 @@ function applyRoleStyle(role) {
 
 function showUserBadge(user) {
   const initial = (user.name || user.email || '?')[0].toUpperCase();
-  document.getElementById('user-initial-badge').textContent = initial;
+  const initialEl = document.getElementById('user-initial-badge');
+  const avatarEl  = document.getElementById('user-avatar-img');
+  initialEl.textContent = initial;
+  if (user.avatar) {
+    avatarEl.src = user.avatar;
+    avatarEl.style.display = 'block';
+    initialEl.style.display = 'none';
+  } else {
+    avatarEl.style.display = 'none';
+    initialEl.style.display = 'block';
+  }
   document.getElementById('user-badge-btn').style.display = 'flex';
   document.getElementById('signin-btn').style.display = 'none';
   document.getElementById('dropdown-name').textContent = user.name || '';
@@ -207,6 +218,8 @@ function showUserBadge(user) {
   const mb = user.effectiveMaxFileSizeMB || 500;
   document.getElementById('dropdown-limit-val').textContent = mb >= 999999 ? '∞ Unlimited' : mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
   applyRoleStyle(user.role);
+  if (user.avatar !== undefined) myAvatar = user.avatar || null;
+  if (user.name) myName = user.name;
 }
 
 function showGuestMode() {
@@ -537,14 +550,18 @@ function addFileBubble(filename, filesize, isMine, peerName) {
 let roomClosedByAdmin = false;
 const socket = io({ auth: { userToken: userToken || null } });
 
+function rejoinRoom() {
+  if (roomClosedByAdmin) return;
+  socket.emit('join-room', { roomId, name: myName, avatar: myAvatar });
+}
+
 socket.on('connect', () => {
   document.getElementById('maintenance-overlay').style.display = 'none';
-  if (roomClosedByAdmin) return;
-  socket.emit('join-room', { roomId, name: myName });
+  rejoinRoom();
 });
 
-socket.on('room-joined', ({ peers: existing }) => existing.forEach(({ id, name, role }) => addPeer(id, name, true, role)));
-socket.on('peer-joined', ({ id, name, role }) => addPeer(id, name, false, role));
+socket.on('room-joined', ({ peers: existing }) => existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar)));
+socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false, role, avatar));
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
 
@@ -616,9 +633,27 @@ socket.on('admin-switch-room', ({ roomId: newRoomId }) => {
   history.replaceState(null, '', `#${roomId}`);
   roomCodeEl.textContent = roomId;
   setShareUrl(null);
-  socket.emit('join-room', { roomId, name: myName });
+  rejoinRoom();
   toast('房間 ID 已由管理員更新', 'info');
 });
+
+socket.on('peer-profile-changed', ({ id, name, avatar }) => {
+  const peer = peers.get(id);
+  if (!peer) return;
+  if (name) peer.name = name;
+  if (avatar !== undefined) peer.avatar = avatar;
+  if (peer.element) {
+    const iconEl = peer.element.querySelector('.peer-icon');
+    if (iconEl) iconEl.innerHTML = `${peerIconHtml(peer.name, peer.avatar)}<div class="status-dot ${iconEl.querySelector('.status-dot')?.className.replace('status-dot','').trim() || ''}"></div>`;
+    const nameEl = peer.element.querySelector('.peer-name');
+    if (nameEl) {
+      const badge = PEER_ROLE_BADGE[peer.role] || '';
+      nameEl.innerHTML = `${esc(peer.name)}${badge}`;
+    }
+  }
+});
+
+socket.on('profile-error', ({ error }) => toast(error, 'error'));
 
 socket.on('offer', async ({ from, offer }) => {
   const peer = peers.get(from);
@@ -669,15 +704,15 @@ socket.on('relay-file-end', ({ from, fileId, name }) => {
 });
 
 // ===== Peer Lifecycle =====
-function addPeer(peerId, name, isInitiator, role) {
+function addPeer(peerId, name, isInitiator, role, avatar) {
   if (peers.has(peerId)) return;
   const pc = new RTCPeerConnection(ICE_SERVERS);
   pc.onicecandidate = ({ candidate }) => { if (candidate) socket.emit('ice-candidate', { to: peerId, candidate }); };
   pc.onconnectionstatechange = () => { const p = peers.get(peerId); if (p) updateStatusDot(p, pc.connectionState); };
 
-  const peerObj = { pc, dc: null, name, role: role || null, element: null, sendQueue: [], isSending: false, receiving: null };
+  const peerObj = { pc, dc: null, name, role: role || null, avatar: avatar || null, element: null, sendQueue: [], isSending: false, receiving: null };
   peers.set(peerId, peerObj);
-  peerObj.element = createPeerEl(peerId, name, role);
+  peerObj.element = createPeerEl(peerId, name, role, avatar);
   radarEl.appendChild(peerObj.element);
   updatePositions();
   noDevicesEl.style.display = 'none';
@@ -884,12 +919,17 @@ const PEER_ROLE_BADGE = {
   business: `<span class="peer-role-badge peer-role-business">💼 Business</span>`,
 };
 
-function createPeerEl(peerId, name, role) {
+function peerIconHtml(name, avatar) {
+  if (avatar) return `<img class="peer-avatar-img" src="${esc(avatar)}" alt="">`;
+  return getDeviceIcon(name);
+}
+
+function createPeerEl(peerId, name, role, avatar) {
   const el = document.createElement('div');
   el.className = 'peer-bubble' + (role ? ` has-${role}` : '');
   const badge = PEER_ROLE_BADGE[role] || '';
   el.innerHTML = `
-    <div class="peer-icon">${getDeviceIcon(name)}<div class="status-dot"></div></div>
+    <div class="peer-icon">${peerIconHtml(name, avatar)}<div class="status-dot"></div></div>
     <span class="peer-name">${esc(name)}${badge}</span>
     <div class="peer-progress"><div class="peer-progress-bar"></div></div>`;
   el.addEventListener('click', () => {
@@ -959,6 +999,117 @@ function toArrayBuffer(chunk) {
   if (chunk instanceof ArrayBuffer) return chunk;
   if (chunk?.buffer) return chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength);
   return new Uint8Array(Object.values(chunk)).buffer;
+}
+
+// ===== Edit Profile Modal =====
+let pendingAvatarData = undefined; // undefined = no change; null = clear; string = new avatar
+
+document.getElementById('edit-profile-btn').addEventListener('click', () => {
+  document.getElementById('user-dropdown').classList.remove('open');
+  const nameInput = document.getElementById('profile-name-input');
+  nameInput.value = currentUser?.name || myName;
+  pendingAvatarData = undefined;
+  const previewImg = document.getElementById('avatar-preview-img');
+  const previewInitial = document.getElementById('avatar-preview-initial');
+  const clearBtn = document.getElementById('avatar-clear-btn');
+  if (myAvatar) {
+    previewImg.src = myAvatar; previewImg.style.display = 'block';
+    previewInitial.style.display = 'none'; clearBtn.style.display = 'inline-block';
+  } else {
+    previewImg.style.display = 'none';
+    previewInitial.textContent = (currentUser?.name || myName || '?')[0].toUpperCase();
+    previewInitial.style.display = 'block'; clearBtn.style.display = 'none';
+  }
+  document.getElementById('profile-error').style.display = 'none';
+  document.getElementById('edit-profile-modal').classList.add('active');
+});
+
+document.getElementById('profile-cancel-btn').addEventListener('click', () => {
+  document.getElementById('edit-profile-modal').classList.remove('active');
+});
+
+document.getElementById('avatar-file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const dataUrl = await resizeImageToDataUrl(file, 80, 80);
+  pendingAvatarData = dataUrl;
+  const previewImg = document.getElementById('avatar-preview-img');
+  const previewInitial = document.getElementById('avatar-preview-initial');
+  previewImg.src = dataUrl; previewImg.style.display = 'block';
+  previewInitial.style.display = 'none';
+  document.getElementById('avatar-clear-btn').style.display = 'inline-block';
+});
+
+document.getElementById('avatar-clear-btn').addEventListener('click', () => {
+  pendingAvatarData = null;
+  document.getElementById('avatar-preview-img').style.display = 'none';
+  const initial = (document.getElementById('profile-name-input').value || currentUser?.name || myName || '?')[0].toUpperCase();
+  const previewInitial = document.getElementById('avatar-preview-initial');
+  previewInitial.textContent = initial; previewInitial.style.display = 'block';
+  document.getElementById('avatar-clear-btn').style.display = 'none';
+});
+
+document.getElementById('profile-save-btn').addEventListener('click', async () => {
+  const newName = document.getElementById('profile-name-input').value.trim();
+  const errEl = document.getElementById('profile-error');
+  errEl.style.display = 'none';
+  if (!newName) { errEl.textContent = '名稱不能為空'; errEl.style.display = 'block'; return; }
+  if (newName.length > 20) { errEl.textContent = '名稱不能超過20字'; errEl.style.display = 'block'; return; }
+
+  const saveBtn = document.getElementById('profile-save-btn');
+  saveBtn.disabled = true;
+
+  try {
+    const body = {};
+    if (newName !== (currentUser?.name || myName)) body.name = newName;
+    if (pendingAvatarData !== undefined) body.avatar = pendingAvatarData;
+
+    if (Object.keys(body).length > 0 && currentUser) {
+      const result = await authApi('PUT', '/api/auth/profile', body);
+      if (result.name) { currentUser.name = result.name; myName = result.name; }
+      if ('avatar' in result) { currentUser.avatar = result.avatar; myAvatar = result.avatar; }
+      showUserBadge(currentUser);
+    }
+
+    // Broadcast to room peers in real-time
+    const profileUpdate = {};
+    if (body.name) profileUpdate.name = newName;
+    if (pendingAvatarData !== undefined) profileUpdate.avatar = pendingAvatarData;
+    if (Object.keys(profileUpdate).length > 0) {
+      if (!currentUser) { myName = newName; if (pendingAvatarData !== undefined) myAvatar = pendingAvatarData; }
+      socket.emit('change-profile', profileUpdate);
+    }
+
+    document.getElementById('edit-profile-modal').classList.remove('active');
+    toast('個人資料已更新', 'success');
+  } catch (e) {
+    errEl.textContent = e.message || '儲存失敗';
+    errEl.style.display = 'block';
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+async function resizeImageToDataUrl(file, w, h) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.getElementById('avatar-canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      // Center-crop
+      const scale = Math.max(w / img.width, h / img.height);
+      const sw = w / scale, sh = h / scale;
+      const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('圖片讀取失敗')); };
+    img.src = url;
+  });
 }
 
 // ===== Init =====

@@ -12,8 +12,13 @@ const jwt      = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 
 const app    = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
-const io     = new Server(server);
+const io     = new Server(server, {
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  cors: { origin: '*' }
+});
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
@@ -155,6 +160,17 @@ function getUserEffectiveLimit(userId) {
 
 const ROOM_ID_RE = /^[A-Z0-9]{3,20}$/;
 
+// Basic profanity filter for display names
+const BLOCKED_WORDS = [
+  'fuck','shit','ass','bitch','cunt','dick','cock','pussy','whore','slut','nigger','nigga',
+  'faggot','retard','bastard','damn','hell','piss','cum','porn','sex','rape','kill','死','幹','操','屁','屌','雞巴',
+  'TMD','你媽','fuck you','sb','傻b','傻逼','草泥馬','cnm','他媽','賤人','婊子','狗屎','混蛋'
+];
+function containsProfanity(text) {
+  const lower = text.toLowerCase().replace(/\s+/g, '');
+  return BLOCKED_WORDS.some(w => lower.includes(w.toLowerCase().replace(/\s+/g, '')));
+}
+
 function getUserList() {
   return users.map(u => ({
     id: u.id,
@@ -170,7 +186,8 @@ function getUserList() {
     language: u.language || null,
     customRoomId: u.customRoomId || null,
     canCustomRoom: !!u.canCustomRoom,
-    role: u.role || null
+    role: u.role || null,
+    avatar: u.avatar || null
   }));
 }
 
@@ -239,7 +256,7 @@ app.post('/api/auth/google', async (req, res) => {
     const p = ticket.getPayload();
     let user = users.find(u => u.googleId === p.sub || u.email?.toLowerCase() === p.email.toLowerCase());
     if (!user) {
-      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, createdAt: new Date().toISOString() };
+      user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
       users.push(user);
       saveUsers();
       adminNsp.emit('users', getUserList());
@@ -248,7 +265,7 @@ app.post('/api/auth/google', async (req, res) => {
       saveUsers();
     }
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null, avatar: user.avatar || null } });
   } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
 });
 
@@ -273,13 +290,14 @@ app.post('/api/auth/register', async (req, res) => {
       customRoomId: null,
       canCustomRoom: false,
       role: null,
+      avatar: null,
       createdAt: new Date().toISOString()
     };
     users.push(user);
     saveUsers();
     adminNsp.emit('users', getUserList());
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null, canCustomRoom: false, role: null } });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null, canCustomRoom: false, role: null, avatar: null } });
   } catch (e) { console.error('Register error:', e.message); res.status(500).json({ error: 'Registration failed' }); }
 });
 
@@ -293,23 +311,45 @@ app.post('/api/auth/login', async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null, avatar: user.avatar || null } });
   } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
 app.get('/api/auth/me', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null });
+  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null, avatar: user.avatar || null });
 });
 
 app.put('/api/auth/profile', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (req.body.language !== undefined) user.language = req.body.language || null;
+  if (req.body.name !== undefined) {
+    const newName = String(req.body.name || '').trim().slice(0, 20);
+    if (!newName) return res.status(400).json({ error: 'Name cannot be empty' });
+    if (containsProfanity(newName)) return res.status(400).json({ error: 'Name contains inappropriate content' });
+    user.name = newName;
+  }
+  if (req.body.avatar !== undefined) {
+    // Accept null to clear, or base64 data URL (max ~200KB)
+    if (req.body.avatar === null) {
+      user.avatar = null;
+    } else {
+      const av = String(req.body.avatar);
+      if (av.startsWith('data:image/') && av.length <= 200000) user.avatar = av;
+    }
+  }
   saveUsers();
   adminNsp.emit('users', getUserList());
-  res.json({ ok: true });
+  // Notify the user's active sockets to update their avatar/name reference
+  io.sockets.sockets.forEach(s => {
+    if (s.userId === user.id) {
+      s.userAvatar = user.avatar || null;
+      s.userName = user.name || null;
+    }
+  });
+  res.json({ ok: true, name: user.name, avatar: user.avatar || null });
 });
 
 app.post('/api/auth/redeem', requireUser, (req, res) => {
@@ -552,7 +592,7 @@ adminNsp.on('connection', (socket) => {
       io.sockets.sockets.forEach(s => { if (s.geo) locs.push(s.geo); });
       socket.emit('conn-locations', locs);
     } catch (e) { console.error('Admin tick error:', e.message); }
-  }, 3000);
+  }, 1500);
 
   socket.on('disconnect', () => clearInterval(tick));
 });
@@ -575,6 +615,8 @@ io.use((socket, next) => {
         if (user?.banned) return next(new Error('Your account has been suspended'));
         socket.userId = payload.id;
         socket.userRole = user?.role || null;
+        socket.userAvatar = user?.avatar || null;
+        socket.userName = user?.name || null;
         socket.effectiveMaxFileSizeMB = getUserEffectiveLimit(payload.id);
       }
     } catch {}
@@ -592,7 +634,9 @@ io.on('connection', (socket) => {
   const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
   geolocateIp(clientIp).then(geo => { socket.geo = geo; });
 
-  socket.on('join-room', ({ roomId, name }) => {
+  socket.on('join-room', ({ roomId, name, avatar }) => {
+    // Client-sent avatar is only used for guest users; logged-in users use socket.userAvatar
+    if (!socket.userAvatar && avatar) socket.userAvatar = String(avatar).slice(0, 200000) || null;
     if (socket.currentRoom) {
       const room = rooms.get(socket.currentRoom);
       if (room) {
@@ -609,13 +653,38 @@ io.on('connection', (socket) => {
     }
     if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null }); }
     const room = rooms.get(roomId);
-    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null }));
-    room.set(socket.id, { name, role: socket.userRole || null });
+    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
+    room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
     socket.join(roomId);
     socket.currentRoom = roomId;
     socket.emit('room-joined', { roomId, peers: existingPeers });
-    socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null });
+    socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null, avatar: socket.userAvatar || null });
     adminNsp.emit('rooms', getRoomList());
+  });
+
+  socket.on('change-profile', ({ name, avatar }) => {
+    const newName = name ? String(name).trim().slice(0, 20) : null;
+    if (newName && containsProfanity(newName)) {
+      socket.emit('profile-error', { error: 'Name contains inappropriate content' });
+      return;
+    }
+    const newAvatar = avatar !== undefined ? (avatar ? String(avatar) : null) : undefined;
+    if (newName) socket.userName = newName;
+    if (newAvatar !== undefined) socket.userAvatar = newAvatar;
+    if (socket.currentRoom) {
+      const room = rooms.get(socket.currentRoom);
+      if (room && room.has(socket.id)) {
+        const info = room.get(socket.id);
+        if (newName) info.name = newName;
+        if (newAvatar !== undefined) info.avatar = newAvatar;
+        room.set(socket.id, info);
+      }
+      socket.to(socket.currentRoom).emit('peer-profile-changed', {
+        id: socket.id,
+        name: newName || null,
+        avatar: newAvatar !== undefined ? newAvatar : null
+      });
+    }
   });
 
   socket.on('offer',         ({ to, offer })     => io.to(to).emit('offer',         { from: socket.id, offer }));

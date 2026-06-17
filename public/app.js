@@ -210,7 +210,7 @@ function showUserBadge(user) {
   document.getElementById('dropdown-name').textContent = user.name || '';
   document.getElementById('dropdown-email').textContent = user.email;
   const mb = user.effectiveMaxFileSizeMB || 500;
-  document.getElementById('dropdown-limit-val').textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
+  document.getElementById('dropdown-limit-val').textContent = mb >= 999999 ? '∞ Unlimited' : mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
   applyRoleStyle(user.role);
 }
 
@@ -389,7 +389,7 @@ async function redeemCode(inputEl, errorEl, onSuccess) {
     if (currentUser) {
       currentUser.effectiveMaxFileSizeMB = mb;
       currentUser.activePromoId = true;
-      document.getElementById('dropdown-limit-val').textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
+      document.getElementById('dropdown-limit-val').textContent = mb >= 999999 ? '∞ Unlimited' : mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
       if (data.customRoomId) { currentUser.customRoomId = data.customRoomId; applyCustomRoom(data.customRoomId); }
       if (data.canCustomRoom) { currentUser.canCustomRoom = true; setEditRoomBtnVisible(true); }
     }
@@ -548,8 +548,8 @@ socket.on('connect', () => {
   socket.emit('join-room', { roomId, name: myName });
 });
 
-socket.on('room-joined', ({ peers: existing }) => existing.forEach(({ id, name }) => addPeer(id, name, true)));
-socket.on('peer-joined', ({ id, name }) => addPeer(id, name, false));
+socket.on('room-joined', ({ peers: existing }) => existing.forEach(({ id, name, role }) => addPeer(id, name, true, role)));
+socket.on('peer-joined', ({ id, name, role }) => addPeer(id, name, false, role));
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
 
@@ -570,10 +570,16 @@ socket.on('room-closed', ({ reason } = {}) => {
   document.getElementById('room-closed-modal').classList.add('active');
 });
 
-socket.on('role-updated', ({ role }) => {
+socket.on('role-updated', ({ role, effectiveMaxFileSizeMB, canCustomRoom }) => {
   if (currentUser) {
     currentUser.role = role;
+    if (effectiveMaxFileSizeMB != null) currentUser.effectiveMaxFileSizeMB = effectiveMaxFileSizeMB;
+    if (canCustomRoom != null) currentUser.canCustomRoom = canCustomRoom;
     applyRoleStyle(role);
+    setEditRoomBtnVisible(!!canCustomRoom);
+    const mb = effectiveMaxFileSizeMB || currentUser.effectiveMaxFileSizeMB || 500;
+    const el = document.getElementById('dropdown-limit-val');
+    if (el) el.textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : mb >= 999999 ? '∞' : `${mb} MB`;
   }
 });
 
@@ -668,15 +674,15 @@ socket.on('relay-file-end', ({ from, fileId, name }) => {
 });
 
 // ===== Peer Lifecycle =====
-function addPeer(peerId, name, isInitiator) {
+function addPeer(peerId, name, isInitiator, role) {
   if (peers.has(peerId)) return;
   const pc = new RTCPeerConnection(ICE_SERVERS);
   pc.onicecandidate = ({ candidate }) => { if (candidate) socket.emit('ice-candidate', { to: peerId, candidate }); };
   pc.onconnectionstatechange = () => { const p = peers.get(peerId); if (p) updateStatusDot(p, pc.connectionState); };
 
-  const peerObj = { pc, dc: null, name, element: null, sendQueue: [], isSending: false, receiving: null };
+  const peerObj = { pc, dc: null, name, role: role || null, element: null, sendQueue: [], isSending: false, receiving: null };
   peers.set(peerId, peerObj);
-  peerObj.element = createPeerEl(peerId, name);
+  peerObj.element = createPeerEl(peerId, name, role);
   radarEl.appendChild(peerObj.element);
   updatePositions();
   noDevicesEl.style.display = 'none';
@@ -877,12 +883,18 @@ const fileInputChatEl = document.getElementById('file-input-chat');
 fileInputChatEl.addEventListener('change', () => { handleFiles([...fileInputChatEl.files]); fileInputChatEl.value = ''; });
 
 // ===== UI: Peers =====
-function createPeerEl(peerId, name) {
+const PEER_ROLE_BADGE = {
+  admin: `<span class="peer-role-badge peer-role-admin">★ Admin</span>`,
+  vip:   `<span class="peer-role-badge peer-role-vip">♦ VIP</span>`,
+};
+
+function createPeerEl(peerId, name, role) {
   const el = document.createElement('div');
   el.className = 'peer-bubble';
+  const badge = PEER_ROLE_BADGE[role] || '';
   el.innerHTML = `
     <div class="peer-icon">${getDeviceIcon(name)}<div class="status-dot"></div></div>
-    <span class="peer-name">${esc(name)}</span>
+    <span class="peer-name">${esc(name)}${badge}</span>
     <div class="peer-progress"><div class="peer-progress-bar"></div></div>`;
   el.addEventListener('click', () => {
     if (selectedPeerId !== peerId) { autoSelect(peerId); toast(`${name} selected`, 'info'); }

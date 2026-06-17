@@ -58,7 +58,7 @@ let settings = {};
 let users    = [];
 let promos   = [];
 
-const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
+const defaultSettings = { maxPeersPerRoom: 10, maxFileSizeMB: 500, vipFileSizeMB: 2048, allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false };
 
 function saveAdmins()   { dbSet('admins',   admins);   }
 function saveSettings() { dbSet('settings', settings); }
@@ -109,7 +109,9 @@ function getRoomList() {
 function getUserEffectiveLimit(userId) {
   const user = users.find(u => u.id === userId);
   if (!user) return settings.maxFileSizeMB;
+  if (user.role === 'admin') return 999999;
   if (user.customFileSizeMB != null) return user.customFileSizeMB;
+  if (user.role === 'vip') return settings.vipFileSizeMB || settings.maxFileSizeMB;
   if (!user.activePromoId) return settings.maxFileSizeMB;
   const promo = promos.find(p => p.id === user.activePromoId && p.enabled);
   if (!promo) return settings.maxFileSizeMB;
@@ -376,8 +378,14 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
     const normalized = role || null;
     if (!allowed.includes(normalized)) return res.status(400).json({ error: 'Invalid role' });
     user.role = normalized;
+    if (normalized === 'admin' || normalized === 'vip') user.canCustomRoom = true;
+    const newLimit = getUserEffectiveLimit(user.id);
     io.sockets.sockets.forEach(s => {
-      if (s.userId === user.id) s.emit('role-updated', { role: normalized });
+      if (s.userId === user.id) {
+        s.userRole = normalized;
+        s.effectiveMaxFileSizeMB = newLimit;
+        s.emit('role-updated', { role: normalized, effectiveMaxFileSizeMB: newLimit, canCustomRoom: !!user.canCustomRoom });
+      }
     });
   }
   saveUsers();
@@ -528,6 +536,7 @@ io.use((socket, next) => {
         const user = users.find(u => u.id === payload.id);
         if (user?.banned) return next(new Error('Your account has been suspended'));
         socket.userId = payload.id;
+        socket.userRole = user?.role || null;
         socket.effectiveMaxFileSizeMB = getUserEffectiveLimit(payload.id);
       }
     } catch {}
@@ -558,12 +567,12 @@ io.on('connection', (socket) => {
     }
     if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now() }); }
     const room = rooms.get(roomId);
-    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name }));
-    room.set(socket.id, { name });
+    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null }));
+    room.set(socket.id, { name, role: socket.userRole || null });
     socket.join(roomId);
     socket.currentRoom = roomId;
     socket.emit('room-joined', { roomId, peers: existingPeers });
-    socket.to(roomId).emit('peer-joined', { id: socket.id, name });
+    socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null });
     adminNsp.emit('rooms', getRoomList());
   });
 

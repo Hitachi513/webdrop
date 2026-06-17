@@ -246,6 +246,7 @@ function renderSettings(s) {
   currentSettings = s;
   document.getElementById('set-maxpeers').value      = s.maxPeersPerRoom;
   document.getElementById('set-maxfile').value       = s.maxFileSizeMB;
+  document.getElementById('set-vipfile').value       = s.vipFileSizeMB || 2048;
   document.getElementById('set-msgrelay').checked    = s.allowMessageRelay;
   document.getElementById('set-filerelay').checked   = s.allowFileRelay;
   document.getElementById('set-maintenance').checked = s.maintenanceMode;
@@ -255,6 +256,7 @@ document.getElementById('save-settings').addEventListener('click', async () => {
   const body = {
     maxPeersPerRoom:    parseInt(document.getElementById('set-maxpeers').value) || 10,
     maxFileSizeMB:      parseInt(document.getElementById('set-maxfile').value) || 500,
+    vipFileSizeMB:      parseInt(document.getElementById('set-vipfile').value) || 2048,
     allowMessageRelay:  document.getElementById('set-msgrelay').checked,
     allowFileRelay:     document.getElementById('set-filerelay').checked,
     maintenanceMode:    document.getElementById('set-maintenance').checked

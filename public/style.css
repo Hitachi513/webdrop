@@ -475,7 +475,10 @@ header {
   50%      { box-shadow: 0 0 0 8px rgba(0,212,255,0.14), 0 0 44px rgba(0,212,255,0.4); }
 }
 
-.peer-name { font-size:.66rem; color:var(--text-muted); white-space:nowrap; max-width:80px; overflow:hidden; text-overflow:ellipsis; text-align:center; transition:color .22s; }
+.peer-name { font-size:.66rem; color:var(--text-muted); white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis; text-align:center; transition:color .22s; display:flex; flex-direction:column; align-items:center; gap:2px; }
+.peer-role-badge { font-size:.55rem; font-weight:700; letter-spacing:.4px; padding:1px 6px; border-radius:10px; white-space:nowrap; }
+.peer-role-admin { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b66; }
+.peer-role-vip   { background:#a855f722; color:#a855f7; border:1px solid #a855f766; }
 
 .status-dot {
   position: absolute;

@@ -315,7 +315,11 @@
           </div>
           <div class="setting-row">
             <div><label>Max file size (MB)</label><p class="setting-desc">Maximum size for relay transfers</p></div>
-            <input type="number" id="set-maxfile" min="1" max="2000" value="500">
+            <input type="number" id="set-maxfile" min="1" max="999999" value="500">
+          </div>
+          <div class="setting-row">
+            <div><label>VIP file size (MB)</label><p class="setting-desc">File limit for users with VIP role</p></div>
+            <input type="number" id="set-vipfile" min="1" max="999999" value="2048">
           </div>
         </div>
         <div class="setting-card">

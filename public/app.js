@@ -516,6 +516,10 @@ copyQRUrlBtn.addEventListener('click', () =>
   navigator.clipboard.writeText(shareUrl).then(() => toast(i18n.t('link-copied'), 'success')).catch(() => toast(i18n.t('copy-failed'), 'error'))
 );
 showQRBtn.addEventListener('click', () => qrModal.classList.add('active'));
+// On narrow screens the copy button is hidden; tap the pill to share
+document.querySelector('.room-pill').addEventListener('click', e => {
+  if (window.innerWidth <= 480 && !e.target.closest('button')) qrModal.classList.add('active');
+});
 closeQRBtn.addEventListener('click', () => qrModal.classList.remove('active'));
 qrModal.addEventListener('click', e => { if (e.target === qrModal) qrModal.classList.remove('active'); });
 

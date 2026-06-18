@@ -881,7 +881,19 @@ header {
    Mobile Tab Bar
    =========================== */
 @media (max-width: 768px) {
-  :root { --radar-size: min(230px, 68vw); }
+  :root { --radar-size: min(230px, 68vw); --tab-h: 60px; }
+
+  /* Notch / Dynamic Island safe area */
+  #app { padding-top: env(safe-area-inset-top); }
+  .user-dropdown { top: calc(env(safe-area-inset-top) + var(--header-h) + 8px); }
+
+  /* Compact header */
+  header { padding: 0 12px; gap: 8px; }
+  .room-pill { padding: 4px 8px 4px 10px; gap: 3px; }
+  #room-code { font-size: .84rem; letter-spacing: 2px; }
+
+  /* Faster tap response on touch */
+  button, a, label { touch-action: manipulation; }
 
   #main { flex-direction: column; }
 
@@ -893,6 +905,8 @@ header {
     flex-shrink: 0;
     padding-bottom: var(--safe-bottom);
   }
+  .tab-btn { font-size: .72rem; gap: 4px; }
+  .tab-btn svg { width: 20px; height: 20px; }
 
   /* Hide both panels, only show active */
   .panel { display: none; }
@@ -903,8 +917,8 @@ header {
     align-items: center;
     justify-content: center;
     overflow-y: auto;
-    padding: 20px 16px;
-    gap: 20px;
+    padding: 16px 14px;
+    gap: 16px;
     border-right: none;
     border-bottom: none;
   }
@@ -912,7 +926,15 @@ header {
   /* Chat panel fills remaining space */
   #panel-chat { width: 100%; }
 
-  #drop-zone { max-width: 100%; }
+  /* Drop zone compact on mobile */
+  #drop-zone { max-width: 100%; padding: 22px 16px; }
+
+  /* Wider chat bubbles — more screen real estate on mobile */
+  .chat-msg { max-width: 85%; }
+  #chat-messages { padding: 12px 10px; }
+
+  /* Notifications float just above tab bar */
+  #notifications { bottom: calc(var(--tab-h) + var(--safe-bottom) + 8px); }
 }
 
 .tab-btn {
@@ -950,6 +972,34 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 480px) {
+  /* Hide copy-link from room pill to save header space */
+  #copy-link { display: none; }
+  /* Room pill becomes tappable to open QR (handled by JS) */
+  .room-pill { cursor: pointer; }
+
+  /* Smaller icon buttons */
+  .btn-icon { width: 30px; height: 30px; }
+  .btn-icon svg { width: 15px; height: 15px; }
+
+  /* Sign-in: icon only */
+  .btn-signin span { display: none; }
+  .btn-signin { padding: 6px 9px; }
+
+  /* Tighter header */
+  header { padding: 0 10px; gap: 6px; }
+  .logo svg { width: 24px; height: 24px; }
+  .logo { gap: 7px; }
+  .header-actions { gap: 4px; }
+
+  /* Tighter files panel */
+  #panel-files { padding: 12px 12px; gap: 12px; }
+  #drop-zone { padding: 18px 14px; }
+
+  /* Dropdown fits narrow screen */
+  .user-dropdown { right: 10px; min-width: 195px; }
 }
 
 @media (max-width: 380px) {

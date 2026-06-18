@@ -1165,7 +1165,7 @@ async function resizeImageToDataUrl(file, w, h) {
   });
 }
 
-document.getElementById('ls-skip').addEventListener('click', () => {
+lsEl.addEventListener('click', () => {
   clearTimeout(lsHideTimer); lsHideTimer = 1;
   clearTimeout(lsFinishTimer);
   lsHide();

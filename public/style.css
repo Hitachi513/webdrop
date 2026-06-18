@@ -1626,6 +1626,14 @@ header {
 .st-run-btn:active { transform: scale(.97); opacity: .9; }
 .st-run-btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; box-shadow: none; }
 
+/* Compact signal bars inside the header button */
+#speedtest-btn .ls-signal-bars { height: 14px; gap: 2px; }
+#speedtest-btn .ls-bar { width: 3px; border-radius: 1.5px; }
+#speedtest-btn .ls-bar.b1 { height: 4px; }
+#speedtest-btn .ls-bar.b2 { height: 7px; }
+#speedtest-btn .ls-bar.b3 { height: 10px; }
+#speedtest-btn .ls-bar.b4 { height: 14px; }
+
 @media (max-width: 768px) {
   .speedtest-card { top: calc(env(safe-area-inset-top) + var(--header-h) + 8px); right: 10px; width: 252px; }
 }

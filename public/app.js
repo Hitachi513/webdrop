@@ -25,6 +25,9 @@ function lsShowPing(ms) {
   else               { qClass = 'q-poor';  qText = '連線不穩定'; qCls = 'bad'; }
   lsBars.classList.add(qClass);
   lsSetStatus(qText, qCls);
+  // Update header button icon
+  const iconBars = document.getElementById('st-icon-bars');
+  if (iconBars) iconBars.className = `ls-signal-bars ${qClass}`;
 }
 
 function lsHide() {
@@ -549,6 +552,7 @@ function stShowPing(ms) {
   stBars.className         = `ls-signal-bars q-${qClass}`;
   stQuality.textContent    = qLabels[qClass];
   stQuality.className      = `st-quality-text ${qCss[qClass]}`;
+  document.getElementById('st-icon-bars').className = `ls-signal-bars q-${qClass}`;
 }
 
 speedtestBtn.addEventListener('click', e => {
@@ -615,6 +619,7 @@ async function runSpeedTest() {
   stBars.className = `ls-signal-bars q-${qClass}`;
   stQuality.textContent = qLabels[qClass];
   stQuality.className   = `st-quality-text ${qCss[qClass]}`;
+  document.getElementById('st-icon-bars').className = `ls-signal-bars q-${qClass}`;
 
   stTestedOnce = true;
   stRunBtn.disabled = false;

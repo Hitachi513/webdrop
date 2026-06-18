@@ -338,8 +338,8 @@ let allRooms = [];
 let roomsQuery = '';
 
 function renderRooms(rooms) {
-  allRooms = rooms;
-  document.getElementById('room-count-pill').textContent = `${rooms.length} room${rooms.length !== 1 ? 's' : ''}`;
+  allRooms = rooms.filter(r => r.peerCount > 0);
+  document.getElementById('room-count-pill').textContent = `${allRooms.length} room${allRooms.length !== 1 ? 's' : ''}`;
   renderRoomsTable();
 }
 

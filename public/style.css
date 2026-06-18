@@ -1531,3 +1531,24 @@ header {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Loading screen: fast ring + exit transition */
+.ls-ring.fast {
+  animation-duration: 0.28s;
+}
+#loading-screen.ls-completing .ls-content {
+  animation: lsContentExit 0.42s cubic-bezier(.4, 0, .6, 1) forwards;
+}
+#loading-screen.ls-completing {
+  animation: lsBgExit 0.55s ease forwards;
+}
+@keyframes lsContentExit {
+  0%   { transform: scale(1);    opacity: 1; }
+  30%  { transform: scale(1.07); opacity: 1; filter: brightness(1.4); }
+  100% { transform: scale(0.92); opacity: 0; }
+}
+@keyframes lsBgExit {
+  0%   { opacity: 1; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}

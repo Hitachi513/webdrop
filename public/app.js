@@ -25,14 +25,17 @@ function lsShowPing(ms) {
 }
 
 function lsHide() {
-  lsEl.classList.add('hide');
-  // Clean up after transition
-  setTimeout(() => { if (lsEl.parentNode) lsEl.style.display = 'none'; }, 600);
+  lsEl.classList.add('ls-completing');
+  setTimeout(() => { lsEl.style.display = 'none'; }, 550);
 }
 
 function lsDone() {
   if (lsHideTimer) return;
-  lsHideTimer = setTimeout(lsHide, 2500);
+  const ring = document.querySelector('.ls-ring');
+  // Speed up ring 650ms before exit
+  setTimeout(() => { if (ring) ring.classList.add('fast'); }, 2100 - 650);
+  // Exit at 2.1s
+  lsHideTimer = setTimeout(lsHide, 2100);
 }
 
 // ===== i18n Init =====
@@ -1161,8 +1164,8 @@ async function resizeImageToDataUrl(file, w, h) {
   });
 }
 
-// Force-hide loading screen after 6s if something goes wrong
-setTimeout(() => { if (!lsHideTimer) { lsSetStatus('連線逾時，請重新整理', 'bad'); setTimeout(lsHide, 2000); } }, 6000);
+// Force-hide loading screen after 7s if something goes wrong
+setTimeout(() => { if (!lsHideTimer) { lsSetStatus('連線逾時，請重新整理', 'bad'); lsHideTimer = setTimeout(lsHide, 2000); } }, 7000);
 
 // ===== Init =====
 window.addEventListener('load', async () => {

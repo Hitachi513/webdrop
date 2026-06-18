@@ -32,7 +32,7 @@ function lsHide() {
 
 function lsDone() {
   if (lsHideTimer) return;
-  lsHideTimer = setTimeout(lsHide, 1800);
+  lsHideTimer = setTimeout(lsHide, 2500);
 }
 
 // ===== i18n Init =====

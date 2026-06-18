@@ -43,7 +43,10 @@ async function dbGet(key) {
     if (!r.ok) { console.error(`dbGet HTTP error [${key}]: ${r.status}`); return null; }
     const json = await r.json();
     if (json.result == null) return null;
-    return JSON.parse(json.result);
+    let parsed = JSON.parse(json.result);
+    // double-stringify pattern: arrays/objects are stored as JSON strings, need a second parse
+    if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch {} }
+    return parsed;
   } catch (e) { console.error(`dbGet Upstash error [${key}]:`, e.message); return null; }
 }
 

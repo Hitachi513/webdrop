@@ -33,9 +33,9 @@ function lsDone() {
   if (lsHideTimer) return;
   const ring = document.querySelector('.ls-ring');
   // Speed up ring 650ms before exit
-  setTimeout(() => { if (ring) ring.classList.add('fast'); }, 2100 - 650);
-  // Exit at 2.1s
-  lsHideTimer = setTimeout(lsHide, 2100);
+  setTimeout(() => { if (ring) ring.classList.add('fast'); }, 2000 - 650);
+  // Exit at 2s
+  lsHideTimer = setTimeout(lsHide, 2000);
 }
 
 // ===== i18n Init =====

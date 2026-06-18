@@ -921,6 +921,9 @@ socket.on('room-closed', ({ reason } = {}) => {
   document.getElementById('room-closed-modal').classList.add('active');
 });
 
+socket.on('kicked-from-room', ({ message } = {}) => forceLeaveRoom(message || '你已被踢出房間'));
+socket.on('room-banned',      ({ message } = {}) => forceLeaveRoom(message || '你已被此房間封鎖'));
+
 socket.on('role-updated', ({ role, effectiveMaxFileSizeMB, canCustomRoom }) => {
   if (currentUser) {
     currentUser.role = role;
@@ -1076,6 +1079,21 @@ function addPeer(peerId, name, isInitiator, role, avatar) {
       if (p) { p.dc = channel; setupDC(channel, peerId); }
     };
   }
+}
+
+function forceLeaveRoom(message) {
+  if (message) toast(message, 'error');
+  peers.forEach((_, id) => { const p = peers.get(id); if (p) { p.pc.close(); if (p.element) p.element.remove(); } });
+  peers.clear();
+  selectedPeerId = null;
+  noDevicesEl.style.display = 'flex';
+  updatePositions();
+  const newId = Math.random().toString(36).slice(2, 8).toUpperCase();
+  roomId = newId;
+  roomCodeEl.textContent = newId;
+  history.replaceState(null, '', `#${newId}`);
+  setShareUrl(null);
+  socket.emit('join-room', { roomId: newId, name: myName, avatar: myAvatar });
 }
 
 function removePeer(peerId) {
@@ -1341,16 +1359,39 @@ function peerNameHtml(name, role) {
   return `${esc(name)}${badge}`;
 }
 
+function canModeratePeer(targetRole) {
+  const myR = currentUser?.role;
+  if (!['admin', 'business'].includes(myR)) return false;
+  if (myR === 'business' && ['admin', 'business'].includes(targetRole)) return false;
+  return true;
+}
+
 function createPeerEl(peerId, name, role, avatar) {
   const el = document.createElement('div');
   el.className = 'peer-bubble' + (role ? ` has-${role}` : '');
+  const showMod = canModeratePeer(role);
   el.innerHTML = `
     <div class="peer-icon">${peerIconHtml(name, avatar)}<div class="status-dot"></div></div>
     <span class="peer-name">${peerNameHtml(name, role)}</span>
-    <div class="peer-progress"><div class="peer-progress-bar"></div></div>`;
+    <div class="peer-progress"><div class="peer-progress-bar"></div></div>
+    ${showMod ? `<div class="peer-actions">
+      <button class="peer-action-btn" title="踢出房間"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      <button class="peer-action-btn peer-action-ban" title="封鎖並踢出"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>
+    </div>` : ''}`;
   el.addEventListener('click', () => {
     if (selectedPeerId !== peerId) { autoSelect(peerId); toast(`${name} selected`, 'info'); }
   });
+  if (showMod) {
+    const [kickBtn, banBtn] = el.querySelectorAll('.peer-action-btn');
+    kickBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (confirm(`踢出 ${name}？對方可重新加入房間。`)) socket.emit('room-kick', { peerId });
+    });
+    banBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (confirm(`封鎖並踢出 ${name}？對方將無法重新加入本房間。`)) socket.emit('room-ban', { peerId });
+    });
+  }
   return el;
 }
 

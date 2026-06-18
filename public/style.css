@@ -663,6 +663,32 @@ header {
 .peer-progress { position:absolute; bottom:-10px; left:50%; transform:translateX(-50%); width:64px; height:3px; background:rgba(255,255,255,0.07); border-radius:2px; overflow:hidden; display:none; }
 .peer-progress-bar { height:100%; width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary)); border-radius:2px; transition:width .1s linear; }
 
+.peer-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity .18s, transform .18s;
+  pointer-events: none;
+}
+.peer-bubble:hover .peer-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+.peer-action-btn {
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.peer-action-btn:hover { background: var(--primary-dim); border-color: var(--primary); color: var(--primary); }
+.peer-action-ban:hover { background: rgba(239,68,68,.12); border-color: var(--error); color: var(--error); }
+
 @keyframes peerAppear {
   from { opacity:0; transform:translate(var(--tx),var(--ty)) translate(-50%,-50%) scale(.4); }
   to   { opacity:1; transform:translate(var(--tx),var(--ty)) translate(-50%,-50%) scale(1); }

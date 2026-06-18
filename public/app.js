@@ -733,6 +733,16 @@ socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
 
+socket.on('room-reserved', ({ message }) => {
+  toast(message || '此房號已被預留', 'error');
+  // Redirect to a fresh random room
+  const newId = Math.random().toString(36).slice(2, 8).toUpperCase();
+  history.replaceState(null, '', `#${newId}`);
+  roomId = newId;
+  roomCodeEl.textContent = newId;
+  socket.emit('join-room', { roomId: newId, name: myName, avatar: myAvatar });
+});
+
 socket.on('room-closed', ({ reason } = {}) => {
   roomClosedByAdmin = true;
   // Clear all peers silently

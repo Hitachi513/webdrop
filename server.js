@@ -665,6 +665,16 @@ io.on('connection', (socket) => {
       socket.leave(socket.currentRoom);
     }
     const existing = rooms.get(roomId);
+
+    // If room doesn't exist yet, check if this ID is reserved by another user
+    if (!existing) {
+      const owner = users.find(u => u.customRoomId === roomId);
+      if (owner && socket.userId !== owner.id) {
+        socket.emit('room-reserved', { message: '此房號已被預留，無法加入空房間。請等候房主開啟後再使用分享連結加入。' });
+        return;
+      }
+    }
+
     if (existing && existing.size >= settings.maxPeersPerRoom) {
       socket.emit('error', { message: 'Room is full' });
       return;

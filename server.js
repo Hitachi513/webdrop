@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const { spawn } = require('child_process');
 const path     = require('path');
 const fs       = require('fs');
+const os       = require('os');
 const crypto   = require('crypto');
 const QRCode   = require('qrcode');
 const bcrypt   = require('bcryptjs');
@@ -88,16 +89,18 @@ async function savePromos()   { await dbSet('promos',   promos);   }
 
 // ===== Stats =====
 const stats = {
-  startTime:        Date.now(),
-  totalConnections: 0,
-  peakConnections:  0,
-  messagesRelayed:  0,
-  filesRelayed:     0,
-  bytesRelayed:     0
+  startTime:           Date.now(),
+  totalConnections:    0,
+  peakConnections:     0,
+  messagesRelayed:     0,
+  filesRelayed:        0,
+  bytesRelayed:        0,
+  bytesRelayedThisTick: 0
 };
 const activityHistory = [];
 setInterval(() => {
-  const entry = { t: Date.now(), c: io.engine.clientsCount, r: rooms.size };
+  const entry = { t: Date.now(), c: io.engine.clientsCount, r: rooms.size, b: stats.bytesRelayedThisTick };
+  stats.bytesRelayedThisTick = 0;
   activityHistory.push(entry);
   if (activityHistory.length > 30) activityHistory.shift();
 }, 60000);
@@ -118,13 +121,41 @@ function getStats() {
   };
 }
 
+function getSystemHealth() {
+  const totalMem = os.totalmem();
+  const freeMem  = os.freemem();
+  const loadAvg  = os.loadavg();
+  const cpuCount = os.cpus().length;
+  let disk = null;
+  try {
+    if (fs.statfsSync) {
+      const sf = fs.statfsSync('/');
+      disk = {
+        total: sf.bsize * sf.blocks,
+        free:  sf.bsize * sf.bavail,
+        used:  sf.bsize * (sf.blocks - sf.bavail),
+        usedPct: Math.round((sf.blocks - sf.bavail) / sf.blocks * 100)
+      };
+    }
+  } catch {}
+  const pm = process.memoryUsage();
+  return {
+    memory:  { total: totalMem, free: freeMem, used: totalMem - freeMem, usedPct: Math.round((totalMem - freeMem) / totalMem * 100) },
+    loadAvg,
+    cpuCount,
+    disk,
+    nodeHeap: { used: pm.heapUsed, total: pm.heapTotal }
+  };
+}
+
 function getRoomList() {
   return Array.from(rooms.entries()).map(([roomId, peers]) => ({
     roomId,
     peerCount: peers.size,
-    peers: Array.from(peers.values()).map(p => p.name),
-    createdAt: roomsMeta.get(roomId)?.createdAt || null,
-    geo: roomsMeta.get(roomId)?.geo || null
+    peers: Array.from(peers.entries()).map(([socketId, p]) => ({ socketId, name: p.name, role: p.role || null })),
+    createdAt:        roomsMeta.get(roomId)?.createdAt || null,
+    geo:              roomsMeta.get(roomId)?.geo || null,
+    filesTransferred: roomsMeta.get(roomId)?.filesTransferred || 0
   }));
 }
 
@@ -198,7 +229,9 @@ function getUserList() {
     customRoomId: u.customRoomId || null,
     canCustomRoom: !!u.canCustomRoom,
     role: u.role || null,
-    avatar: u.avatar || null
+    avatar: u.avatar || null,
+    lastSeenAt: u.lastSeenAt || null,
+    lastIp: u.lastIp || null
   }));
 }
 
@@ -422,6 +455,7 @@ app.post('/admin/api/login', async (req, res) => {
 });
 
 app.get('/admin/api/stats',    requireAdmin, (req, res) => res.json(getStats()));
+app.get('/admin/api/health',   requireAdmin, (req, res) => res.json(getSystemHealth()));
 app.get('/admin/api/rooms',    requireAdmin, (req, res) => res.json(getRoomList()));
 app.get('/admin/api/admins',   requireAdmin, (req, res) => res.json(admins.map(({ passwordHash, ...a }) => a)));
 app.get('/admin/api/settings', requireAdmin, (req, res) => res.json(settings));
@@ -529,6 +563,48 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
   io.in(roomId).disconnectSockets(true);
   rooms.delete(roomId);
   roomsMeta.delete(roomId);
+  roomBans.delete(roomId);
+  adminNsp.emit('rooms', getRoomList());
+  res.json({ ok: true });
+});
+
+app.post('/admin/api/rooms/:roomId/kick', requireAdmin, (req, res) => {
+  const { roomId } = req.params;
+  const { socketId } = req.body || {};
+  if (!socketId) return res.status(400).json({ error: 'socketId required' });
+  const room = rooms.get(roomId);
+  if (!room || !room.has(socketId)) return res.status(404).json({ error: 'Peer not in room' });
+  room.delete(socketId);
+  const targetSocket = io.sockets.sockets.get(socketId);
+  if (targetSocket) {
+    targetSocket.leave(roomId);
+    targetSocket.currentRoom = null;
+    targetSocket.emit('kicked-from-room', { message: '你已被管理員踢出房間' });
+  }
+  io.to(roomId).emit('peer-left', socketId);
+  adminNsp.emit('rooms', getRoomList());
+  res.json({ ok: true });
+});
+
+app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
+  const { roomId } = req.params;
+  const { socketId } = req.body || {};
+  if (!socketId) return res.status(400).json({ error: 'socketId required' });
+  const room = rooms.get(roomId);
+  if (!room || !room.has(socketId)) return res.status(404).json({ error: 'Peer not in room' });
+  room.delete(socketId);
+  if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
+  const bans = roomBans.get(roomId);
+  const targetSocket = io.sockets.sockets.get(socketId);
+  if (targetSocket) {
+    const ip = ((targetSocket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim()) || targetSocket.handshake.address;
+    if (targetSocket.userId) bans.add(`user:${targetSocket.userId}`);
+    if (ip) bans.add(`ip:${ip}`);
+    targetSocket.leave(roomId);
+    targetSocket.currentRoom = null;
+    targetSocket.emit('room-banned', { message: '你已被管理員永久封鎖於此房間' });
+  }
+  io.to(roomId).emit('peer-left', socketId);
   adminNsp.emit('rooms', getRoomList());
   res.json({ ok: true });
 });
@@ -594,18 +670,20 @@ adminNsp.use((socket, next) => {
 });
 adminNsp.on('connection', (socket) => {
   try {
-    socket.emit('stats',    getStats());
-    socket.emit('rooms',    getRoomList());
-    socket.emit('admins',   admins.map(({ passwordHash, ...a }) => a));
-    socket.emit('settings', settings);
-    socket.emit('promos',   promos);
-    socket.emit('users',    getUserList());
+    socket.emit('stats',         getStats());
+    socket.emit('rooms',         getRoomList());
+    socket.emit('admins',        admins.map(({ passwordHash, ...a }) => a));
+    socket.emit('settings',      settings);
+    socket.emit('promos',        promos);
+    socket.emit('users',         getUserList());
+    socket.emit('system-health', getSystemHealth());
   } catch (e) { console.error('Admin socket init error:', e.message); }
 
   const tick = setInterval(() => {
     try {
       socket.emit('stats', getStats());
       socket.emit('rooms', getRoomList());
+      socket.emit('system-health', getSystemHealth());
       const locs = [];
       io.sockets.sockets.forEach(s => { if (s.geo) locs.push(s.geo); });
       socket.emit('conn-locations', locs);
@@ -619,6 +697,7 @@ adminNsp.on('connection', (socket) => {
 const rooms        = new Map();
 const roomsMeta    = new Map();
 const pendingJoins = new Map(); // requestId → { joinerSocketId, hostSocketId, roomId, name, avatar, timer }
+const roomBans = new Map(); // roomId → Set<'user:userId' | 'ip:ipAddress'>
 let publicUrl   = null;
 let tunnelProc  = null;
 
@@ -649,9 +728,15 @@ io.on('connection', (socket) => {
   socket.currentRoom = null;
   socket.geo = null;
   if (publicUrl) socket.emit('tunnel-url', publicUrl);
-  // Geolocate asynchronously after connection established
   const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
   geolocateIp(clientIp).then(geo => { socket.geo = geo; });
+  if (socket.userId) {
+    const connUser = users.find(u => u.id === socket.userId);
+    if (connUser) {
+      connUser.lastSeenAt = new Date().toISOString();
+      connUser.lastIp     = clientIp || null;
+    }
+  }
 
   socket.on('join-room', ({ roomId, name, avatar }) => {
     // Client-sent avatar is only used for guest users; logged-in users use socket.userAvatar
@@ -672,6 +757,16 @@ io.on('connection', (socket) => {
       const owner = users.find(u => u.customRoomId === roomId);
       if (owner && socket.userId !== owner.id) {
         socket.emit('room-reserved', { message: '此房號已被預留，無法加入空房間。請等候房主開啟後再使用分享連結加入。' });
+        return;
+      }
+    }
+
+    // Room ban check
+    if (roomBans.has(roomId)) {
+      const bans = roomBans.get(roomId);
+      const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
+      if ((socket.userId && bans.has(`user:${socket.userId}`)) || (clientIp && bans.has(`ip:${clientIp}`))) {
+        socket.emit('room-banned', { message: '你已被此房間封鎖，無法重新加入。' });
         return;
       }
     }
@@ -701,7 +796,7 @@ io.on('connection', (socket) => {
       // Host socket gone — allow direct join (fall through)
     }
 
-    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null }); }
+    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0 }); }
     const room = rooms.get(roomId);
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
     room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
@@ -738,6 +833,51 @@ io.on('connection', (socket) => {
     pendingJoins.delete(requestId);
     const joinerSocket = io.sockets.sockets.get(req.joinerSocketId);
     if (joinerSocket) joinerSocket.emit('join-rejected', { message: '房主已拒絕你的加入請求' });
+  });
+
+  function getClientIp(sock) {
+    return (sock.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || sock.handshake.address;
+  }
+
+  socket.on('room-kick', ({ peerId }) => {
+    if (!['admin', 'business'].includes(socket.userRole)) return;
+    const roomId = socket.currentRoom;
+    const room = rooms.get(roomId);
+    if (!room || !room.has(peerId)) return;
+    const targetRole = room.get(peerId)?.role;
+    if (socket.userRole === 'business' && ['admin', 'business'].includes(targetRole)) return;
+    room.delete(peerId);
+    const targetSocket = io.sockets.sockets.get(peerId);
+    if (targetSocket) {
+      targetSocket.leave(roomId);
+      targetSocket.currentRoom = null;
+      targetSocket.emit('kicked-from-room', { message: `你已被房間主持人踢出` });
+    }
+    socket.to(roomId).emit('peer-left', peerId);
+    adminNsp.emit('rooms', getRoomList());
+  });
+
+  socket.on('room-ban', ({ peerId }) => {
+    if (!['admin', 'business'].includes(socket.userRole)) return;
+    const roomId = socket.currentRoom;
+    const room = rooms.get(roomId);
+    if (!room || !room.has(peerId)) return;
+    const targetRole = room.get(peerId)?.role;
+    if (socket.userRole === 'business' && ['admin', 'business'].includes(targetRole)) return;
+    room.delete(peerId);
+    if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
+    const bans = roomBans.get(roomId);
+    const targetSocket = io.sockets.sockets.get(peerId);
+    if (targetSocket) {
+      const ip = getClientIp(targetSocket);
+      if (targetSocket.userId) bans.add(`user:${targetSocket.userId}`);
+      if (ip) bans.add(`ip:${ip}`);
+      targetSocket.leave(roomId);
+      targetSocket.currentRoom = null;
+      targetSocket.emit('room-banned', { message: `你已被此房間永久封鎖` });
+    }
+    socket.to(roomId).emit('peer-left', peerId);
+    adminNsp.emit('rooms', getRoomList());
   });
 
   socket.on('change-profile', ({ name, avatar }) => {
@@ -786,10 +926,15 @@ io.on('connection', (socket) => {
   socket.on('relay-file-chunk', ({ to, chunk }) => {
     const size = Buffer.isBuffer(chunk) ? chunk.length : (chunk?.byteLength || 0);
     stats.bytesRelayed += size;
+    stats.bytesRelayedThisTick += size;
     io.to(to).emit('relay-file-chunk', { from: socket.id, chunk });
   });
   socket.on('relay-file-end', ({ to, fileId, name }) => {
     stats.filesRelayed++;
+    if (socket.currentRoom && roomsMeta.has(socket.currentRoom)) {
+      const meta = roomsMeta.get(socket.currentRoom);
+      meta.filesTransferred = (meta.filesTransferred || 0) + 1;
+    }
     io.to(to).emit('relay-file-end', { from: socket.id, fileId, name });
     adminNsp.emit('stats', getStats());
   });

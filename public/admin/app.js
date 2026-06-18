@@ -98,6 +98,7 @@ function connectAdminSocket() {
   adminSocket.on('settings',       renderSettings);
   adminSocket.on('promos',         renderPromos);
   adminSocket.on('conn-locations', updateMapMarkers);
+  adminSocket.on('system-health',  renderHealth);
 }
 
 // ===== Map =====
@@ -183,27 +184,112 @@ function fmtBytes(b) {
   return `${(b/1073741824).toFixed(2)} GB`;
 }
 
+function setEl(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
 function renderStats(data) {
-  document.getElementById('s-uptime').textContent    = fmtUptime(data.uptime);
-  document.getElementById('s-conns-val').textContent = data.currentConns;
-  document.getElementById('s-peak').textContent      = data.peakConnections;
-  document.getElementById('s-rooms').textContent     = data.activeRooms;
-  document.getElementById('s-msgs').textContent      = data.messagesRelayed.toLocaleString();
-  document.getElementById('s-files').textContent     = data.filesRelayed.toLocaleString();
-  document.getElementById('s-bytes').textContent     = fmtBytes(data.bytesRelayed);
-  document.getElementById('rooms-badge').textContent = data.activeRooms;
+  setEl('s-uptime',   fmtUptime(data.uptime));
+  setEl('s-conns-val', data.currentConns);
+  setEl('s-peak',     data.peakConnections);
+  setEl('s-rooms',    data.activeRooms);
+  setEl('s-msgs',     data.messagesRelayed.toLocaleString());
+  setEl('s-files',    data.filesRelayed.toLocaleString());
+  setEl('s-bytes',    fmtBytes(data.bytesRelayed));
+  setEl('rooms-badge', data.activeRooms);
   renderChart(data.history || []);
+  renderBandwidthChart(data.history || []);
+  updateKpiAlerts(data);
 }
 
 function renderChart(history) {
   const el = document.getElementById('activity-chart');
-  if (!history.length) { el.innerHTML = '<div class="chart-empty">Collecting data...</div>'; return; }
+  if (!history.length) {
+    el.innerHTML = '<div class="chart-empty-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><span>暫無數據 — 資料收集中</span></div>';
+    return;
+  }
   const max = Math.max(...history.map(h => h.c), 1);
   el.innerHTML = history.map(h => {
     const pct = Math.max(4, Math.round((h.c / max) * 100));
     const time = new Date(h.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     return `<div class="chart-bar" style="height:${pct}%" data-tip="${h.c} users @ ${time}"></div>`;
   }).join('');
+}
+
+function renderBandwidthChart(history) {
+  const el = document.getElementById('bandwidth-chart');
+  if (!el) return;
+  if (!history.length) {
+    el.innerHTML = '<div class="chart-empty-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>暫無傳輸數據</span></div>';
+    return;
+  }
+  const max = Math.max(...history.map(h => h.b ?? 0), 1);
+  el.innerHTML = history.map(h => {
+    const bytes = h.b ?? 0;
+    const pct = Math.max(4, Math.round((bytes / max) * 100));
+    const time = new Date(h.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `<div class="bw-chart-bar" style="height:${pct}%" data-tip="${fmtBytes(bytes)} @ ${time}"></div>`;
+  }).join('');
+}
+
+function updateKpiAlerts(data) {
+  const connCard = document.getElementById('kpi-conns');
+  if (connCard) {
+    connCard.classList.toggle('kpi-warning', data.currentConns > 20 && data.currentConns <= 80);
+    connCard.classList.toggle('kpi-danger',  data.currentConns > 80);
+  }
+  const roomCard = document.getElementById('kpi-rooms');
+  if (roomCard) {
+    roomCard.classList.toggle('kpi-warning', data.activeRooms > 10 && data.activeRooms <= 30);
+    roomCard.classList.toggle('kpi-danger',  data.activeRooms > 30);
+  }
+}
+
+function renderHealth(h) {
+  const memPct = h.memory.usedPct;
+  const memBar = document.getElementById('h-mem-bar');
+  if (memBar) {
+    memBar.style.width = memPct + '%';
+    memBar.className = 'health-bar' + (memPct > 85 ? ' danger' : memPct > 70 ? ' warning' : '');
+  }
+  setEl('h-mem-pct', memPct + '%');
+  setEl('h-mem-sub', `${fmtBytes(h.memory.used)} / ${fmtBytes(h.memory.total)}`);
+
+  const cpuPct = Math.min(100, Math.round(h.loadAvg[0] / h.cpuCount * 100));
+  const cpuBar = document.getElementById('h-cpu-bar');
+  if (cpuBar) {
+    cpuBar.style.width = cpuPct + '%';
+    cpuBar.className = 'health-bar' + (cpuPct > 80 ? ' danger' : cpuPct > 60 ? ' warning' : '');
+  }
+  setEl('h-cpu-pct', `${h.loadAvg[0].toFixed(2)} (${cpuPct}%)`);
+  setEl('h-cpu-sub', `${h.cpuCount} cores`);
+
+  if (h.disk) {
+    const diskPct = h.disk.usedPct;
+    const diskBar = document.getElementById('h-disk-bar');
+    if (diskBar) {
+      diskBar.style.width = diskPct + '%';
+      diskBar.className = 'health-bar' + (diskPct > 90 ? ' danger' : diskPct > 75 ? ' warning' : '');
+    }
+    setEl('h-disk-pct', diskPct + '%');
+    setEl('h-disk-sub', `${fmtBytes(h.disk.used)} / ${fmtBytes(h.disk.total)}`);
+  } else {
+    setEl('h-disk-pct', 'N/A');
+    setEl('h-disk-sub', 'Not available on this platform');
+  }
+
+  const heapPct = Math.round(h.nodeHeap.used / h.nodeHeap.total * 100);
+  const heapBar = document.getElementById('h-heap-bar');
+  if (heapBar) {
+    heapBar.style.width = heapPct + '%';
+    heapBar.className = 'health-bar' + (heapPct > 90 ? ' danger' : heapPct > 75 ? ' warning' : '');
+  }
+  setEl('h-heap-pct', heapPct + '%');
+  setEl('h-heap-sub', `${fmtBytes(h.nodeHeap.used)} heap used`);
+
+  const updEl = document.getElementById('health-updated');
+  if (updEl) updEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 
 // ===== Rooms =====
@@ -222,10 +308,10 @@ function renderRoomsTable() {
   const list = q
     ? allRooms.filter(r =>
         r.roomId.toLowerCase().includes(q) ||
-        r.peers.some(p => p.toLowerCase().includes(q)))
+        r.peers.some(p => p.name.toLowerCase().includes(q)))
     : allRooms;
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-row">${q ? 'No rooms match your search' : 'No active rooms'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${q ? 'No rooms match your search' : 'No active rooms'}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(r => {
@@ -233,13 +319,16 @@ function renderRoomsTable() {
     const locHtml = geo
       ? `<span title="${esc(geo.city || '')}${geo.regionName ? ', ' + esc(geo.regionName) : ''}, ${esc(geo.country || '')}">${countryFlag(geo.countryCode)} ${esc(geo.country || '')}</span>`
       : `<span style="color:var(--muted)">—</span>`;
+    const duration = r.createdAt ? Math.floor((Date.now() - r.createdAt) / 60000) : null;
+    const durationStr = duration !== null ? `<br><small style="color:var(--muted)">${duration < 60 ? duration + 'm' : Math.floor(duration/60) + 'h ' + (duration%60) + 'm'}</small>` : '';
     return `
     <tr>
       <td><code>${esc(r.roomId)}</code></td>
       <td><strong>${r.peerCount}</strong></td>
-      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p)}</span>`).join('')}</div></td>
+      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}<span class="peer-chip-actions"><button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button><button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button></span></span>`).join('')}</div></td>
       <td style="font-size:.82rem">${locHtml}</td>
-      <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}</td>
+      <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}${durationStr}</td>
+      <td><strong>${r.filesTransferred || 0}</strong></td>
       <td><button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button></td>
     </tr>`;
   }).join('');
@@ -255,6 +344,20 @@ async function closeRoom(roomId) {
   try {
     await api('DELETE', `/admin/api/rooms/${encodeURIComponent(roomId)}`);
     toast('Room closed', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function adminKickPeer(roomId, socketId) {
+  try {
+    await api('POST', `/admin/api/rooms/${encodeURIComponent(roomId)}/kick`, { socketId });
+    toast('已踢出', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+async function adminBanPeer(roomId, socketId, name) {
+  if (!confirm(`封鎖並踢出 ${name}？`)) return;
+  try {
+    await api('POST', `/admin/api/rooms/${encodeURIComponent(roomId)}/ban`, { socketId });
+    toast('已封鎖並踢出', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -363,7 +466,7 @@ function renderUsersTable() {
     (u.name || '').toLowerCase().includes(q));
   if (!list.length) {
     const msg = q ? 'No users match your search' : (showBannedUsers ? 'No banned users' : 'No active users');
-    tbody.innerHTML = `<tr><td colspan="9" class="empty-row">${msg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-row">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(u => {
@@ -396,6 +499,12 @@ function renderUsersTable() {
          <button class="btn-sm" style="margin-left:2px" onclick="setUserRole('${u.id}','${esc(u.email)}','${esc(u.role || '')}')">✎</button>
          <button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>`
       : `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>`;
+    const lastSeenDisplay = u.lastSeenAt
+      ? `<span title="${new Date(u.lastSeenAt).toLocaleString()}">${timeAgo(new Date(u.lastSeenAt).getTime())}</span>`
+      : `<span style="color:var(--muted)">—</span>`;
+    const ipDisplay = u.lastIp
+      ? `<code style="font-size:.72rem;color:var(--muted)">${esc(u.lastIp)}</code>`
+      : `<span style="color:var(--muted)">—</span>`;
     return `
       <tr class="${u.banned ? 'user-banned-row' : ''}">
         <td>
@@ -403,12 +512,14 @@ function renderUsersTable() {
           <div style="color:var(--muted);font-size:.75rem">${esc(u.email)}</div>
         </td>
         <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+        <td style="font-size:.82rem">${lastSeenDisplay}</td>
         <td style="font-size:.82rem">${langDisplay}</td>
         <td>${roomDisplay}</td>
         <td style="font-size:.82rem">${roleDisplay}</td>
         <td>${effLabel}${customInfo}</td>
         <td>${promoLabel}</td>
         <td>${statusBadge}</td>
+        <td>${ipDisplay}</td>
         <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">${actions}</td>
       </tr>`;
   }).join('');

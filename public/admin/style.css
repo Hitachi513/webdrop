@@ -298,6 +298,13 @@ nav { padding: 12px 0; flex:1; }
 @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
 
 /* ===== Chart ===== */
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+
 .chart-card {
   background: var(--card);
   border-radius: 16px;
@@ -309,6 +316,9 @@ nav { padding: 12px 0; flex:1; }
 .chart-header h3 { font-size:.95rem; font-weight:600; color:var(--text); }
 .chart-header small { color:var(--muted); font-size:.75rem; font-weight:400; }
 
+.chart-legend { display:flex; align-items:center; gap:5px; font-size:.72rem; color:var(--muted); }
+.chart-legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
 .chart-area {
   height: 100px;
   display: flex;
@@ -316,6 +326,17 @@ nav { padding: 12px 0; flex:1; }
   gap: 4px;
   padding: 0 4px;
 }
+.chart-empty-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  color: var(--muted);
+}
+.chart-empty-inner svg { width:26px; height:26px; opacity:.35; }
+.chart-empty-inner span { font-size:.78rem; }
 .chart-empty { color:var(--muted); font-size:.8rem; align-self:center; }
 .chart-bar {
   flex: 1;
@@ -339,6 +360,79 @@ nav { padding: 12px 0; flex:1; }
   white-space: nowrap;
   pointer-events: none;
 }
+.bw-chart-bar {
+  flex: 1;
+  background: linear-gradient(180deg, #7b2ff7, rgba(123,47,247,.25));
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height .3s;
+  position: relative;
+}
+.bw-chart-bar:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: .65rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ===== KPI Alert States ===== */
+.stat-card.kpi-warning { border-color: rgba(255,159,28,.4); background: #fffbf0; }
+.stat-card.kpi-danger  { border-color: rgba(230,57,70,.4);  background: #fff5f5; }
+.stat-card.kpi-warning .stat-value { color: var(--warning); }
+.stat-card.kpi-danger  .stat-value { color: var(--danger); }
+
+/* ===== Featured KPI cards ===== */
+.stat-card-featured .stat-value { font-size: 1.9rem; }
+.stat-card-featured .stat-icon  { width:50px; height:50px; }
+.stat-card-featured .stat-icon svg { width:26px; height:26px; }
+
+/* ===== System Health ===== */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 4px;
+}
+.health-card {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+}
+.health-title {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+.health-bar-wrap {
+  height: 7px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.health-bar {
+  height: 100%;
+  border-radius: 4px;
+  width: 0%;
+  transition: width .6s ease;
+  background: linear-gradient(90deg, #2ec4b6, #4361ee);
+}
+.health-bar.warning { background: linear-gradient(90deg, #ff9f1c, #e67e00); }
+.health-bar.danger  { background: linear-gradient(90deg, #e63946, #b0001e); }
+.health-stat { font-size: .88rem; color: var(--text); font-weight: 700; }
+.health-sub  { font-size: .72rem; color: var(--muted); margin-top: 2px; }
 
 /* ===== Tables ===== */
 .table-card {
@@ -633,6 +727,12 @@ input:checked + .slider::before { transform: translateX(20px); }
 }
 .user-banned-row { background: #fff8f8; }
 .user-banned-row td { opacity: .7; }
+
+.peer-chip-actions { display:inline-flex; gap:3px; margin-left:5px; vertical-align:middle; }
+.btn-xs { padding:1px 5px; font-size:.68rem; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--muted); cursor:pointer; }
+.btn-xs:hover { border-color:var(--primary); color:var(--primary); }
+.btn-danger-xs { color:var(--danger); border-color:var(--danger-dim,rgba(239,68,68,.3)); }
+.btn-danger-xs:hover { background:rgba(239,68,68,.1); }
 
 /* ===== Mobile ===== */
 @media (max-width: 768px) {

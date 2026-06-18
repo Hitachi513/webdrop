@@ -121,14 +121,14 @@
             <div class="stat-label">Uptime</div>
           </div>
         </div>
-        <div class="stat-card live">
+        <div class="stat-card stat-card-featured live" id="kpi-conns">
           <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
           <div class="stat-body">
             <div class="stat-value" id="s-conns"><span class="live-dot"></span><span id="s-conns-val">0</span></div>
             <div class="stat-label">Connected Users <small>(peak: <span id="s-peak">0</span>)</small></div>
           </div>
         </div>
-        <div class="stat-card live">
+        <div class="stat-card live" id="kpi-rooms">
           <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
           <div class="stat-body">
             <div class="stat-value" id="s-rooms">0</div>
@@ -149,21 +149,39 @@
             <div class="stat-label">Files Transferred</div>
           </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card-featured" id="kpi-bytes">
           <div class="stat-icon pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
           <div class="stat-body">
-            <div class="stat-value" id="s-bytes">0 B</div>
+            <div class="stat-value"><span class="live-dot" style="background:#e63946"></span><span id="s-bytes">0 B</span></div>
             <div class="stat-label">Data Relayed</div>
           </div>
         </div>
       </div>
 
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>Connection Activity <small>(last 30 min, updates every min)</small></h3>
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Connection Activity <small>(last 30 min, per min)</small></h3>
+            <span class="chart-legend"><span class="chart-legend-dot" style="background:var(--primary)"></span>Users</span>
+          </div>
+          <div class="chart-area" id="activity-chart">
+            <div class="chart-empty-inner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <span>暫無數據 — 資料收集中</span>
+            </div>
+          </div>
         </div>
-        <div class="chart-area" id="activity-chart">
-          <div class="chart-empty">Collecting data...</div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Data Relayed <small>(bytes/min, last 30 min)</small></h3>
+            <span class="chart-legend"><span class="chart-legend-dot" style="background:#7b2ff7"></span>Bytes</span>
+          </div>
+          <div class="chart-area" id="bandwidth-chart">
+            <div class="chart-empty-inner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span>暫無傳輸數據</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -172,6 +190,39 @@
           <h3>Live Connections Map <small id="map-conn-count"></small></h3>
         </div>
         <div id="admin-map"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>System Health</h3>
+          <span id="health-updated" style="color:var(--muted);font-size:.72rem"></span>
+        </div>
+        <div class="health-grid">
+          <div class="health-card">
+            <div class="health-title">RAM</div>
+            <div class="health-bar-wrap"><div class="health-bar" id="h-mem-bar"></div></div>
+            <div class="health-stat" id="h-mem-pct">—</div>
+            <div class="health-sub" id="h-mem-sub"></div>
+          </div>
+          <div class="health-card">
+            <div class="health-title">CPU Load (1m avg)</div>
+            <div class="health-bar-wrap"><div class="health-bar" id="h-cpu-bar"></div></div>
+            <div class="health-stat" id="h-cpu-pct">—</div>
+            <div class="health-sub" id="h-cpu-sub"></div>
+          </div>
+          <div class="health-card">
+            <div class="health-title">Disk</div>
+            <div class="health-bar-wrap"><div class="health-bar" id="h-disk-bar"></div></div>
+            <div class="health-stat" id="h-disk-pct">—</div>
+            <div class="health-sub" id="h-disk-sub">N/A</div>
+          </div>
+          <div class="health-card">
+            <div class="health-title">Node.js Heap</div>
+            <div class="health-bar-wrap"><div class="health-bar" id="h-heap-bar"></div></div>
+            <div class="health-stat" id="h-heap-pct">—</div>
+            <div class="health-sub" id="h-heap-sub"></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -186,8 +237,8 @@
       </div>
       <div class="table-card">
         <table>
-          <thead><tr><th>Room ID</th><th>Peers</th><th>Members</th><th>Location</th><th>Created</th><th>Action</th></tr></thead>
-          <tbody id="rooms-tbody"><tr><td colspan="6" class="empty-row">No active rooms</td></tr></tbody>
+          <thead><tr><th>Room ID</th><th>Peers</th><th>Members</th><th>Location</th><th>Created</th><th>Files</th><th>Action</th></tr></thead>
+          <tbody id="rooms-tbody"><tr><td colspan="7" class="empty-row">No active rooms</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -205,8 +256,8 @@
       </div>
       <div class="table-card">
         <table>
-          <thead><tr><th>User</th><th>Joined</th><th>Lang</th><th>Room ID</th><th>Role</th><th>File Limit</th><th>Promo</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="users-tbody"><tr><td colspan="9" class="empty-row">No users registered</td></tr></tbody>
+          <thead><tr><th>User</th><th>Joined</th><th>Last Seen</th><th>Lang</th><th>Room ID</th><th>Role</th><th>File Limit</th><th>Promo</th><th>Status</th><th>IP</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="11" class="empty-row">No users registered</td></tr></tbody>
         </table>
       </div>
     </section>

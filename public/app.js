@@ -158,6 +158,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('panel-files').classList.toggle('active', tab === 'files');
   document.getElementById('panel-chat').classList.toggle('active', tab === 'chat');
+  document.getElementById('panel-members').classList.toggle('active', tab === 'members');
   if (tab === 'chat') clearChatBadge();
 }
 
@@ -270,6 +271,8 @@ function applyRoleStyle(role) {
   } else {
     roleBadgeEl.style.display = 'none';
   }
+  const membersTab = document.getElementById('tab-members');
+  if (membersTab) membersTab.style.display = ['admin', 'business'].includes(role) ? '' : 'none';
 }
 
 function showUserBadge(user) {
@@ -1067,6 +1070,7 @@ function addPeer(peerId, name, isInitiator, role, avatar) {
   if (peers.size === 1) autoSelect(peerId);
 
   addChatEvent(`${name} joined the room`);
+  refreshMembersPanel();
 
   if (isInitiator) {
     const dc = pc.createDataChannel('webdrop', { ordered: true });
@@ -1111,6 +1115,7 @@ function removePeer(peerId) {
   updatePositions();
   if (peers.size === 0) noDevicesEl.style.display = 'flex';
   toast(`${peer.name} disconnected`, 'info');
+  refreshMembersPanel();
 }
 
 function autoSelect(peerId) {
@@ -1659,6 +1664,58 @@ window.addEventListener('load', async () => {
     }
   }, 800);
 });
+
+// ===== Members Panel =====
+function refreshMembersPanel() {
+  const list = document.getElementById('members-list');
+  const badge = document.getElementById('members-count-badge');
+  if (!list) return;
+  const myRole = currentUser?.role;
+  const isMod = ['admin', 'business'].includes(myRole);
+  badge.textContent = peers.size;
+  if (!peers.size) {
+    list.innerHTML = `<div class="members-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <p>目前沒有其他成員</p></div>`;
+    return;
+  }
+  list.innerHTML = '';
+  peers.forEach((peer, peerId) => {
+    const row = document.createElement('div');
+    row.className = 'member-row';
+    const initial = (peer.name || '?')[0].toUpperCase();
+    const avatarHtml = peer.avatar
+      ? `<img src="${peer.avatar}" alt="">`
+      : initial;
+    const roleBadge = peer.role
+      ? `<span class="member-role-badge member-role-${peer.role}">${{ admin:'👑 Admin', business:'💼 Business', vip:'💎 VIP' }[peer.role] || peer.role}</span>`
+      : '';
+    const canMod = isMod && !(myRole === 'business' && ['admin','business'].includes(peer.role));
+    row.innerHTML = `
+      <div class="member-avatar">${avatarHtml}</div>
+      <div class="member-info">
+        <div class="member-name">${escHtml(peer.name)}</div>
+        ${roleBadge}
+      </div>
+      ${canMod ? `<div class="member-actions">
+        <button class="member-kick-btn" data-id="${peerId}" title="踢出房間">踢出</button>
+        <button class="member-ban-btn"  data-id="${peerId}" title="封鎖並踢出">封鎖</button>
+      </div>` : ''}`;
+    if (canMod) {
+      row.querySelector('.member-kick-btn').addEventListener('click', () => {
+        if (confirm(`踢出 ${peer.name}？對方可重新加入。`)) socket.emit('room-kick', { peerId });
+      });
+      row.querySelector('.member-ban-btn').addEventListener('click', () => {
+        if (confirm(`封鎖並踢出 ${peer.name}？對方將無法重新加入本房間。`)) socket.emit('room-ban', { peerId });
+      });
+    }
+    list.appendChild(row);
+  });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ===== WebRTC check =====
 if (!window.RTCPeerConnection) {

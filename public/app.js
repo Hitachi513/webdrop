@@ -4,9 +4,11 @@ const lsStatus   = document.getElementById('ls-status');
 const lsPingRow  = document.getElementById('ls-ping-row');
 const lsBars     = document.getElementById('ls-signal-bars');
 const lsPingLbl  = document.getElementById('ls-ping-label');
-let lsHideTimer   = null;
-let lsFinishTimer = null;
-let lastPingMs    = null;
+let lsHideTimer      = null;
+let lsFinishTimer    = null;
+let lastPingMs       = null;
+let landingDismissed = false;
+let lsDonePending    = false;
 
 function lsSetStatus(text, cls) {
   lsStatus.textContent = text;
@@ -37,6 +39,7 @@ function lsHide() {
 
 function lsDone() {
   if (lsHideTimer) return;
+  if (!landingDismissed) { lsDonePending = true; return; }
   const ring = document.querySelector('.ls-ring');
   // Speed up ring 650ms before exit
   lsFinishTimer = setTimeout(() => { if (ring) ring.classList.add('fast'); }, 2000 - 650);
@@ -1282,8 +1285,35 @@ lsEl.addEventListener('click', () => {
   lsHide();
 });
 
-// Force-hide loading screen after 7s if something goes wrong
-setTimeout(() => { if (!lsHideTimer) { lsSetStatus('連線逾時，請重新整理', 'bad'); lsHideTimer = setTimeout(lsHide, 2000); } }, 7000);
+// Force-hide loading screen after 7s if something goes wrong (only runs after landing dismissed)
+setTimeout(() => { if (!lsHideTimer && landingDismissed) { lsSetStatus('連線逾時，請重新整理', 'bad'); lsHideTimer = setTimeout(lsHide, 2000); } }, 7000);
+
+// ===== Landing Page =====
+const landingEl = document.getElementById('landing-page');
+const hasRoomHash = window.location.hash.length > 1;
+
+if (hasRoomHash) {
+  // Came via a shared room link — skip landing, go straight to app
+  landingEl.style.display = 'none';
+  landingDismissed = true;
+} else {
+  // Hide loading screen until user enters
+  lsEl.style.display = 'none';
+}
+
+document.getElementById('lp-enter').addEventListener('click', () => {
+  landingEl.classList.add('lp-hiding');
+  setTimeout(() => {
+    landingEl.style.display = 'none';
+    landingDismissed = true;
+    lsEl.style.display = 'flex';
+    if (lsDonePending) lsDone();
+    // Start 7s fallback from when the user enters the app
+    setTimeout(() => {
+      if (!lsHideTimer) { lsSetStatus('連線逾時，請重新整理', 'bad'); lsHideTimer = setTimeout(lsHide, 2000); }
+    }, 7000);
+  }, 480);
+});
 
 // ===== Init =====
 window.addEventListener('load', async () => {

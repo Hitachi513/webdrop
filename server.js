@@ -25,7 +25,7 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 
 // ===== Storage (Upstash Redis or local files) =====
 const DATA_DIR      = path.join(__dirname, 'data');
-const UPSTASH_URL   = (process.env.UPSTASH_REDIS_REST_URL || '').trim();
+const UPSTASH_URL   = (process.env.UPSTASH_REDIS_REST_URL || '').trim().replace(/\/+$/, '');
 const UPSTASH_TOKEN = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim();
 const USE_UPSTASH   = !!(UPSTASH_URL && UPSTASH_TOKEN);
 
@@ -788,16 +788,40 @@ async function startTunnel(port) {
 async function init() {
   console.log(`[Storage] Mode: ${USE_UPSTASH ? 'Upstash Redis' : 'Local files (data will be lost on redeploy!)'}`);
   if (USE_UPSTASH) {
-    // Verify Upstash connection
+    // Verify Upstash read + write
     try {
-      const r = await fetch(`${UPSTASH_URL}/ping`, {
+      const pingR = await fetch(`${UPSTASH_URL}/ping`, {
         headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
         signal: AbortSignal.timeout(8000)
       });
-      const j = await r.json();
-      console.log(`[Storage] Upstash ping: ${r.status} ${j.result || JSON.stringify(j)}`);
+      const pingJ = await pingR.json();
+      console.log(`[Storage] Upstash ping: HTTP ${pingR.status} result=${pingJ.result}`);
+
+      // Write test
+      const testVal = `wd-test-${Date.now()}`;
+      const setR = await fetch(`${UPSTASH_URL}/set/__wd_test`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(JSON.stringify(testVal)),
+        signal: AbortSignal.timeout(8000)
+      });
+      const setJ = await setR.json();
+      console.log(`[Storage] Upstash write test: HTTP ${setR.status} result=${setJ.result}`);
+
+      // Read back
+      const getR = await fetch(`${UPSTASH_URL}/get/__wd_test`, {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+        signal: AbortSignal.timeout(8000)
+      });
+      const getJ = await getR.json();
+      const readBack = getJ.result ? JSON.parse(getJ.result) : null;
+      if (readBack === testVal) {
+        console.log('[Storage] Upstash read/write verified OK ✓');
+      } else {
+        console.error(`[Storage] Upstash read/write MISMATCH! wrote="${testVal}" read back="${readBack}"`);
+      }
     } catch (e) {
-      console.error(`[Storage] Upstash connection FAILED: ${e.message}`);
+      console.error(`[Storage] Upstash test FAILED: ${e.message}`);
       console.error('[Storage] WARNING: Data will NOT persist without a working Upstash connection!');
     }
   }

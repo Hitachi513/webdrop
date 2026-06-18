@@ -616,8 +616,9 @@ adminNsp.on('connection', (socket) => {
 });
 
 // ===== Main Socket.io =====
-const rooms     = new Map();
-const roomsMeta = new Map();
+const rooms        = new Map();
+const roomsMeta    = new Map();
+const pendingJoins = new Map(); // requestId → { joinerSocketId, hostSocketId, roomId, name, avatar, timer }
 let publicUrl   = null;
 let tunnelProc  = null;
 
@@ -679,6 +680,27 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Room is full' });
       return;
     }
+
+    // Approval gate: if room has members, route through host approval
+    if (existing && existing.size > 0) {
+      const hostSocketId = Array.from(existing.keys())[0];
+      const hostSocket = io.sockets.sockets.get(hostSocketId);
+      if (hostSocket) {
+        const requestId = Math.random().toString(36).slice(2, 10);
+        const joinTimer = setTimeout(() => {
+          pendingJoins.delete(requestId);
+          const js = io.sockets.sockets.get(socket.id);
+          if (js) js.emit('join-rejected', { message: '等待逾時，請重新整理再試。' });
+        }, 60000);
+        const reqAvatar = socket.userAvatar || (typeof avatar === 'string' ? avatar.slice(0, 200000) : null);
+        pendingJoins.set(requestId, { joinerSocketId: socket.id, hostSocketId, roomId, name, avatar: reqAvatar, timer: joinTimer });
+        hostSocket.emit('join-request', { requestId, name, avatar: reqAvatar });
+        socket.emit('join-pending');
+        return;
+      }
+      // Host socket gone — allow direct join (fall through)
+    }
+
     if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null }); }
     const room = rooms.get(roomId);
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
@@ -688,6 +710,34 @@ io.on('connection', (socket) => {
     socket.emit('room-joined', { roomId, peers: existingPeers });
     socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null, avatar: socket.userAvatar || null });
     adminNsp.emit('rooms', getRoomList());
+  });
+
+  socket.on('approve-join', ({ requestId }) => {
+    const req = pendingJoins.get(requestId);
+    if (!req || req.hostSocketId !== socket.id) return;
+    clearTimeout(req.timer);
+    pendingJoins.delete(requestId);
+    const joinerSocket = io.sockets.sockets.get(req.joinerSocketId);
+    if (!joinerSocket) return;
+    const room = rooms.get(req.roomId);
+    if (!room) { joinerSocket.emit('join-rejected', { message: '房間已關閉' }); return; }
+    if (room.size >= settings.maxPeersPerRoom) { joinerSocket.emit('join-rejected', { message: '房間已滿' }); return; }
+    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
+    room.set(joinerSocket.id, { name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
+    joinerSocket.join(req.roomId);
+    joinerSocket.currentRoom = req.roomId;
+    joinerSocket.emit('room-joined', { roomId: req.roomId, peers: existingPeers });
+    io.to(req.roomId).except(joinerSocket.id).emit('peer-joined', { id: joinerSocket.id, name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
+    adminNsp.emit('rooms', getRoomList());
+  });
+
+  socket.on('reject-join', ({ requestId }) => {
+    const req = pendingJoins.get(requestId);
+    if (!req || req.hostSocketId !== socket.id) return;
+    clearTimeout(req.timer);
+    pendingJoins.delete(requestId);
+    const joinerSocket = io.sockets.sockets.get(req.joinerSocketId);
+    if (joinerSocket) joinerSocket.emit('join-rejected', { message: '房主已拒絕你的加入請求' });
   });
 
   socket.on('change-profile', ({ name, avatar }) => {
@@ -745,6 +795,18 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // Clean up any pending join requests related to this socket
+    for (const [requestId, req] of pendingJoins) {
+      if (req.joinerSocketId === socket.id) {
+        clearTimeout(req.timer);
+        pendingJoins.delete(requestId);
+      } else if (req.hostSocketId === socket.id) {
+        clearTimeout(req.timer);
+        pendingJoins.delete(requestId);
+        const js = io.sockets.sockets.get(req.joinerSocketId);
+        if (js) js.emit('join-rejected', { message: '房主已離線，請重新整理再試。' });
+      }
+    }
     if (socket.currentRoom) {
       const room = rooms.get(socket.currentRoom);
       if (room) {

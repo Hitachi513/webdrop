@@ -2081,6 +2081,121 @@ header {
 }
 
 /* ===========================
+   Join Approval UI
+   =========================== */
+#join-pending-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+  background: var(--bg);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#join-pending-overlay.active { display: flex; }
+.jp-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 48px 32px;
+  text-align: center;
+}
+.jp-spinner {
+  width: 52px; height: 52px;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+.jp-title { font-size: 1.3rem; font-weight: 700; color: var(--text); }
+.jp-sub   { font-size: .9rem; color: var(--text-muted); line-height: 1.55; }
+
+#join-request-card {
+  position: fixed;
+  bottom: 88px;
+  right: 18px;
+  z-index: 8500;
+  width: 290px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-top: 2px solid var(--primary);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.38), 0 0 0 1px rgba(0,212,255,.12);
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  animation: msgIn .25s ease-out;
+}
+#join-request-card.active { display: flex; }
+.jr-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .76rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.jr-count {
+  margin-left: auto;
+  background: var(--primary-dim);
+  color: var(--primary);
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: .68rem;
+  font-weight: 600;
+}
+.jr-requester { display: flex; align-items: center; gap: 12px; }
+.jr-avatar-wrap {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--primary-dim);
+  border: 2px solid var(--border-strong);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.jr-avatar-wrap img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.jr-initial { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+.jr-info { flex: 1; min-width: 0; }
+.jr-name { font-size: .9rem; font-weight: 600; color: var(--text); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-sub  { font-size: .72rem; color: var(--text-muted); }
+.jr-btns { display: flex; gap: 8px; }
+.jr-btn-reject {
+  flex: 1;
+  padding: 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.jr-btn-reject:hover { border-color: var(--error); color: var(--error); }
+.jr-btn-approve {
+  flex: 2;
+  padding: 9px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 12px var(--glow-primary);
+  transition: opacity .15s, transform .15s;
+}
+.jr-btn-approve:hover { opacity: .9; transform: translateY(-1px); }
+.jr-btn-approve:active { transform: scale(.97); }
+
+@media (max-width: 480px) {
+  #join-request-card { right: 10px; left: 10px; width: auto; bottom: 76px; }
+}
+
+/* ===========================
    Full-Screen Drag Overlay
    =========================== */
 #drag-overlay {

@@ -819,11 +819,80 @@ socket.on('connect', () => {
 });
 
 socket.on('room-joined', ({ peers: existing }) => {
+  joinPendingOverlay.classList.remove('active');
   existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar));
 });
 socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false, role, avatar));
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
+
+// ===== Join Approval =====
+const joinPendingOverlay = document.getElementById('join-pending-overlay');
+const joinRequestCard    = document.getElementById('join-request-card');
+const jrQueueCount       = document.getElementById('jr-queue-count');
+const jrAvatarWrap       = document.getElementById('jr-avatar-wrap');
+const jrNameEl           = document.getElementById('jr-name');
+const jrApproveBtn       = document.getElementById('jr-approve');
+const jrRejectBtn        = document.getElementById('jr-reject');
+const joinRequestQueue   = [];
+
+function jrShowNext() {
+  if (!joinRequestQueue.length) { joinRequestCard.classList.remove('active'); return; }
+  const req = joinRequestQueue[0];
+  jrNameEl.textContent = req.name;
+  const extra = joinRequestQueue.length - 1;
+  jrQueueCount.textContent = extra > 0 ? `+${extra} 更多` : '';
+  jrQueueCount.style.display = extra > 0 ? '' : 'none';
+  jrAvatarWrap.innerHTML = '';
+  if (req.avatar) {
+    const img = document.createElement('img');
+    img.src = req.avatar;
+    img.onerror = () => { img.remove(); jrShowInitial(req.name); };
+    jrAvatarWrap.appendChild(img);
+  } else { jrShowInitial(req.name); }
+  joinRequestCard.classList.add('active');
+}
+function jrShowInitial(name) {
+  const s = document.createElement('span');
+  s.className = 'jr-initial';
+  s.textContent = (name || '?')[0].toUpperCase();
+  jrAvatarWrap.appendChild(s);
+}
+
+socket.on('join-pending', () => joinPendingOverlay.classList.add('active'));
+
+socket.on('join-rejected', ({ message }) => {
+  joinPendingOverlay.classList.add('active');
+  const titleEl = joinPendingOverlay.querySelector('.jp-title');
+  const subEl   = joinPendingOverlay.querySelector('.jp-sub');
+  const spinEl  = joinPendingOverlay.querySelector('.jp-spinner');
+  if (titleEl) titleEl.textContent = '加入請求被拒絕';
+  if (subEl)   subEl.textContent   = message || '房主已拒絕你的加入請求';
+  if (spinEl)  spinEl.style.display = 'none';
+  const retryBtn = document.createElement('button');
+  retryBtn.className = 'btn-primary';
+  retryBtn.style.cssText = 'margin-top:4px;padding:11px 32px;font-size:.9rem;';
+  retryBtn.textContent = '重新整理';
+  retryBtn.addEventListener('click', () => location.reload());
+  joinPendingOverlay.querySelector('.jp-box').appendChild(retryBtn);
+});
+
+socket.on('join-request', ({ requestId, name, avatar }) => {
+  joinRequestQueue.push({ requestId, name, avatar });
+  if (joinRequestQueue.length === 1) jrShowNext();
+  else { const extra = joinRequestQueue.length - 1; jrQueueCount.textContent = `+${extra} 更多`; jrQueueCount.style.display = ''; }
+});
+
+jrApproveBtn.addEventListener('click', () => {
+  if (!joinRequestQueue.length) return;
+  socket.emit('approve-join', { requestId: joinRequestQueue.shift().requestId });
+  jrShowNext();
+});
+jrRejectBtn.addEventListener('click', () => {
+  if (!joinRequestQueue.length) return;
+  socket.emit('reject-join', { requestId: joinRequestQueue.shift().requestId });
+  jrShowNext();
+});
 
 socket.on('room-reserved', ({ message }) => {
   toast(message || '此房號已被預留', 'error');

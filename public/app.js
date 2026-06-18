@@ -681,12 +681,66 @@ function fmtBytes(b) {
   if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
   return `${(b / 1073741824).toFixed(2)} GB`;
 }
+function fmtSpeed(bps) {
+  if (bps < 1024) return `${Math.round(bps)} B/s`;
+  if (bps < 1048576) return `${(bps / 1024).toFixed(0)} KB/s`;
+  return `${(bps / 1048576).toFixed(1)} MB/s`;
+}
+function fmtEta(sec) {
+  if (sec < 60) return `${Math.ceil(sec)}s`;
+  const m = Math.floor(sec / 60), s = Math.ceil(sec % 60);
+  return `${m}m ${s}s`;
+}
 
-function addFileBubble(filename, filesize, isMine, peerName) {
+// ===== Transfer Progress =====
+const currentTransfer = { active: false, filename: '', totalBytes: 0, startTime: 0, lastTime: 0, lastBytes: 0, speedBps: 0 };
+const tpPanel   = document.getElementById('transfer-progress-panel');
+const tpName    = document.getElementById('tp-filename');
+const tpPct     = document.getElementById('tp-pct');
+const tpSpeed   = document.getElementById('tp-speed');
+const tpEta     = document.getElementById('tp-eta');
+const tpBar     = document.getElementById('tp-bar');
+
+function txStart(name, size) {
+  Object.assign(currentTransfer, { active: true, filename: name, totalBytes: size, startTime: Date.now(), lastTime: Date.now(), lastBytes: 0, speedBps: 0 });
+  tpName.textContent = name;
+  tpPct.textContent  = '0%';
+  tpSpeed.textContent = '—';
+  tpEta.textContent  = '計算中…';
+  tpBar.style.width  = '0%';
+  tpPanel.classList.add('active');
+}
+function txUpdate(bytesNow) {
+  if (!currentTransfer.active) return;
+  const now = Date.now();
+  const elapsed = (now - currentTransfer.lastTime) / 1000;
+  if (elapsed >= 0.35) {
+    currentTransfer.speedBps = (bytesNow - currentTransfer.lastBytes) / elapsed;
+    currentTransfer.lastTime  = now;
+    currentTransfer.lastBytes = bytesNow;
+  }
+  const fraction  = Math.min(bytesNow / currentTransfer.totalBytes, 1);
+  const remaining = currentTransfer.totalBytes - bytesNow;
+  const eta = currentTransfer.speedBps > 512 ? fmtEta(remaining / currentTransfer.speedBps) : '計算中…';
+  tpBar.style.width   = `${Math.round(fraction * 100)}%`;
+  tpPct.textContent   = `${Math.round(fraction * 100)}%`;
+  tpSpeed.textContent = currentTransfer.speedBps > 0 ? fmtSpeed(currentTransfer.speedBps) : '—';
+  tpEta.textContent   = eta;
+}
+function txEnd() {
+  currentTransfer.active = false;
+  tpPanel.classList.remove('active');
+}
+
+function addFileBubble(filename, filesize, isMine, peerName, blob) {
   removeChatEmpty();
   const wrap = document.createElement('div');
   wrap.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dlBtnHtml = (!isMine && blob) ? `
+      <button class="file-redownload-btn" title="重新下載">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>` : '';
   wrap.innerHTML = `
     ${!isMine ? `<div class="chat-sender">${esc(peerName || 'Unknown')}</div>` : ''}
     <div class="file-bubble ${isMine ? 'mine' : 'theirs'}">
@@ -696,9 +750,15 @@ function addFileBubble(filename, filesize, isMine, peerName) {
       <div class="file-bubble-meta">
         <div class="file-bubble-name">${esc(filename)}</div>
         <div class="file-bubble-size">${fmtBytes(filesize)}</div>
-      </div>
+      </div>${dlBtnHtml}
     </div>
     <div class="chat-time">${time}</div>`;
+  if (!isMine && blob) {
+    wrap.querySelector('.file-redownload-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      triggerDownload(blob, filename);
+    });
+  }
   chatEl.appendChild(wrap);
   chatEl.scrollTop = chatEl.scrollHeight;
   if (!isMine) bumpChatBadge();
@@ -863,6 +923,7 @@ socket.on('relay-file-start', ({ from, meta }) => {
   if (!peer) return;
   peer.receiving = { fileId: meta.fileId, name: meta.name, size: meta.size, mime: meta.mime, chunks: [], received: 0 };
   setProgress(peer, 0);
+  txStart(meta.name, meta.size);
 });
 socket.on('relay-file-chunk', ({ from, chunk }) => {
   const peer = peers.get(from);
@@ -871,16 +932,18 @@ socket.on('relay-file-chunk', ({ from, chunk }) => {
   peer.receiving.chunks.push(buf);
   peer.receiving.received += buf.byteLength;
   setProgress(peer, peer.receiving.received / peer.receiving.size);
+  txUpdate(peer.receiving.received);
 });
 socket.on('relay-file-end', ({ from, fileId, name }) => {
   const peer = peers.get(from);
   if (!peer?.receiving || peer.receiving.fileId !== fileId) return;
   const r = peer.receiving;
-  download(r);
-  addFileBubble(r.name, r.size, false, peer.name);
+  const blob = download(r);
+  addFileBubble(r.name, r.size, false, peer.name, blob);
   toast(`Received: ${r.name}`, 'success');
   peer.receiving = null;
   setProgress(peer, null);
+  txEnd();
 });
 
 // ===== Peer Lifecycle =====
@@ -962,14 +1025,16 @@ function handleDCControl(msg, peerId) {
   if (msg.type === 'file-start') {
     peer.receiving = { fileId: msg.fileId, name: msg.name, size: msg.size, mime: msg.mime, chunks: [], received: 0 };
     setProgress(peer, 0);
+    txStart(msg.name, msg.size);
   } else if (msg.type === 'file-end') {
     if (peer.receiving?.fileId === msg.fileId) {
       const r = peer.receiving;
-      download(r);
-      addFileBubble(r.name, r.size, false, peer.name);
+      const blob = download(r);
+      addFileBubble(r.name, r.size, false, peer.name, blob);
       toast(`Received: ${r.name}`, 'success');
       peer.receiving = null;
       setProgress(peer, null);
+      txEnd();
     }
   } else if (msg.type === 'message') {
     addChatMsg(peer.name, msg.text, false);
@@ -981,14 +1046,19 @@ function handleDCChunk(data, peerId) {
   peer.receiving.chunks.push(data);
   peer.receiving.received += data.byteLength;
   setProgress(peer, peer.receiving.received / peer.receiving.size);
+  txUpdate(peer.receiving.received);
 }
 
 function download(r) {
   const blob = new Blob(r.chunks, { type: r.mime || 'application/octet-stream' });
+  triggerDownload(blob, r.name);
+  return blob;
+}
+function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement('a'), { href: url, download: r.name });
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // ===== Send =====
@@ -1028,6 +1098,7 @@ async function sendFileViaDC(peerId, file) {
   const peer = peers.get(peerId);
   const fileId = randId();
   peer.dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' }));
+  txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size) {
     while (peer.dc.bufferedAmount > MAX_BUFFER) await sleep(50);
@@ -1035,10 +1106,12 @@ async function sendFileViaDC(peerId, file) {
     peer.dc.send(buf);
     offset += buf.byteLength;
     setProgress(peer, offset / file.size);
+    txUpdate(offset);
   }
   peer.dc.send(JSON.stringify({ type: 'file-end', fileId }));
   setProgress(peer, null);
-  addFileBubble(file.name, file.size, true, peer.name);
+  txEnd();
+  addFileBubble(file.name, file.size, true, peer.name, null);
   toast(`Sent: ${file.name}`, 'success');
 }
 
@@ -1046,17 +1119,20 @@ async function sendFileViaRelay(peerId, file) {
   const peer = peers.get(peerId);
   const fileId = randId();
   socket.emit('relay-file-start', { to: peerId, meta: { fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' } });
+  txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size) {
     const buf = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
     socket.emit('relay-file-chunk', { to: peerId, chunk: buf });
     offset += buf.byteLength;
     setProgress(peer, offset / file.size);
+    txUpdate(offset);
     if (offset % (CHUNK_SIZE * 4) === 0) await sleep(10);
   }
   socket.emit('relay-file-end', { to: peerId, fileId, name: file.name });
   setProgress(peer, null);
-  addFileBubble(file.name, file.size, true, peer.name);
+  txEnd();
+  addFileBubble(file.name, file.size, true, peer.name, null);
   toast(`Sent: ${file.name}`, 'success');
 }
 
@@ -1083,11 +1159,41 @@ function handleFiles(files) {
   targets.forEach(id => files.forEach(f => queueFile(id, f)));
 }
 
+async function collectEntry(entry, out) {
+  if (entry.isFile) {
+    out.push(await new Promise((res, rej) => entry.file(res, rej)));
+  } else if (entry.isDirectory) {
+    const reader = entry.createReader();
+    let batch;
+    do {
+      batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      for (const child of batch) await collectEntry(child, out);
+    } while (batch.length > 0);
+  }
+}
+
+async function getDropFiles(dataTransfer) {
+  const items = dataTransfer.items ? [...dataTransfer.items] : null;
+  if (items && items[0]?.webkitGetAsEntry) {
+    const out = [];
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+      const entry = item.webkitGetAsEntry();
+      if (entry) await collectEntry(entry, out);
+    }
+    return out;
+  }
+  return [...dataTransfer.files];
+}
+
 dropZoneEl.addEventListener('dragover',  e => { e.preventDefault(); dropZoneEl.classList.add('dragover'); });
 dropZoneEl.addEventListener('dragleave', e => { if (!dropZoneEl.contains(e.relatedTarget)) dropZoneEl.classList.remove('dragover'); });
-dropZoneEl.addEventListener('drop',      e => { e.preventDefault(); dropZoneEl.classList.remove('dragover'); handleFiles([...e.dataTransfer.files]); });
-dropZoneEl.addEventListener('click',     () => fileInputEl.click());
+dropZoneEl.addEventListener('drop',      async e => { e.preventDefault(); dropZoneEl.classList.remove('dragover'); handleFiles(await getDropFiles(e.dataTransfer)); });
+dropZoneEl.addEventListener('click',     e => { if (!e.target.closest('label')) fileInputEl.click(); });
 fileInputEl.addEventListener('change',   () => { handleFiles([...fileInputEl.files]); fileInputEl.value = ''; });
+
+const folderInputEl = document.getElementById('folder-input');
+folderInputEl.addEventListener('change', () => { handleFiles([...folderInputEl.files]); folderInputEl.value = ''; });
 
 const fileInputChatEl = document.getElementById('file-input-chat');
 fileInputChatEl.addEventListener('change', () => { handleFiles([...fileInputChatEl.files]); fileInputChatEl.value = ''; });

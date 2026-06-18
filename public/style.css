@@ -715,6 +715,92 @@ header {
 }
 #drop-zone.ready { border-color: rgba(0,212,255,0.4); }
 #file-input { display:none; }
+#folder-input { display:none; }
+
+/* Drop zone option buttons */
+.drop-zone-opts {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.drop-opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: .74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  white-space: nowrap;
+}
+.drop-opt-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-dim); }
+
+/* Transfer Progress Panel */
+#transfer-progress-panel {
+  display: none;
+  width: 100%;
+  max-width: 340px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 13px 15px 12px;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  animation: msgIn .22s ease-out;
+}
+#transfer-progress-panel.active { display: flex; }
+.tp-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.tp-icon {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: var(--primary-dim);
+  border: 1px solid rgba(0,212,255,.18);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.tp-info { flex: 1; min-width: 0; }
+.tp-name {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-stats {
+  font-size: .7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.tp-sep { opacity: .4; }
+.tp-bar-wrap {
+  width: 100%;
+  height: 5px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+#tp-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  border-radius: 99px;
+  width: 0%;
+  transition: width .3s ease;
+}
 
 /* ===========================
    Chat Panel
@@ -808,7 +894,7 @@ header {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 14px;
-  max-width: 220px;
+  max-width: 240px;
 }
 .file-bubble.mine   { background:var(--chat-mine-bg); border:1px solid var(--chat-mine-bd); border-bottom-right-radius:4px; }
 .file-bubble.theirs { background:var(--chat-their-bg); border:1px solid var(--chat-their-bd); border-bottom-left-radius:4px; }
@@ -823,6 +909,18 @@ header {
 .file-bubble-meta { flex:1; min-width:0; }
 .file-bubble-name { font-size:.8rem; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px; }
 .file-bubble-size { font-size:.7rem; color:var(--text-muted); margin-top:2px; }
+.file-redownload-btn {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.file-redownload-btn:hover { background: var(--primary-dim); border-color: var(--primary); }
 
 /* ===========================
    Input Bar

@@ -226,6 +226,31 @@
         </div>
       </div>
 
+      <!-- Transfer Progress Panel -->
+      <div id="transfer-progress-panel">
+        <div class="tp-row">
+          <div class="tp-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div class="tp-info">
+            <div class="tp-name" id="tp-filename">傳輸中…</div>
+            <div class="tp-stats">
+              <span id="tp-pct">0%</span>
+              <span class="tp-sep">·</span>
+              <span id="tp-speed">—</span>
+              <span class="tp-sep">·</span>
+              <span id="tp-eta">計算中…</span>
+            </div>
+          </div>
+        </div>
+        <div class="tp-bar-wrap">
+          <div id="tp-bar"></div>
+        </div>
+      </div>
+
       <div id="drop-zone">
         <div class="drop-icon-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -233,10 +258,21 @@
             <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <p id="drop-label" data-i18n="drop-files">Drop files or tap to select</p>
+        <p id="drop-label">拖放檔案 / 資料夾，或點擊選擇</p>
+        <div class="drop-zone-opts">
+          <label for="file-input" class="drop-opt-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            選擇檔案
+          </label>
+          <label for="folder-input" class="drop-opt-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            選擇資料夾
+          </label>
+        </div>
         <p class="hint" id="drop-hint" data-i18n="waiting-device">Waiting for a device…</p>
       </div>
       <input type="file" id="file-input" multiple>
+      <input type="file" id="folder-input" webkitdirectory multiple>
     </section>
 
     <!-- Right: Chat -->

@@ -6,6 +6,7 @@ const lsBars     = document.getElementById('ls-signal-bars');
 const lsPingLbl  = document.getElementById('ls-ping-label');
 let lsHideTimer   = null;
 let lsFinishTimer = null;
+let lastPingMs    = null;
 
 function lsSetStatus(text, cls) {
   lsStatus.textContent = text;
@@ -13,6 +14,7 @@ function lsSetStatus(text, cls) {
 }
 
 function lsShowPing(ms) {
+  lastPingMs = ms;
   lsPingRow.style.display = 'flex';
   lsPingLbl.textContent = `${ms} ms`;
   lsBars.className = 'ls-signal-bars';
@@ -534,9 +536,25 @@ const stPingVal     = document.getElementById('st-ping-val');
 const stDlVal       = document.getElementById('st-dl-val');
 const stRunBtn      = document.getElementById('st-run');
 
+function stShowCurrent(ms) {
+  const poor = ms >= 450, fair = !poor && ms >= 200, good = !poor && !fair && ms >= 80;
+  const qClass = poor ? 'poor' : fair ? 'fair' : good ? 'good' : 'great';
+  const qLabels = { great: '連線優秀', good: '連線良好', fair: '連線普通', poor: '連線不穩定' };
+  const qCss    = { great: 'ok',       good: 'ok',       fair: 'warn',     poor: 'bad' };
+  stCenterVal.textContent   = String(ms);
+  stCenterUnit.textContent  = 'ms 延遲';
+  stPingVal.textContent     = `${ms} ms`;
+  stRing.className          = `st-ring q-${qClass}`;
+  stBars.className          = `ls-signal-bars q-${qClass}`;
+  stQuality.textContent     = qLabels[qClass];
+  stQuality.className       = `st-quality-text ${qCss[qClass]}`;
+}
+
 speedtestBtn.addEventListener('click', e => {
   e.stopPropagation();
   speedtestCard.classList.toggle('open');
+  if (speedtestCard.classList.contains('open') && lastPingMs !== null && stPingVal.textContent === '—')
+    stShowCurrent(lastPingMs);
 });
 stClose.addEventListener('click', () => speedtestCard.classList.remove('open'));
 document.addEventListener('click', e => {

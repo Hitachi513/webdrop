@@ -4,7 +4,8 @@ const lsStatus   = document.getElementById('ls-status');
 const lsPingRow  = document.getElementById('ls-ping-row');
 const lsBars     = document.getElementById('ls-signal-bars');
 const lsPingLbl  = document.getElementById('ls-ping-label');
-let lsHideTimer  = null;
+let lsHideTimer   = null;
+let lsFinishTimer = null;
 
 function lsSetStatus(text, cls) {
   lsStatus.textContent = text;
@@ -33,7 +34,7 @@ function lsDone() {
   if (lsHideTimer) return;
   const ring = document.querySelector('.ls-ring');
   // Speed up ring 650ms before exit
-  setTimeout(() => { if (ring) ring.classList.add('fast'); }, 2000 - 650);
+  lsFinishTimer = setTimeout(() => { if (ring) ring.classList.add('fast'); }, 2000 - 650);
   // Exit at 2s
   lsHideTimer = setTimeout(lsHide, 2000);
 }
@@ -1163,6 +1164,12 @@ async function resizeImageToDataUrl(file, w, h) {
     img.src = url;
   });
 }
+
+document.getElementById('ls-skip').addEventListener('click', () => {
+  clearTimeout(lsHideTimer); lsHideTimer = 1;
+  clearTimeout(lsFinishTimer);
+  lsHide();
+});
 
 // Force-hide loading screen after 7s if something goes wrong
 setTimeout(() => { if (!lsHideTimer) { lsSetStatus('連線逾時，請重新整理', 'bad'); lsHideTimer = setTimeout(lsHide, 2000); } }, 7000);

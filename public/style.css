@@ -1552,3 +1552,19 @@ header {
   30%  { opacity: 1; }
   100% { opacity: 0; }
 }
+
+.ls-skip {
+  position: absolute;
+  bottom: 28px;
+  left: 32px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.25);
+  font-size: .78rem;
+  cursor: pointer;
+  letter-spacing: .05em;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: color .2s, background .2s;
+}
+.ls-skip:hover { color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.06); }

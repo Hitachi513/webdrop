@@ -162,7 +162,8 @@ function getRoomList() {
     peers: Array.from(peers.entries()).map(([socketId, p]) => ({ socketId, name: p.name, role: p.role || null })),
     createdAt:        roomsMeta.get(roomId)?.createdAt || null,
     geo:              roomsMeta.get(roomId)?.geo || null,
-    filesTransferred: roomsMeta.get(roomId)?.filesTransferred || 0
+    filesTransferred: roomsMeta.get(roomId)?.filesTransferred || 0,
+    banCount: roomBans.get(roomId)?.size || 0
   }));
 }
 
@@ -613,6 +614,22 @@ app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
   }
   io.to(roomId).emit('peer-left', socketId);
   adminNsp.emit('rooms', getRoomList());
+  res.json({ ok: true });
+});
+
+app.get('/admin/api/rooms/:roomId/bans', requireAdmin, (req, res) => {
+  const bans = roomBans.get(req.params.roomId);
+  res.json({ bans: bans ? Array.from(bans) : [] });
+});
+
+app.delete('/admin/api/rooms/:roomId/bans', requireAdmin, (req, res) => {
+  roomBans.delete(req.params.roomId);
+  res.json({ ok: true });
+});
+
+app.delete('/admin/api/rooms/:roomId/bans/:entry', requireAdmin, (req, res) => {
+  const bans = roomBans.get(req.params.roomId);
+  if (bans) bans.delete(decodeURIComponent(req.params.entry));
   res.json({ ok: true });
 });
 

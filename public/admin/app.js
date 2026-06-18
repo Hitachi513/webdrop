@@ -352,7 +352,7 @@ function renderRoomsTable() {
         r.peers.some(p => p.name.toLowerCase().includes(q)))
     : allRooms;
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${q ? 'No rooms match your search' : 'No active rooms'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-row">${q ? 'No rooms match your search' : 'No active rooms'}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(r => {
@@ -362,6 +362,9 @@ function renderRoomsTable() {
       : `<span style="color:var(--muted)">—</span>`;
     const duration = r.createdAt ? Math.floor((Date.now() - r.createdAt) / 60000) : null;
     const durationStr = duration !== null ? `<br><small style="color:var(--muted)">${duration < 60 ? duration + 'm' : Math.floor(duration/60) + 'h ' + (duration%60) + 'm'}</small>` : '';
+    const banBadge = (r.banCount || 0) > 0
+      ? `<button class="btn-xs btn-danger-xs" onclick="openBanModal('${esc(r.roomId)}')">${r.banCount} 筆</button>`
+      : `<span style="color:var(--muted)">—</span>`;
     return `
     <tr>
       <td><code>${esc(r.roomId)}</code></td>
@@ -370,6 +373,7 @@ function renderRoomsTable() {
       <td style="font-size:.82rem">${locHtml}</td>
       <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}${durationStr}</td>
       <td><strong>${r.filesTransferred || 0}</strong></td>
+      <td>${banBadge}</td>
       <td><button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button></td>
     </tr>`;
   }).join('');
@@ -401,6 +405,69 @@ async function adminBanPeer(roomId, socketId, name) {
     toast('已封鎖並踢出', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
+
+// ===== Room Ban Modal =====
+let banModalRoomId = null;
+
+async function openBanModal(roomId) {
+  banModalRoomId = roomId;
+  document.getElementById('ban-modal-room').textContent = roomId;
+  const overlay = document.getElementById('ban-modal-overlay');
+  overlay.style.display = 'flex';
+  await refreshBanModal();
+}
+
+function closeBanModal() {
+  document.getElementById('ban-modal-overlay').style.display = 'none';
+  banModalRoomId = null;
+}
+
+async function refreshBanModal() {
+  const body = document.getElementById('ban-modal-body');
+  try {
+    const data = await api('GET', `/admin/api/rooms/${encodeURIComponent(banModalRoomId)}/bans`);
+    if (!data.bans.length) {
+      body.innerHTML = `<p style="color:var(--muted);text-align:center;padding:16px 0">此房間目前沒有封鎖記錄</p>`;
+      return;
+    }
+    body.innerHTML = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:4px 8px;font-size:.78rem;color:var(--muted)">類型</th>
+        <th style="text-align:left;padding:4px 8px;font-size:.78rem;color:var(--muted)">值</th>
+        <th style="padding:4px 8px"></th>
+      </tr></thead>
+      <tbody>${data.bans.map(entry => {
+        const [type, val] = entry.startsWith('user:') ? ['用戶 ID', entry.slice(5)] : ['IP', entry.slice(3)];
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 8px"><span style="font-size:.72rem;padding:2px 6px;border-radius:4px;background:var(--border)">${type}</span></td>
+          <td style="padding:6px 8px;font-family:monospace;font-size:.82rem">${esc(val)}</td>
+          <td style="padding:6px 8px;text-align:right"><button class="btn-xs btn-danger-xs" onclick="removeRoomBan('${esc(entry)}')">移除</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  } catch (e) { body.innerHTML = `<p style="color:var(--danger)">${e.message}</p>`; }
+}
+
+async function removeRoomBan(entry) {
+  try {
+    await api('DELETE', `/admin/api/rooms/${encodeURIComponent(banModalRoomId)}/bans/${encodeURIComponent(entry)}`);
+    toast('封鎖已移除', 'success');
+    await refreshBanModal();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function clearAllRoomBans() {
+  if (!confirm(`清除 ${banModalRoomId} 的所有封鎖記錄？`)) return;
+  try {
+    await api('DELETE', `/admin/api/rooms/${encodeURIComponent(banModalRoomId)}/bans`);
+    toast('已清除全部封鎖', 'success');
+    await refreshBanModal();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+document.getElementById('ban-modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('ban-modal-overlay')) closeBanModal();
+});
 
 // ===== Admins =====
 function renderAdmins(admins) {

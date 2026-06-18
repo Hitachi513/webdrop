@@ -140,11 +140,18 @@ function getSystemHealth() {
   } catch {}
   const pm = process.memoryUsage();
   return {
-    memory:  { total: totalMem, free: freeMem, used: totalMem - freeMem, usedPct: Math.round((totalMem - freeMem) / totalMem * 100) },
+    memory:   { total: totalMem, free: freeMem, used: totalMem - freeMem, usedPct: Math.round((totalMem - freeMem) / totalMem * 100) },
     loadAvg,
     cpuCount,
     disk,
-    nodeHeap: { used: pm.heapUsed, total: pm.heapTotal }
+    nodeHeap: { used: pm.heapUsed, total: pm.heapTotal },
+    proc: {
+      version:  process.version,
+      platform: os.platform(),
+      arch:     os.arch(),
+      pid:      process.pid,
+      uptime:   Math.floor(process.uptime())
+    }
   };
 }
 

@@ -82,6 +82,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         Promo Codes
       </a>
+      <a class="nav-item" data-section="health">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="6" height="6"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></svg>
+        System Health
+      </a>
       <a class="nav-item" data-section="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         Settings
@@ -192,38 +196,6 @@
         <div id="admin-map"></div>
       </div>
 
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>System Health</h3>
-          <span id="health-updated" style="color:var(--muted);font-size:.72rem"></span>
-        </div>
-        <div class="health-grid">
-          <div class="health-card">
-            <div class="health-title">RAM</div>
-            <div class="health-bar-wrap"><div class="health-bar" id="h-mem-bar"></div></div>
-            <div class="health-stat" id="h-mem-pct">—</div>
-            <div class="health-sub" id="h-mem-sub"></div>
-          </div>
-          <div class="health-card">
-            <div class="health-title">CPU Load (1m avg)</div>
-            <div class="health-bar-wrap"><div class="health-bar" id="h-cpu-bar"></div></div>
-            <div class="health-stat" id="h-cpu-pct">—</div>
-            <div class="health-sub" id="h-cpu-sub"></div>
-          </div>
-          <div class="health-card">
-            <div class="health-title">Disk</div>
-            <div class="health-bar-wrap"><div class="health-bar" id="h-disk-bar"></div></div>
-            <div class="health-stat" id="h-disk-pct">—</div>
-            <div class="health-sub" id="h-disk-sub">N/A</div>
-          </div>
-          <div class="health-card">
-            <div class="health-title">Node.js Heap</div>
-            <div class="health-bar-wrap"><div class="health-bar" id="h-heap-bar"></div></div>
-            <div class="health-stat" id="h-heap-pct">—</div>
-            <div class="health-sub" id="h-heap-sub"></div>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- Rooms -->
@@ -359,6 +331,65 @@
             <tr><td colspan="8" class="empty-row">No promo codes</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- System Health -->
+    <section id="section-health" class="section">
+      <div class="section-header">
+        <h2>System Health</h2>
+        <span id="health-updated" style="color:var(--muted);font-size:.82rem"></span>
+      </div>
+
+      <div class="health-grid health-grid-lg">
+        <div class="health-card">
+          <div class="health-title">RAM Usage</div>
+          <div class="health-bar-wrap"><div class="health-bar" id="h-mem-bar"></div></div>
+          <div class="health-stat" id="h-mem-pct">—</div>
+          <div class="health-sub" id="h-mem-sub"></div>
+        </div>
+        <div class="health-card">
+          <div class="health-title">CPU Load Avg (1m)</div>
+          <div class="health-bar-wrap"><div class="health-bar" id="h-cpu-bar"></div></div>
+          <div class="health-stat" id="h-cpu-pct">—</div>
+          <div class="health-sub" id="h-cpu-sub"></div>
+        </div>
+        <div class="health-card">
+          <div class="health-title">Disk</div>
+          <div class="health-bar-wrap"><div class="health-bar" id="h-disk-bar"></div></div>
+          <div class="health-stat" id="h-disk-pct">—</div>
+          <div class="health-sub" id="h-disk-sub">N/A</div>
+        </div>
+        <div class="health-card">
+          <div class="health-title">Node.js Heap</div>
+          <div class="health-bar-wrap"><div class="health-bar" id="h-heap-bar"></div></div>
+          <div class="health-stat" id="h-heap-pct">—</div>
+          <div class="health-sub" id="h-heap-sub"></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+          <h3 style="font-size:.85rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Process Info</h3>
+        </div>
+        <table>
+          <tbody id="proc-info-tbody">
+            <tr><td colspan="2" class="empty-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>CPU Load History <small>(last 30 min, per min)</small></h3>
+          <span class="chart-legend"><span class="chart-legend-dot" style="background:#10b981"></span>Load avg</span>
+        </div>
+        <div class="chart-area" id="cpu-chart">
+          <div class="chart-empty-inner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="6" height="6"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></svg>
+            <span>資料收集中…</span>
+          </div>
+        </div>
       </div>
     </section>
 

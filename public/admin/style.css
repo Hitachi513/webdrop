@@ -401,6 +401,24 @@ nav { padding: 12px 0; flex:1; }
   gap: 14px;
   margin-top: 4px;
 }
+.health-grid-lg .health-card {
+  padding: 20px 22px;
+}
+.health-grid-lg .health-title {
+  font-size: .72rem;
+  margin-bottom: 14px;
+}
+.health-grid-lg .health-bar-wrap {
+  height: 10px;
+  margin-bottom: 12px;
+}
+.health-grid-lg .health-stat {
+  font-size: 1.1rem;
+}
+.health-grid-lg .health-sub {
+  font-size: .78rem;
+  margin-top: 4px;
+}
 .health-card {
   background: var(--bg);
   border-radius: 12px;
@@ -433,6 +451,29 @@ nav { padding: 12px 0; flex:1; }
 .health-bar.danger  { background: linear-gradient(90deg, #e63946, #b0001e); }
 .health-stat { font-size: .88rem; color: var(--text); font-weight: 700; }
 .health-sub  { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+
+.cpu-chart-bar {
+  flex: 1;
+  background: linear-gradient(180deg, #10b981, rgba(16,185,129,.25));
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height .3s;
+  position: relative;
+}
+.cpu-chart-bar:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: .65rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 /* ===== Tables ===== */
 .table-card {

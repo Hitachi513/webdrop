@@ -152,7 +152,7 @@ function updateMapMarkers(locs) {
 }
 
 // ===== Navigation =====
-const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', settings: 'Settings' };
+const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', health: 'System Health', settings: 'Settings' };
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -246,7 +246,10 @@ function updateKpiAlerts(data) {
   }
 }
 
+const cpuHistory = [];
+
 function renderHealth(h) {
+  // RAM
   const memPct = h.memory.usedPct;
   const memBar = document.getElementById('h-mem-bar');
   if (memBar) {
@@ -256,6 +259,7 @@ function renderHealth(h) {
   setEl('h-mem-pct', memPct + '%');
   setEl('h-mem-sub', `${fmtBytes(h.memory.used)} / ${fmtBytes(h.memory.total)}`);
 
+  // CPU
   const cpuPct = Math.min(100, Math.round(h.loadAvg[0] / h.cpuCount * 100));
   const cpuBar = document.getElementById('h-cpu-bar');
   if (cpuBar) {
@@ -263,8 +267,9 @@ function renderHealth(h) {
     cpuBar.className = 'health-bar' + (cpuPct > 80 ? ' danger' : cpuPct > 60 ? ' warning' : '');
   }
   setEl('h-cpu-pct', `${h.loadAvg[0].toFixed(2)} (${cpuPct}%)`);
-  setEl('h-cpu-sub', `${h.cpuCount} cores`);
+  setEl('h-cpu-sub', `${h.cpuCount} cores · 5m: ${h.loadAvg[1].toFixed(2)} · 15m: ${h.loadAvg[2].toFixed(2)}`);
 
+  // Disk
   if (h.disk) {
     const diskPct = h.disk.usedPct;
     const diskBar = document.getElementById('h-disk-bar');
@@ -279,6 +284,7 @@ function renderHealth(h) {
     setEl('h-disk-sub', 'Not available on this platform');
   }
 
+  // Heap
   const heapPct = Math.round(h.nodeHeap.used / h.nodeHeap.total * 100);
   const heapBar = document.getElementById('h-heap-bar');
   if (heapBar) {
@@ -286,10 +292,45 @@ function renderHealth(h) {
     heapBar.className = 'health-bar' + (heapPct > 90 ? ' danger' : heapPct > 75 ? ' warning' : '');
   }
   setEl('h-heap-pct', heapPct + '%');
-  setEl('h-heap-sub', `${fmtBytes(h.nodeHeap.used)} heap used`);
+  setEl('h-heap-sub', `${fmtBytes(h.nodeHeap.used)} / ${fmtBytes(h.nodeHeap.total)}`);
+
+  // Process info table
+  if (h.proc) {
+    const tbody = document.getElementById('proc-info-tbody');
+    if (tbody) {
+      const rows = [
+        ['Node.js Version', h.proc.version],
+        ['Platform',        `${h.proc.platform} / ${h.proc.arch}`],
+        ['Process ID',      h.proc.pid],
+        ['Process Uptime',  fmtUptime(h.proc.uptime)]
+      ];
+      tbody.innerHTML = rows.map(([k, v]) => `
+        <tr>
+          <td style="width:180px;font-weight:600;font-size:.82rem;color:var(--muted)">${k}</td>
+          <td style="font-size:.85rem;font-family:monospace">${esc(String(v))}</td>
+        </tr>`).join('');
+    }
+  }
+
+  // CPU history for sparkline
+  cpuHistory.push({ t: Date.now(), v: h.loadAvg[0], pct: cpuPct });
+  if (cpuHistory.length > 30) cpuHistory.shift();
+  renderCpuChart();
 
   const updEl = document.getElementById('health-updated');
   if (updEl) updEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+function renderCpuChart() {
+  const el = document.getElementById('cpu-chart');
+  if (!el) return;
+  if (!cpuHistory.length) return;
+  const max = Math.max(...cpuHistory.map(h => h.v), 1);
+  el.innerHTML = cpuHistory.map(h => {
+    const pct  = Math.max(4, Math.round((h.v / max) * 100));
+    const time = new Date(h.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return `<div class="cpu-chart-bar" style="height:${pct}%" data-tip="Load ${h.v.toFixed(2)} (${h.pct}%) @ ${time}"></div>`;
+  }).join('');
 }
 
 // ===== Rooms =====

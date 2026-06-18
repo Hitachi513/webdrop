@@ -1,3 +1,40 @@
+// ===== Loading Screen =====
+const lsEl       = document.getElementById('loading-screen');
+const lsStatus   = document.getElementById('ls-status');
+const lsPingRow  = document.getElementById('ls-ping-row');
+const lsBars     = document.getElementById('ls-signal-bars');
+const lsPingLbl  = document.getElementById('ls-ping-label');
+let lsHideTimer  = null;
+
+function lsSetStatus(text, cls) {
+  lsStatus.textContent = text;
+  lsStatus.className = 'ls-status' + (cls ? ' ' + cls : '');
+}
+
+function lsShowPing(ms) {
+  lsPingRow.style.display = 'flex';
+  lsPingLbl.textContent = `${ms} ms`;
+  lsBars.className = 'ls-signal-bars';
+  let qClass, qText, qCls;
+  if (ms < 80)       { qClass = 'q-great'; qText = '連線優秀';  qCls = 'ok'; }
+  else if (ms < 200) { qClass = 'q-good';  qText = '連線良好';  qCls = 'ok'; }
+  else if (ms < 450) { qClass = 'q-fair';  qText = '連線普通';  qCls = 'warn'; }
+  else               { qClass = 'q-poor';  qText = '連線不穩定'; qCls = 'bad'; }
+  lsBars.classList.add(qClass);
+  lsSetStatus(qText, qCls);
+}
+
+function lsHide() {
+  lsEl.classList.add('hide');
+  // Clean up after transition
+  setTimeout(() => { if (lsEl.parentNode) lsEl.style.display = 'none'; }, 600);
+}
+
+function lsDone() {
+  if (lsHideTimer) return;
+  lsHideTimer = setTimeout(lsHide, 1800);
+}
+
 // ===== i18n Init =====
 i18n.apply();
 document.getElementById('lang-toggle-btn').addEventListener('click', e => {
@@ -557,10 +594,20 @@ function rejoinRoom() {
 
 socket.on('connect', () => {
   document.getElementById('maintenance-overlay').style.display = 'none';
+  lsSetStatus('已連線，測量延遲…');
+  // Measure round-trip ping
+  const t0 = Date.now();
+  socket.timeout(5000).emit('ping-check', (err) => {
+    if (!err) lsShowPing(Date.now() - t0);
+    else lsSetStatus('連線已建立', 'ok');
+    lsDone();
+  });
   rejoinRoom();
 });
 
-socket.on('room-joined', ({ peers: existing }) => existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar)));
+socket.on('room-joined', ({ peers: existing }) => {
+  existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar));
+});
 socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false, role, avatar));
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
@@ -606,8 +653,10 @@ socket.on('account-banned', ({ reason } = {}) => {
 });
 
 socket.on('connect_error', (e) => {
+  lsSetStatus('連線失敗，重試中…', 'bad');
   if (e.message === 'Under maintenance') {
     document.getElementById('maintenance-overlay').style.display = 'flex';
+    lsHide();
   }
   if (e.message === 'Your account has been suspended') {
     localStorage.removeItem('wd-user-token');
@@ -1111,6 +1160,9 @@ async function resizeImageToDataUrl(file, w, h) {
     img.src = url;
   });
 }
+
+// Force-hide loading screen after 6s if something goes wrong
+setTimeout(() => { if (!lsHideTimer) { lsSetStatus('連線逾時，請重新整理', 'bad'); setTimeout(lsHide, 2000); } }, 6000);
 
 // ===== Init =====
 window.addEventListener('load', async () => {

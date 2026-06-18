@@ -387,6 +387,37 @@
 
 <div id="notifications"></div>
 
+<!-- ===== Loading Screen ===== -->
+<div id="loading-screen">
+  <div class="ls-content">
+    <div class="ls-logo">
+      <svg viewBox="0 0 36 36" fill="none" width="64" height="64">
+        <defs>
+          <linearGradient id="lsLogoGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#00d4ff"/>
+            <stop offset="100%" stop-color="#7b2ff7"/>
+          </linearGradient>
+        </defs>
+        <circle cx="18" cy="18" r="16" stroke="url(#lsLogoGrad)" stroke-width="2"/>
+        <path d="M18 10L18 26M12 16L18 10L24 16" stroke="url(#lsLogoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 22h12" stroke="url(#lsLogoGrad)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div class="ls-ring"></div>
+    </div>
+    <h1 class="ls-title">WebDrop</h1>
+    <p class="ls-status" id="ls-status">正在建立連線…</p>
+    <div class="ls-ping-row" id="ls-ping-row" style="display:none">
+      <div class="ls-signal-bars" id="ls-signal-bars">
+        <span class="ls-bar b1"></span>
+        <span class="ls-bar b2"></span>
+        <span class="ls-bar b3"></span>
+        <span class="ls-bar b4"></span>
+      </div>
+      <span class="ls-ping-label" id="ls-ping-label">—</span>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Maintenance Overlay ===== -->
 <div id="banned-overlay" class="maintenance-overlay" style="display:none">
   <div class="maintenance-box">

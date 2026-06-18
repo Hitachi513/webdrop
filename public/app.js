@@ -1,3 +1,6 @@
+// Capture hash before room-ID generation overwrites it
+const originalHash = window.location.hash;
+
 // ===== Loading Screen =====
 const lsEl       = document.getElementById('loading-screen');
 const lsStatus   = document.getElementById('ls-status');
@@ -1290,7 +1293,7 @@ setTimeout(() => { if (!lsHideTimer && landingDismissed) { lsSetStatus('連線�
 
 // ===== Landing Page =====
 const landingEl = document.getElementById('landing-page');
-const hasRoomHash = window.location.hash.length > 1;
+const hasRoomHash = originalHash.length > 1;
 
 if (hasRoomHash) {
   // Came via a shared room link — skip landing, go straight to app

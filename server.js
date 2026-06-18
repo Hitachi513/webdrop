@@ -25,35 +25,43 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 
 // ===== Storage (Upstash Redis or local files) =====
 const DATA_DIR      = path.join(__dirname, 'data');
-const UPSTASH_URL   = process.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const UPSTASH_URL   = (process.env.UPSTASH_REDIS_REST_URL || '').trim();
+const UPSTASH_TOKEN = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim();
 const USE_UPSTASH   = !!(UPSTASH_URL && UPSTASH_TOKEN);
 
 async function dbGet(key) {
   if (!USE_UPSTASH) {
     const file = path.join(DATA_DIR, `${key}.json`);
-    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+    try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; }
+    catch (e) { console.error(`dbGet local error [${key}]:`, e.message); return null; }
   }
   try {
     const r = await fetch(`${UPSTASH_URL}/get/${encodeURIComponent(key)}`, {
-      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      signal: AbortSignal.timeout(10000)
     });
+    if (!r.ok) { console.error(`dbGet HTTP error [${key}]: ${r.status}`); return null; }
     const json = await r.json();
-    return json.result != null ? JSON.parse(json.result) : null;
-  } catch (e) { console.error('dbGet error:', e.message); return null; }
+    if (json.result == null) return null;
+    return JSON.parse(json.result);
+  } catch (e) { console.error(`dbGet Upstash error [${key}]:`, e.message); return null; }
 }
 
-function dbSet(key, value) {
+async function dbSet(key, value) {
   if (!USE_UPSTASH) {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(path.join(DATA_DIR, `${key}.json`), JSON.stringify(value, null, 2));
     return;
   }
-  fetch(`${UPSTASH_URL}/set/${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(JSON.stringify(value))
-  }).catch(e => console.error('dbSet error:', e.message));
+  try {
+    const r = await fetch(`${UPSTASH_URL}/set/${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(JSON.stringify(value)),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!r.ok) console.error(`dbSet HTTP error [${key}]: ${r.status}`);
+  } catch (e) { console.error(`dbSet Upstash error [${key}]:`, e.message); }
 }
 
 // ===== Runtime state (loaded during init) =====
@@ -70,10 +78,10 @@ const defaultSettings = {
   allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false
 };
 
-function saveAdmins()   { dbSet('admins',   admins);   }
-function saveSettings() { dbSet('settings', settings); }
-function saveUsers()    { dbSet('users',    users);    }
-function savePromos()   { dbSet('promos',   promos);   }
+async function saveAdmins()   { await dbSet('admins',   admins);   }
+async function saveSettings() { await dbSet('settings', settings); }
+async function saveUsers()    { await dbSet('users',    users);    }
+async function savePromos()   { await dbSet('promos',   promos);   }
 
 // ===== Stats =====
 const stats = {
@@ -258,11 +266,11 @@ app.post('/api/auth/google', async (req, res) => {
     if (!user) {
       user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
       users.push(user);
-      saveUsers();
+      saveUsers().catch(e => console.error("saveUsers error:", e.message));
       adminNsp.emit('users', getUserList());
     } else if (!user.googleId) {
       user.googleId = p.sub;
-      saveUsers();
+      saveUsers().catch(e => console.error("saveUsers error:", e.message));
     }
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: user.role || null, avatar: user.avatar || null } });
@@ -294,7 +302,7 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: new Date().toISOString()
     };
     users.push(user);
-    saveUsers();
+    saveUsers().catch(e => console.error("saveUsers error:", e.message));
     adminNsp.emit('users', getUserList());
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null, canCustomRoom: false, role: null, avatar: null } });
@@ -340,7 +348,7 @@ app.put('/api/auth/profile', requireUser, (req, res) => {
       if (av.startsWith('data:image/') && av.length <= 200000) user.avatar = av;
     }
   }
-  saveUsers();
+  saveUsers().catch(e => console.error("saveUsers error:", e.message));
   adminNsp.emit('users', getUserList());
   // Notify the user's active sockets to update their avatar/name reference
   io.sockets.sockets.forEach(s => {
@@ -365,8 +373,8 @@ app.post('/api/auth/redeem', requireUser, (req, res) => {
   if (promo.customRoomId) user.customRoomId = promo.customRoomId;
   if (promo.canCustomRoom) user.canCustomRoom = true;
   promo.usedCount++;
-  saveUsers();
-  savePromos();
+  saveUsers().catch(e => console.error("saveUsers error:", e.message));
+  savePromos().catch(e => console.error("savePromos error:", e.message));
   adminNsp.emit('promos', promos);
   adminNsp.emit('users', getUserList());
   res.json({ ok: true, promo: { code: promo.code, description: promo.description, maxFileSizeMB: promo.maxFileSizeMB, customRoomId: promo.customRoomId || null, canCustomRoom: !!promo.canCustomRoom }, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom });
@@ -383,7 +391,7 @@ app.put('/api/auth/room', requireUser, (req, res) => {
     if (!ROOM_ID_RE.test(id)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
     if (users.some(u => u.id !== user.id && u.customRoomId === id)) return res.status(409).json({ error: 'Room ID already taken' });
     user.customRoomId = id;
-    saveUsers();
+    saveUsers().catch(e => console.error("saveUsers error:", e.message));
     adminNsp.emit('users', getUserList());
     res.json({ ok: true, customRoomId: id });
   } catch (e) { console.error('PUT /api/auth/room error:', e); res.status(500).json({ error: 'Internal server error' }); }
@@ -463,14 +471,14 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
       }
     });
   }
-  saveUsers();
+  saveUsers().catch(e => console.error("saveUsers error:", e.message));
   adminNsp.emit('users', getUserList());
   res.json({ ok: true });
 });
 
 app.put('/admin/api/settings', requireAdmin, requireSuperAdmin, (req, res) => {
   settings = { ...settings, ...req.body };
-  saveSettings();
+  saveSettings().catch(e => console.error("saveSettings error:", e.message));
   io.emit('settings-updated', { maintenanceMode: settings.maintenanceMode });
   adminNsp.emit('settings', settings);
   if (settings.maintenanceMode) {
@@ -485,7 +493,7 @@ app.post('/admin/api/admins', requireAdmin, requireSuperAdmin, async (req, res) 
   if (admins.find(a => a.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Admin already exists' });
   const newAdmin = { id: Date.now().toString(), email, passwordHash: await bcrypt.hash(password, 10), role: role === 'super-admin' ? 'super-admin' : 'admin', createdAt: new Date().toISOString() };
   admins.push(newAdmin);
-  saveAdmins();
+  saveAdmins().catch(e => console.error("saveAdmins error:", e.message));
   const { passwordHash, ...safe } = newAdmin;
   adminNsp.emit('admins', admins.map(({ passwordHash: h, ...a }) => a));
   res.status(201).json(safe);
@@ -499,7 +507,7 @@ app.delete('/admin/api/admins/:id', requireAdmin, requireSuperAdmin, (req, res) 
   const superAdmins = admins.filter(a => a.role === 'super-admin');
   if (superAdmins.length === 1 && admins[idx].role === 'super-admin') return res.status(400).json({ error: 'Cannot remove the last super-admin' });
   admins.splice(idx, 1);
-  saveAdmins();
+  saveAdmins().catch(e => console.error("saveAdmins error:", e.message));
   adminNsp.emit('admins', admins.map(({ passwordHash, ...a }) => a));
   res.json({ ok: true });
 });
@@ -524,7 +532,7 @@ app.post('/admin/api/promos', requireAdmin, requireSuperAdmin, (req, res) => {
   if (rid && !ROOM_ID_RE.test(rid)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
   const promo = { id: crypto.randomUUID(), code: code.trim().toUpperCase(), description: description || '', maxFileSizeMB: parseInt(maxFileSizeMB), usageLimit: parseInt(usageLimit) || 0, usedCount: 0, expiresAt: expiresAt || null, customRoomId: rid || null, canCustomRoom: !!canCustomRoom, enabled: true, createdAt: new Date().toISOString() };
   promos.push(promo);
-  savePromos();
+  savePromos().catch(e => console.error("savePromos error:", e.message));
   adminNsp.emit('promos', promos);
   res.status(201).json(promo);
 });
@@ -544,7 +552,7 @@ app.put('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) => 
     if (rid && !ROOM_ID_RE.test(rid)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
     promo.customRoomId = rid || null;
   }
-  savePromos();
+  savePromos().catch(e => console.error("savePromos error:", e.message));
   adminNsp.emit('promos', promos);
   res.json(promo);
 });
@@ -553,7 +561,7 @@ app.delete('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) 
   const idx = promos.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Promo not found' });
   promos.splice(idx, 1);
-  savePromos();
+  savePromos().catch(e => console.error("savePromos error:", e.message));
   adminNsp.emit('promos', promos);
   res.json({ ok: true });
 });
@@ -778,21 +786,40 @@ async function startTunnel(port) {
 
 // ===== Init =====
 async function init() {
+  console.log(`[Storage] Mode: ${USE_UPSTASH ? 'Upstash Redis' : 'Local files (data will be lost on redeploy!)'}`);
+  if (USE_UPSTASH) {
+    // Verify Upstash connection
+    try {
+      const r = await fetch(`${UPSTASH_URL}/ping`, {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+        signal: AbortSignal.timeout(8000)
+      });
+      const j = await r.json();
+      console.log(`[Storage] Upstash ping: ${r.status} ${j.result || JSON.stringify(j)}`);
+    } catch (e) {
+      console.error(`[Storage] Upstash connection FAILED: ${e.message}`);
+      console.error('[Storage] WARNING: Data will NOT persist without a working Upstash connection!');
+    }
+  }
+
   // JWT Secret
   const storedSecret = await dbGet('jwt_secret');
   if (storedSecret) {
     JWT_SECRET = storedSecret;
+    console.log('[Init] JWT secret loaded from storage.');
   } else {
     JWT_SECRET = crypto.randomBytes(48).toString('hex');
-    dbSet('jwt_secret', JWT_SECRET);
+    await dbSet('jwt_secret', JWT_SECRET);
+    console.log('[Init] JWT secret generated and saved.');
   }
 
   // Admins
   const storedAdmins = await dbGet('admins');
   if (Array.isArray(storedAdmins) && storedAdmins.length) {
     admins = storedAdmins;
+    console.log(`[Init] Loaded ${admins.length} admin(s) from storage.`);
   } else {
-    if (storedAdmins && !Array.isArray(storedAdmins)) console.error('admins from DB was not an array, resetting:', typeof storedAdmins);
+    if (storedAdmins != null) console.error('[Init] admins data was invalid, resetting to default. type:', typeof storedAdmins);
     admins = [{
       id: '1',
       email: 'sh1154252@gmail.com',
@@ -800,21 +827,25 @@ async function init() {
       role: 'super-admin',
       createdAt: new Date().toISOString()
     }];
-    saveAdmins();
-    console.log('Created default admin account.');
+    await saveAdmins().catch(e => console.error("saveAdmins error:", e.message));
+    console.log('[Init] Created default admin account.');
   }
 
   // Settings
   const storedSettings = await dbGet('settings');
   settings = { ...defaultSettings, ...(Array.isArray(storedSettings) || typeof storedSettings !== 'object' ? {} : (storedSettings || {})) };
   settings.maintenanceMode = false;
+  console.log('[Init] Settings loaded.');
 
   // Users & Promos
   const rawUsers = await dbGet('users');
-  users  = Array.isArray(rawUsers) ? rawUsers : [];
-  if (rawUsers && !Array.isArray(rawUsers)) console.error('users from DB was not an array, resetting:', typeof rawUsers);
+  users = Array.isArray(rawUsers) ? rawUsers : [];
+  if (rawUsers != null && !Array.isArray(rawUsers)) console.error('[Init] users data was invalid, type:', typeof rawUsers);
+  console.log(`[Init] Loaded ${users.length} user(s) from storage.`);
+
   const rawPromos = await dbGet('promos');
   promos = Array.isArray(rawPromos) ? rawPromos : [];
+  console.log(`[Init] Loaded ${promos.length} promo(s) from storage.`);
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

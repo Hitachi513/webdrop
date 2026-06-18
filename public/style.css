@@ -1472,6 +1472,168 @@ header {
 }
 
 /* ===========================
+   Speed Test Card
+   =========================== */
+.speedtest-card {
+  position: fixed;
+  top: calc(var(--header-h) + 8px);
+  right: 16px;
+  width: 264px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 22px;
+  padding: 18px 18px 20px;
+  z-index: 490;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 20px 60px var(--shadow-color), 0 0 0 1px var(--border);
+  opacity: 0;
+  transform: translateY(-10px) scale(.96);
+  pointer-events: none;
+  transition: opacity .22s, transform .22s;
+}
+.speedtest-card.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+
+.st-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.st-head-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.st-head-title svg { color: var(--primary); flex-shrink: 0; }
+.st-close {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .78rem;
+  transition: background .15s, color .15s, border-color .15s;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.st-close:hover { background: rgba(255,79,106,.1); color: var(--error); border-color: var(--error); }
+
+.st-ring-wrap {
+  position: relative;
+  width: 104px; height: 104px;
+  display: flex; align-items: center; justify-content: center;
+}
+.st-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--border-strong);
+  transition: border-color .4s, box-shadow .4s;
+}
+.st-ring.running {
+  border-top-color: var(--primary);
+  animation: stSpin .7s linear infinite;
+}
+@keyframes stSpin { to { transform: rotate(360deg); } }
+.st-ring.q-great { border-color: var(--success); box-shadow: 0 0 22px rgba(0,230,118,.28); }
+.st-ring.q-good  { border-color: #7ddc57;        box-shadow: 0 0 22px rgba(125,220,87,.22); }
+.st-ring.q-fair  { border-color: orange;          box-shadow: 0 0 22px rgba(255,165,0,.22); }
+.st-ring.q-poor  { border-color: var(--error);   box-shadow: 0 0 22px rgba(255,79,106,.28); }
+
+.st-center { text-align: center; z-index: 1; pointer-events: none; }
+.st-center-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  line-height: 1;
+  letter-spacing: -.5px;
+}
+.st-center-unit {
+  font-size: .6rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  letter-spacing: .2px;
+}
+
+.st-bars-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.st-quality-text {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color .3s;
+}
+.st-quality-text.ok   { color: var(--success); }
+.st-quality-text.warn { color: orange; }
+.st-quality-text.bad  { color: var(--error); }
+
+.st-metrics {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.st-metric {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.st-metric-label {
+  font-size: .62rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-weight: 600;
+}
+.st-metric-val {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.st-run-btn {
+  width: 100%;
+  padding: 11px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: .86rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 18px var(--glow-primary);
+  transition: transform .18s, box-shadow .18s, opacity .18s;
+}
+.st-run-btn:hover { transform: translateY(-1px); box-shadow: 0 7px 24px var(--glow-primary); }
+.st-run-btn:active { transform: scale(.97); opacity: .9; }
+.st-run-btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; box-shadow: none; }
+
+@media (max-width: 768px) {
+  .speedtest-card { top: calc(env(safe-area-inset-top) + var(--header-h) + 8px); right: 10px; width: 252px; }
+}
+@media (max-width: 380px) {
+  #speedtest-btn { display: none; }
+}
+
+/* ===========================
    Loading Screen
    =========================== */
 #loading-screen {

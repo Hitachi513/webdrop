@@ -520,6 +520,85 @@ showQRBtn.addEventListener('click', () => qrModal.classList.add('active'));
 document.querySelector('.room-pill').addEventListener('click', e => {
   if (window.innerWidth <= 480 && !e.target.closest('button')) qrModal.classList.add('active');
 });
+
+// ===== Speed Test =====
+const speedtestBtn  = document.getElementById('speedtest-btn');
+const speedtestCard = document.getElementById('speedtest-card');
+const stClose       = document.getElementById('st-close');
+const stRing        = document.getElementById('st-ring');
+const stCenterVal   = document.getElementById('st-center-val');
+const stCenterUnit  = document.getElementById('st-center-unit');
+const stBars        = document.getElementById('st-bars');
+const stQuality     = document.getElementById('st-quality');
+const stPingVal     = document.getElementById('st-ping-val');
+const stDlVal       = document.getElementById('st-dl-val');
+const stRunBtn      = document.getElementById('st-run');
+
+speedtestBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  speedtestCard.classList.toggle('open');
+});
+stClose.addEventListener('click', () => speedtestCard.classList.remove('open'));
+document.addEventListener('click', e => {
+  if (!speedtestCard.contains(e.target) && e.target !== speedtestBtn)
+    speedtestCard.classList.remove('open');
+});
+
+async function runSpeedTest() {
+  stRunBtn.disabled = true;
+  stRunBtn.textContent = '測試中…';
+  stRing.className = 'st-ring running';
+  stCenterVal.textContent = '—';
+  stCenterUnit.textContent = 'ms 延遲';
+  stPingVal.textContent = '—';
+  stDlVal.textContent = '—';
+  stQuality.textContent = '測試中…';
+  stQuality.className = 'st-quality-text';
+  stBars.className = 'ls-signal-bars';
+
+  // Ping: 3 round trips
+  const pings = [];
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    await new Promise(res => socket.emit('ping-check', res));
+    pings.push(Date.now() - t);
+    await new Promise(r => setTimeout(r, 120));
+  }
+  const avgPing = Math.round(pings.reduce((a, b) => a + b) / pings.length);
+  stPingVal.textContent = `${avgPing} ms`;
+  stCenterVal.textContent = String(avgPing);
+
+  // Download speed
+  let dlMbps = null;
+  try {
+    const t0 = performance.now();
+    const res = await fetch(`/api/speedtest?size=600000&_=${Date.now()}`, { cache: 'no-store' });
+    const buf = await res.arrayBuffer();
+    const secs = (performance.now() - t0) / 1000;
+    dlMbps = (buf.byteLength * 8) / secs / 1_000_000;
+    stDlVal.textContent = dlMbps < 1
+      ? `${(dlMbps * 1000).toFixed(0)} Kbps`
+      : `${dlMbps.toFixed(1)} Mbps`;
+  } catch { stDlVal.textContent = '—'; }
+
+  // Determine quality
+  const poor = avgPing >= 450 || (dlMbps !== null && dlMbps < 0.5);
+  const fair = !poor && (avgPing >= 200 || (dlMbps !== null && dlMbps < 2));
+  const good = !poor && !fair && (avgPing >= 80 || (dlMbps !== null && dlMbps < 10));
+  const qClass = poor ? 'poor' : fair ? 'fair' : good ? 'good' : 'great';
+  const qLabels = { great: '連線優秀', good: '連線良好', fair: '連線普通', poor: '連線不穩定' };
+  const qCss    = { great: 'ok',       good: 'ok',       fair: 'warn',     poor: 'bad' };
+
+  stRing.className = `st-ring q-${qClass}`;
+  stBars.className = `ls-signal-bars q-${qClass}`;
+  stQuality.textContent = qLabels[qClass];
+  stQuality.className   = `st-quality-text ${qCss[qClass]}`;
+
+  stRunBtn.disabled = false;
+  stRunBtn.textContent = '再測一次';
+}
+
+stRunBtn.addEventListener('click', runSpeedTest);
 closeQRBtn.addEventListener('click', () => qrModal.classList.remove('active'));
 qrModal.addEventListener('click', e => { if (e.target === qrModal) qrModal.classList.remove('active'); });
 

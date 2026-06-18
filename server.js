@@ -257,6 +257,13 @@ app.get('/api/config', (req, res) => {
   res.json({ googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null });
 });
 
+app.get('/api/speedtest', (req, res) => {
+  const size = Math.min(parseInt(req.query.size) || 500000, 5000000);
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(Buffer.alloc(size));
+});
+
 // ===== User Auth API =====
 app.post('/api/auth/google', async (req, res) => {
   if (!googleClient) return res.status(501).json({ error: 'Google auth not configured' });

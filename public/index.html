@@ -83,6 +83,11 @@
           <span data-i18n="sign-in">Sign In</span>
         </button>
       </div>
+      <button id="speedtest-btn" class="btn-icon" title="網路測速">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </button>
       <button id="theme-toggle" class="btn-icon" title="Toggle theme">
         <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
         <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
@@ -142,6 +147,46 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       <span data-i18n="sign-out">Sign Out</span>
     </button>
+  </div>
+
+  <!-- ===== Speed Test Card ===== -->
+  <div id="speedtest-card" class="speedtest-card">
+    <div class="st-head">
+      <div class="st-head-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        網路測速
+      </div>
+      <button id="st-close" class="st-close">✕</button>
+    </div>
+    <div class="st-ring-wrap">
+      <div id="st-ring" class="st-ring"></div>
+      <div class="st-center">
+        <div id="st-center-val" class="st-center-val">—</div>
+        <div id="st-center-unit" class="st-center-unit">ms 延遲</div>
+      </div>
+    </div>
+    <div class="st-bars-row">
+      <div class="ls-signal-bars" id="st-bars">
+        <span class="ls-bar b1"></span>
+        <span class="ls-bar b2"></span>
+        <span class="ls-bar b3"></span>
+        <span class="ls-bar b4"></span>
+      </div>
+      <span id="st-quality" class="st-quality-text">點擊開始測速</span>
+    </div>
+    <div class="st-metrics">
+      <div class="st-metric">
+        <div class="st-metric-label">延遲</div>
+        <div id="st-ping-val" class="st-metric-val">—</div>
+      </div>
+      <div class="st-metric">
+        <div class="st-metric-label">下載速度</div>
+        <div id="st-dl-val" class="st-metric-val">—</div>
+      </div>
+    </div>
+    <button id="st-run" class="st-run-btn">開始測速</button>
   </div>
 
   <!-- ===== Main Content ===== -->

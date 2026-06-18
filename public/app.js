@@ -81,20 +81,42 @@ const CHUNK_SIZE = 64 * 1024;
 const MAX_BUFFER  = 256 * 1024;
 
 // ===== Device =====
-function getDeviceName() {
+function getBrowserName() {
   const ua = navigator.userAgent;
-  if (/iPhone/.test(ua))          return 'iPhone';
-  if (/iPad/.test(ua))            return 'iPad';
-  if (/Android.*Mobile/.test(ua)) return 'Android Phone';
-  if (/Android/.test(ua))         return 'Android Tablet';
-  if (/Macintosh/.test(ua))       return 'Mac';
-  if (/Windows/.test(ua))         return 'Windows PC';
-  if (/Linux/.test(ua))           return 'Linux';
+  if (/Edg\//.test(ua))   return 'Edge';
+  if (/OPR\/|Opera/.test(ua)) return 'Opera';
+  if (/Chrome\//.test(ua))  return 'Chrome';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Safari\//.test(ua))  return 'Safari';
   return 'Browser';
 }
+function getDeviceName() {
+  const ua = navigator.userAgent;
+  const b = getBrowserName();
+  if (/iPhone/.test(ua))          return `iPhone · ${b}`;
+  if (/iPad/.test(ua))            return `iPad · ${b}`;
+  if (/Android.*Mobile/.test(ua)) return `Android · ${b}`;
+  if (/Android/.test(ua))         return `Android Tablet · ${b}`;
+  if (/Macintosh/.test(ua))       return `Mac · ${b}`;
+  if (/Windows/.test(ua))         return `Windows · ${b}`;
+  if (/Linux/.test(ua))           return `Linux · ${b}`;
+  return b;
+}
+
+const BROWSER_ICONS = {
+  Chrome:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="8.5" x2="12" y2="2"/><line x1="15" y1="13.8" x2="19.8" y2="16.5"/><line x1="9" y1="13.8" x2="4.2" y2="16.5"/></svg>`,
+  Safari:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/><line x1="8" y1="16" x2="16" y2="8"/><circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none" opacity="0.4"/></svg>`,
+  Firefox: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C7 4.5 4.5 9 5 13c.3 2 1.3 4 3 5.5C9.5 20 11 21 12 22c1-.5 3-2 4.5-3.5 2.5-2.5 3.5-6 2.5-9.5-.5-2-2-4-4.5-5 .5 1.5.5 3 0 4.5C13.5 7.5 13 5 12 2z"/></svg>`,
+  Edge:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.5 8C19.4 4.5 16 2 12 2 6.5 2 2 6.5 2 12c0 3 1.4 5.6 3.5 7.3"/><path d="M5 16.5C6.3 19.7 9 22 12.5 22c4 0 7-3 7-7"/><line x1="5.5" y1="12.5" x2="19.5" y2="12.5"/></svg>`,
+  Opera:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="7"/></svg>`,
+};
+
 function getDeviceIcon(name) {
+  for (const [b, svg] of Object.entries(BROWSER_ICONS)) {
+    if (name.includes(b)) return svg;
+  }
   return /iPhone|iPad|Android/.test(name)
-    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18" stroke-linecap="round" stroke-width="2"/></svg>`
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="2" width="10" height="20" rx="2"/><circle cx="12" cy="18" r="1" fill="currentColor" stroke="none"/></svg>`
     : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`;
 }
 
@@ -503,6 +525,8 @@ const noDevicesEl    = document.getElementById('no-devices');
 const dropZoneEl     = document.getElementById('drop-zone');
 const dropHintEl     = document.getElementById('drop-hint');
 const fileInputEl    = document.getElementById('file-input');
+const dragOverlayEl  = document.getElementById('drag-overlay');
+let dragDepth = 0;
 const messageInputEl = document.getElementById('message-input');
 const sendBtn        = document.getElementById('send-btn');
 const roomCodeEl     = document.getElementById('room-code');
@@ -517,7 +541,15 @@ const chatEl          = document.getElementById('chat-messages');
 
 // ===== Init UI =====
 roomCodeEl.textContent = roomId;
-myDeviceNameEl.textContent = myName;
+(function setMyDeviceName() {
+  const dot = myName.indexOf(' · ');
+  if (dot !== -1) {
+    myDeviceNameEl.innerHTML = `${esc(myName.slice(0, dot))}<span class="center-browser">${esc(myName.slice(dot + 3))}</span>`;
+    myDeviceNameEl.style.whiteSpace = 'normal';
+  } else {
+    myDeviceNameEl.textContent = myName;
+  }
+})();
 document.getElementById('my-device-svg').outerHTML = getDeviceIcon(myName).replace('<svg', '<svg id="my-device-svg"');
 
 copyLinkBtn.addEventListener('click', () =>
@@ -886,10 +918,7 @@ socket.on('peer-profile-changed', ({ id, name, avatar }) => {
     const iconEl = peer.element.querySelector('.peer-icon');
     if (iconEl) iconEl.innerHTML = `${peerIconHtml(peer.name, peer.avatar)}<div class="status-dot ${iconEl.querySelector('.status-dot')?.className.replace('status-dot','').trim() || ''}"></div>`;
     const nameEl = peer.element.querySelector('.peer-name');
-    if (nameEl) {
-      const badge = PEER_ROLE_BADGE[peer.role] || '';
-      nameEl.innerHTML = `${esc(peer.name)}${badge}`;
-    }
+    if (nameEl) nameEl.innerHTML = peerNameHtml(peer.name, peer.role);
   }
 });
 
@@ -1188,12 +1217,36 @@ async function getDropFiles(dataTransfer) {
 
 dropZoneEl.addEventListener('dragover',  e => { e.preventDefault(); dropZoneEl.classList.add('dragover'); });
 dropZoneEl.addEventListener('dragleave', e => { if (!dropZoneEl.contains(e.relatedTarget)) dropZoneEl.classList.remove('dragover'); });
-dropZoneEl.addEventListener('drop',      async e => { e.preventDefault(); dropZoneEl.classList.remove('dragover'); handleFiles(await getDropFiles(e.dataTransfer)); });
+dropZoneEl.addEventListener('drop',      async e => {
+  e.preventDefault(); e.stopPropagation();
+  dragDepth = 0; dragOverlayEl.classList.remove('visible');
+  dropZoneEl.classList.remove('dragover');
+  handleFiles(await getDropFiles(e.dataTransfer));
+});
 dropZoneEl.addEventListener('click',     e => { if (!e.target.closest('label')) fileInputEl.click(); });
 fileInputEl.addEventListener('change',   () => { handleFiles([...fileInputEl.files]); fileInputEl.value = ''; });
 
 const folderInputEl = document.getElementById('folder-input');
 folderInputEl.addEventListener('change', () => { handleFiles([...folderInputEl.files]); folderInputEl.value = ''; });
+
+// ===== Global Drag Overlay =====
+document.addEventListener('dragenter', e => {
+  if (!e.dataTransfer?.types?.includes('Files')) return;
+  dragDepth++;
+  dragOverlayEl.classList.add('visible');
+});
+document.addEventListener('dragleave', e => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dragOverlayEl.classList.remove('visible');
+});
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  dragDepth = 0;
+  dragOverlayEl.classList.remove('visible');
+  handleFiles(await getDropFiles(e.dataTransfer));
+  // drop-zone handler calls stopPropagation() so this won't fire twice for drop-zone drops
+});
 
 const fileInputChatEl = document.getElementById('file-input-chat');
 fileInputChatEl.addEventListener('change', () => { handleFiles([...fileInputChatEl.files]); fileInputChatEl.value = ''; });
@@ -1210,13 +1263,21 @@ function peerIconHtml(name, avatar) {
   return getDeviceIcon(name);
 }
 
+function peerNameHtml(name, role) {
+  const badge = PEER_ROLE_BADGE[role] || '';
+  const dot = name.indexOf(' · ');
+  if (dot !== -1) {
+    return `<span class="peer-name-device">${esc(name.slice(0, dot))}</span><span class="peer-browser-badge">${esc(name.slice(dot + 3))}</span>${badge}`;
+  }
+  return `${esc(name)}${badge}`;
+}
+
 function createPeerEl(peerId, name, role, avatar) {
   const el = document.createElement('div');
   el.className = 'peer-bubble' + (role ? ` has-${role}` : '');
-  const badge = PEER_ROLE_BADGE[role] || '';
   el.innerHTML = `
     <div class="peer-icon">${peerIconHtml(name, avatar)}<div class="status-dot"></div></div>
-    <span class="peer-name">${esc(name)}${badge}</span>
+    <span class="peer-name">${peerNameHtml(name, role)}</span>
     <div class="peer-progress"><div class="peer-progress-bar"></div></div>`;
   el.addEventListener('click', () => {
     if (selectedPeerId !== peerId) { autoSelect(peerId); toast(`${name} selected`, 'info'); }

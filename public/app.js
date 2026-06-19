@@ -901,6 +901,8 @@ socket.on('join-request', ({ requestId, name, avatar }) => {
   joinRequestQueue.push({ requestId, name, avatar });
   if (joinRequestQueue.length === 1) jrShowNext();
   else { const extra = joinRequestQueue.length - 1; jrQueueCount.textContent = `+${extra} 更多`; jrQueueCount.style.display = ''; }
+  toast(`📲 ${name || '有人'} 想加入房間，請點擊同意！`, 'info', 8000);
+  try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch {}
 });
 
 jrApproveBtn.addEventListener('click', () => {
@@ -1481,13 +1483,13 @@ function updatePositions() {
 }
 
 // ===== Toasts =====
-function toast(msg, type = 'info') {
+function toast(msg, type = 'info', duration = 3000) {
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
   el.textContent = msg;
   notificationsEl.appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 350); }, 3000);
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 350); }, duration);
 }
 
 // ===== Utils =====

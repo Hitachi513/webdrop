@@ -2461,16 +2461,26 @@ header {
   width: 290px;
   background: var(--bg-card);
   border: 1px solid var(--border-strong);
-  border-top: 2px solid var(--primary);
+  border-top: 3px solid var(--primary);
   border-radius: 18px;
   padding: 16px;
-  box-shadow: 0 8px 40px rgba(0,0,0,.38), 0 0 0 1px rgba(0,212,255,.12);
+  box-shadow: 0 8px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(0,212,255,.18);
   display: none;
   flex-direction: column;
   gap: 14px;
-  animation: msgIn .25s ease-out;
+  animation: jrSlideIn .3s cubic-bezier(.34,1.56,.64,1);
 }
 #join-request-card.active { display: flex; }
+
+@keyframes jrSlideIn {
+  from { opacity: 0; transform: translateY(24px) scale(.95); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+@keyframes jrPulse {
+  0%,100% { box-shadow: 0 8px 40px rgba(0,0,0,.45), 0 0 0 0   rgba(67,97,238,.5); }
+  50%      { box-shadow: 0 8px 40px rgba(0,0,0,.45), 0 0 0 8px rgba(67,97,238,0);  }
+}
+#join-request-card.active { animation: jrSlideIn .3s cubic-bezier(.34,1.56,.64,1), jrPulse 1.8s ease-in-out 0.3s 3; }
 .jr-header {
   display: flex;
   align-items: center;
@@ -2533,8 +2543,14 @@ header {
 .jr-btn-approve:hover { opacity: .9; transform: translateY(-1px); }
 .jr-btn-approve:active { transform: scale(.97); }
 
-@media (max-width: 480px) {
-  #join-request-card { right: 10px; left: 10px; width: auto; bottom: 76px; }
+@media (max-width: 768px) {
+  /* Push card above input bar + tab bar so approve button is always tappable */
+  #join-request-card {
+    right: 10px;
+    left: 10px;
+    width: auto;
+    bottom: calc(var(--tab-h) + var(--safe-bottom) + 72px);
+  }
 }
 
 /* ===========================

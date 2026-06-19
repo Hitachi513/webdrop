@@ -74,6 +74,9 @@ let admins   = [];
 let settings = {};
 let users    = [];
 let promos   = [];
+let feedback = [];
+async function saveFeedback() { await dbSet('feedback', feedback); }
+const feedbackRateLimit = new Map(); // ip → last submit timestamp
 
 const defaultSettings = {
   maxPeersPerRoom: 10,
@@ -513,6 +516,60 @@ app.post('/api/auth/redeem', requireUser, (req, res) => {
   res.json({ ok: true, promo: { code: promo.code, description: promo.description, maxFileSizeMB: promo.maxFileSizeMB, customRoomId: promo.customRoomId || null, canCustomRoom: !!promo.canCustomRoom, grantRole: promo.grantRole || null }, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: effRole });
 });
 
+// ===== Feedback API =====
+app.post('/api/feedback', (req, res) => {
+  const ip = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket.remoteAddress || '';
+  const now = Date.now();
+  const lastSubmit = feedbackRateLimit.get(ip);
+  if (lastSubmit && now - lastSubmit < 5 * 60 * 1000) {
+    return res.status(429).json({ error: '請等待 5 分鐘後再提交意見' });
+  }
+
+  const { type, message, rating } = req.body || {};
+  const validTypes = ['bug', 'feature', 'compliment', 'other'];
+  if (!validTypes.includes(type)) return res.status(400).json({ error: 'Invalid type' });
+  if (!message || typeof message !== 'string') return res.status(400).json({ error: 'Message is required' });
+  const trimmedMsg = message.trim();
+  if (!trimmedMsg) return res.status(400).json({ error: 'Message is required' });
+  if (trimmedMsg.length > 1000) return res.status(400).json({ error: 'Message too long (max 1000 chars)' });
+  const parsedRating = rating ? parseInt(rating) : null;
+  if (parsedRating !== null && (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5)) {
+    return res.status(400).json({ error: 'Rating must be 1-5' });
+  }
+
+  let userId = null, userName = null, userEmail = null;
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const payload = require('jsonwebtoken').verify(auth.slice(7), JWT_SECRET);
+      if (payload.type === 'user') {
+        userId    = payload.id;
+        userName  = payload.name || null;
+        userEmail = payload.email || null;
+      }
+    } catch {}
+  }
+
+  feedbackRateLimit.set(ip, now);
+
+  const entry = {
+    id:        require('crypto').randomUUID(),
+    type,
+    message:   trimmedMsg,
+    rating:    parsedRating,
+    userId,
+    userName,
+    userEmail,
+    ip,
+    createdAt: new Date().toISOString(),
+    read:      false
+  };
+  feedback.unshift(entry);
+  saveFeedback().catch(e => console.error('saveFeedback error:', e.message));
+  adminNsp.emit('feedback', feedback);
+  res.json({ ok: true });
+});
+
 app.put('/api/auth/room', requireUser, (req, res) => {
   try {
     const user = users.find(u => u.id === req.user.id);
@@ -772,6 +829,37 @@ app.delete('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) 
   res.json({ ok: true });
 });
 
+// Admin Feedback routes
+app.get('/admin/api/feedback', requireAdmin, (req, res) => {
+  res.json([...feedback].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+});
+
+app.put('/admin/api/feedback/:id', requireAdmin, (req, res) => {
+  const entry = feedback.find(f => f.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Feedback not found' });
+  if (req.body.read !== undefined) entry.read = !!req.body.read;
+  saveFeedback().catch(e => console.error('saveFeedback error:', e.message));
+  adminNsp.emit('feedback', feedback);
+  res.json({ ok: true });
+});
+
+app.delete('/admin/api/feedback/:id', requireAdmin, (req, res) => {
+  const idx = feedback.findIndex(f => f.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Feedback not found' });
+  feedback.splice(idx, 1);
+  saveFeedback().catch(e => console.error('saveFeedback error:', e.message));
+  adminNsp.emit('feedback', feedback);
+  res.json({ ok: true });
+});
+
+app.delete('/admin/api/feedback', requireAdmin, (req, res) => {
+  if (req.query.all !== 'true') return res.status(400).json({ error: 'Pass ?all=true to confirm' });
+  feedback = [];
+  saveFeedback().catch(e => console.error('saveFeedback error:', e.message));
+  adminNsp.emit('feedback', feedback);
+  res.json({ ok: true });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
 
 // ===== Global error handler (prevents unhandled errors from crashing the server) =====
@@ -797,6 +885,7 @@ adminNsp.on('connection', (socket) => {
     socket.emit('promos',        promos);
     socket.emit('users',         getUserList());
     socket.emit('system-health', getSystemHealth());
+    socket.emit('feedback',      feedback);
   } catch (e) { console.error('Admin socket init error:', e.message); }
 
   const tick = setInterval(() => {
@@ -1365,6 +1454,10 @@ async function init() {
   const rawPromos = await dbGet('promos');
   promos = Array.isArray(rawPromos) ? rawPromos : [];
   console.log(`[Init] Loaded ${promos.length} promo(s) from storage.`);
+
+  const rawFeedback = await dbGet('feedback');
+  feedback = Array.isArray(rawFeedback) ? rawFeedback : [];
+  console.log(`[Init] Loaded ${feedback.length} feedback(s) from storage.`);
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

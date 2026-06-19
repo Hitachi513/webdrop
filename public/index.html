@@ -146,6 +146,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
       <span data-i18n="redeem-promo">Redeem Promo Code</span>
     </button>
+    <button id="feedback-dropdown-btn" class="dropdown-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg>
+      <span>意見回饋</span>
+    </button>
     <button id="user-logout-btn" class="dropdown-item dropdown-logout">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       <span data-i18n="sign-out">Sign Out</span>
@@ -302,6 +306,11 @@
 
   </div><!-- #main -->
 
+  <!-- Feedback FAB -->
+  <button id="feedback-fab" class="feedback-fab" title="意見回饋">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  </button>
+
   <!-- Mod Toolbar (business/vip/admin only) -->
   <div id="mod-toolbar" style="display:none">
     <button id="mod-members-btn" class="mod-tool-btn" title="成員管理">
@@ -350,6 +359,39 @@
   </nav>
 
 </div><!-- #app -->
+
+<!-- Feedback Modal -->
+<div id="feedback-modal" class="modal">
+  <div class="modal-box" style="max-width:420px">
+    <h3 class="modal-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      意見回饋
+    </h3>
+    <p style="font-size:.82rem;color:var(--text-muted);margin:0 0 12px">你的意見幫助我們改善 WebDrop</p>
+    <div class="fb-type-row">
+      <button class="fb-type-btn active" data-type="feature">💡 建議</button>
+      <button class="fb-type-btn" data-type="bug">🐛 回報問題</button>
+      <button class="fb-type-btn" data-type="compliment">❤️ 讚美</button>
+      <button class="fb-type-btn" data-type="other">💬 其他</button>
+    </div>
+    <div class="fb-stars" id="fb-stars">
+      <span class="fb-star-label">體驗評分：</span>
+      <div class="fb-star-row">
+        <button class="fb-star" data-v="1">★</button>
+        <button class="fb-star" data-v="2">★</button>
+        <button class="fb-star" data-v="3">★</button>
+        <button class="fb-star" data-v="4">★</button>
+        <button class="fb-star" data-v="5">★</button>
+      </div>
+    </div>
+    <textarea id="fb-message" rows="4" placeholder="請輸入你的意見…（必填）" style="width:100%;resize:vertical;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;color:var(--text);font-size:.88rem;box-sizing:border-box;margin-top:4px"></textarea>
+    <p id="fb-error" style="color:var(--error);font-size:.78rem;margin:4px 0 0;min-height:16px"></p>
+    <div class="modal-footer" style="margin-top:10px">
+      <button class="btn-ghost" id="fb-cancel-btn">取消</button>
+      <button class="btn-primary" id="fb-submit-btn">送出</button>
+    </div>
+  </div>
+</div>
 
 <!-- Broadcast Modal -->
 <div id="broadcast-modal" class="modal">

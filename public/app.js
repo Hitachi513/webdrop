@@ -1862,6 +1862,84 @@ broadcastInput?.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); broadcastSendBtn?.click(); }
 });
 
+// ===== Feedback =====
+let selectedFbType = 'feature';
+let selectedFbRating = 0;
+
+const feedbackModal = document.getElementById('feedback-modal');
+
+function openFeedbackModal() {
+  selectedFbType = 'feature';
+  selectedFbRating = 0;
+  document.querySelectorAll('.fb-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'feature'));
+  document.querySelectorAll('.fb-star').forEach(s => s.classList.remove('active'));
+  const msg = document.getElementById('fb-message');
+  if (msg) msg.value = '';
+  document.getElementById('fb-error').textContent = '';
+  feedbackModal?.classList.add('active');
+}
+
+document.getElementById('feedback-fab')?.addEventListener('click', openFeedbackModal);
+document.getElementById('feedback-dropdown-btn')?.addEventListener('click', () => {
+  const dd = document.getElementById('user-dropdown');
+  if (dd) dd.classList.remove('open');
+  openFeedbackModal();
+});
+document.getElementById('fb-cancel-btn')?.addEventListener('click', () => feedbackModal?.classList.remove('active'));
+feedbackModal?.addEventListener('click', e => { if (e.target === feedbackModal) feedbackModal.classList.remove('active'); });
+
+document.querySelectorAll('.fb-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedFbType = btn.dataset.type;
+    document.querySelectorAll('.fb-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+document.querySelectorAll('.fb-star').forEach(star => {
+  star.addEventListener('click', () => {
+    selectedFbRating = parseInt(star.dataset.v);
+    document.querySelectorAll('.fb-star').forEach(s => {
+      s.classList.toggle('active', parseInt(s.dataset.v) <= selectedFbRating);
+    });
+  });
+  star.addEventListener('mouseenter', () => {
+    document.querySelectorAll('.fb-star').forEach(s => {
+      s.classList.toggle('hover', parseInt(s.dataset.v) <= parseInt(star.dataset.v));
+    });
+  });
+});
+document.getElementById('fb-stars')?.addEventListener('mouseleave', () => {
+  document.querySelectorAll('.fb-star').forEach(s => s.classList.remove('hover'));
+});
+
+document.getElementById('fb-submit-btn')?.addEventListener('click', async () => {
+  const message = document.getElementById('fb-message')?.value.trim();
+  const errEl = document.getElementById('fb-error');
+  if (!message) { errEl.textContent = '請輸入意見內容'; return; }
+  const btn = document.getElementById('fb-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '送出中…';
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (userToken) headers['Authorization'] = `Bearer ${userToken}`;
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type: selectedFbType, message, rating: selectedFbRating || null })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    feedbackModal?.classList.remove('active');
+    toast('感謝你的意見！', 'success');
+  } catch (e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '送出';
+  }
+});
+
 // ===== WebRTC check =====
 if (!window.RTCPeerConnection) {
   document.getElementById('app').innerHTML =

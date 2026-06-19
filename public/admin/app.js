@@ -99,6 +99,7 @@ function connectAdminSocket() {
   adminSocket.on('promos',         renderPromos);
   adminSocket.on('conn-locations', updateMapMarkers);
   adminSocket.on('system-health',  renderHealth);
+  adminSocket.on('feedback',       renderFeedback);
 }
 
 // ===== Map =====
@@ -152,7 +153,7 @@ function updateMapMarkers(locs) {
 }
 
 // ===== Navigation =====
-const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', health: 'System Health', settings: 'Settings' };
+const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', health: 'System Health', settings: 'Settings' };
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -853,6 +854,73 @@ async function deletePromo(id, code) {
     toast('Promo code deleted', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
+
+// ===== Feedback =====
+let allFeedback = [];
+let feedbackFilter = '';
+
+function renderFeedback(items) {
+  allFeedback = items;
+  const unread = items.filter(f => !f.read).length;
+  const badge = document.getElementById('feedback-badge');
+  if (badge) { badge.textContent = unread; badge.style.display = unread ? 'inline-flex' : 'none'; }
+  setEl('fb-total', items.length);
+  setEl('fb-unread', unread);
+  const rated = items.filter(f => f.rating);
+  setEl('fb-avg-rating', rated.length ? (rated.reduce((s, f) => s + f.rating, 0) / rated.length).toFixed(1) + ' ★' : '—');
+  setEl('fb-bug-count', items.filter(f => f.type === 'bug').length);
+  renderFeedbackTable();
+}
+
+function renderFeedbackTable() {
+  const tbody = document.getElementById('feedback-tbody');
+  if (!tbody) return;
+  const TYPE_LABELS = { feature: '💡 建議', bug: '🐛 問題', compliment: '❤️ 讚美', other: '💬 其他' };
+  let list = feedbackFilter ? allFeedback.filter(f => f.type === feedbackFilter) : allFeedback;
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No feedback</td></tr>`; return; }
+  tbody.innerHTML = list.map(f => {
+    const starsHtml = f.rating ? `<span style="color:#f59e0b;letter-spacing:1px">${'★'.repeat(f.rating)}</span><span style="color:var(--muted)">${'★'.repeat(5-f.rating)}</span>` : '<span style="color:var(--muted)">—</span>';
+    return `<tr style="${f.read ? '' : 'font-weight:600;background:rgba(67,97,238,.04)'}">
+      <td style="white-space:nowrap;font-size:.78rem">${timeAgo(new Date(f.createdAt).getTime())}</td>
+      <td style="font-size:.78rem">${f.userName ? esc(f.userName) : '<span style="color:var(--muted)">訪客</span>'}${f.userEmail ? `<br><span style="color:var(--muted);font-size:.7rem">${esc(f.userEmail)}</span>` : ''}</td>
+      <td><span style="font-size:.8rem">${TYPE_LABELS[f.type] || f.type}</span></td>
+      <td>${starsHtml}</td>
+      <td style="max-width:320px;font-size:.82rem;word-break:break-word">${esc(f.message)}</td>
+      <td><span class="status-${f.read ? 'active' : 'banned'}" style="font-size:.72rem">${f.read ? '已讀' : '未讀'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-sm" onclick="toggleFeedbackRead('${f.id}',${!f.read})">${f.read ? '標為未讀' : '標為已讀'}</button>
+        <button class="btn-danger" onclick="deleteFeedback('${f.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function toggleFeedbackRead(id, read) {
+  try {
+    await api('PUT', `/admin/api/feedback/${id}`, { read });
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteFeedback(id) {
+  if (!confirm('Delete this feedback?')) return;
+  try {
+    await api('DELETE', `/admin/api/feedback/${id}`);
+    toast('Deleted', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+document.getElementById('clear-all-feedback')?.addEventListener('click', async () => {
+  if (!confirm('Clear ALL feedback? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/admin/api/feedback?all=true');
+    toast('All feedback cleared', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('feedback-filter')?.addEventListener('change', e => {
+  feedbackFilter = e.target.value;
+  renderFeedbackTable();
+});
 
 // ===== Edit Promo =====
 let editPromoId = null;

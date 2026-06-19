@@ -82,6 +82,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         Promo Codes
       </a>
+      <a class="nav-item" data-section="feedback">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg>
+        Feedback
+        <span id="feedback-badge" class="sidebar-badge" style="display:none">0</span>
+      </a>
       <a class="nav-item" data-section="health">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="6" height="6"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></svg>
         System Health
@@ -343,6 +348,50 @@
           <tbody id="promos-tbody">
             <tr><td colspan="10" class="empty-row">No promo codes</td></tr>
           </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Feedback -->
+    <section id="section-feedback" class="section">
+      <div class="section-header">
+        <h2>User Feedback</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="feedback-filter" style="padding:5px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.82rem">
+            <option value="">All Types</option>
+            <option value="feature">💡 建議</option>
+            <option value="bug">🐛 問題</option>
+            <option value="compliment">❤️ 讚美</option>
+            <option value="other">💬 其他</option>
+          </select>
+          <button class="btn-ghost" id="clear-all-feedback" style="padding:5px 14px;font-size:.8rem">Clear All</button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stat-grid" style="margin-bottom:16px" id="feedback-stats-row">
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <div class="stat-body"><div class="stat-value" id="fb-total">0</div><div class="stat-label">Total Feedback</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          <div class="stat-body"><div class="stat-value" id="fb-unread">0</div><div class="stat-label">Unread</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="stat-body"><div class="stat-value" id="fb-avg-rating">—</div><div class="stat-label">Avg Rating</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33"/></svg></div>
+          <div class="stat-body"><div class="stat-value" id="fb-bug-count">0</div><div class="stat-label">Bug Reports</div></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <table>
+          <thead><tr><th>時間</th><th>用戶</th><th>類型</th><th>評分</th><th>內容</th><th>狀態</th><th>Action</th></tr></thead>
+          <tbody id="feedback-tbody"><tr><td colspan="7" class="empty-row">No feedback yet</td></tr></tbody>
         </table>
       </div>
     </section>

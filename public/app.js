@@ -836,8 +836,11 @@ socket.on('connect', () => {
   rejoinRoom();
 });
 
+let _reservedRetryTimer = null;
+
 socket.on('room-joined', ({ peers: existing, roomSettings: rs }) => {
   joinPendingOverlay.classList.remove('active');
+  clearTimeout(_reservedRetryTimer);
   existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar));
   if (rs) applyRoomSettings(rs);
 });
@@ -917,13 +920,20 @@ jrRejectBtn.addEventListener('click', () => {
 });
 
 socket.on('room-reserved', ({ message }) => {
-  toast(message || '此房號已被預留', 'error');
-  // Redirect to a fresh random room
-  const newId = Math.random().toString(36).slice(2, 8).toUpperCase();
-  history.replaceState(null, '', `#${newId}`);
-  roomId = newId;
-  roomCodeEl.textContent = newId;
-  socket.emit('join-room', { roomId: newId, name: myName, avatar: myAvatar });
+  // Show waiting UI — do NOT redirect; retry joining the same room until host arrives
+  const pendingOverlay = document.getElementById('join-pending-overlay');
+  const titleEl = pendingOverlay?.querySelector('.jp-title');
+  const subEl   = pendingOverlay?.querySelector('.jp-sub');
+  if (titleEl) titleEl.textContent = '等待房主開啟房間';
+  if (subEl)   subEl.textContent   = '房間尚未開啟，將自動重試…';
+  pendingOverlay?.classList.add('active');
+
+  clearTimeout(_reservedRetryTimer);
+  _reservedRetryTimer = setTimeout(function retry() {
+    if (!pendingOverlay?.classList.contains('active')) return;
+    socket.emit('join-room', { roomId, name: myName, avatar: myAvatar });
+    _reservedRetryTimer = setTimeout(retry, 5000);
+  }, 5000);
 });
 
 socket.on('room-closed', ({ reason } = {}) => {

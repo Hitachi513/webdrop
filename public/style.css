@@ -969,8 +969,9 @@ header {
 .fb-star.active, .fb-star.hover { color: #f59e0b; }
 .fb-star:hover { transform: scale(1.2); }
 
-@media (max-width: 600px) {
-  .feedback-fab { bottom: calc(56px + 12px); }
+@media (max-width: 768px) {
+  /* FAB hidden on mobile — accessible via user menu (header avatar → 意見箱) */
+  .feedback-fab { display: none; }
 }
 
 /* ── Room Settings Modal ── */

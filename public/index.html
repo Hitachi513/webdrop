@@ -49,6 +49,10 @@
           <line x1="14" y1="14" x2="17" y2="14"/><line x1="20" y1="14" x2="20" y2="17"/><line x1="14" y1="17" x2="14" y2="20"/><line x1="14" y1="20" x2="17" y2="20"/>
         </svg>
       </button>
+      <div id="room-timer" class="room-timer" style="display:none" title="房間剩餘時間">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="room-timer-val">--:--</span>
+      </div>
     </div>
 
     <div class="header-actions">
@@ -290,6 +294,12 @@
       <div class="chat-header-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         <span data-i18n="messages">Messages</span>
+        <button id="chat-qr-btn" class="btn-icon btn-icon-xs" title="邀請掃碼加入" style="margin-left:auto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
       </div>
       <div id="chat-messages">
         <div class="chat-empty">
@@ -304,6 +314,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
         </label>
         <input type="file" id="file-input-chat" multiple>
+        <button id="zip-toggle-btn" class="btn-icon" title="打包成ZIP傳送">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            <line x1="9" y1="11" x2="9" y2="13" stroke-width="1.5"/><line x1="12" y1="10" x2="12" y2="12" stroke-width="1.5"/><line x1="15" y1="11" x2="15" y2="13" stroke-width="1.5"/>
+          </svg>
+        </button>
         <input type="text" id="message-input" data-i18n-placeholder="type-message" placeholder="Type a message…" autocomplete="off">
         <button id="send-btn" class="btn-send" data-i18n-title="send-btn-title" title="Send">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -312,6 +328,16 @@
     </section>
 
   </div><!-- #main -->
+
+  <!-- ===== File Queue Panel ===== -->
+  <div id="file-queue-panel" class="file-queue-panel" style="display:none">
+    <div class="fq-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <span>傳輸佇列</span>
+      <button id="fq-close" class="fq-close">✕</button>
+    </div>
+    <div id="fq-list" class="fq-list"></div>
+  </div>
 
   <!-- ===== Onboarding Guide ===== -->
   <div id="onboarding-overlay" style="display:none">
@@ -454,6 +480,20 @@
   </div>
 </div>
 
+<!-- Room Password Modal -->
+<div id="room-password-modal" class="modal">
+  <div class="modal-box" style="max-width:340px">
+    <h3 class="modal-title">🔐 房間密碼</h3>
+    <p style="color:var(--text-2);margin-bottom:12px;font-size:0.85rem">此房間需要密碼才能加入</p>
+    <input type="password" id="room-pw-input" class="rs-input" placeholder="輸入房間密碼" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:6px">
+    <p id="room-pw-error" style="color:#ef4444;font-size:0.8rem;min-height:1.2em;margin:0 0 4px"></p>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="room-pw-cancel">取消</button>
+      <button class="btn-primary" id="room-pw-submit">加入</button>
+    </div>
+  </div>
+</div>
+
 <!-- Room Settings Modal -->
 <div id="room-settings-modal" class="modal">
   <div class="modal-box room-settings-box">
@@ -489,6 +529,14 @@
       <div class="rs-row">
         <div class="rs-info"><div class="rs-label">👥 最大人數</div><div class="rs-desc">留空使用系統預設值</div></div>
         <input type="number" id="rs-max-members" class="rs-input" min="2" max="50" placeholder="預設">
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">🔐 房間密碼</div><div class="rs-desc">設定密碼後，新成員須輸入才能加入</div></div>
+        <input type="text" id="rs-password" class="rs-input" placeholder="留空=無密碼" autocomplete="off">
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">⏱ 自動關閉（分鐘）</div><div class="rs-desc">倒數結束後自動關閉房間，留空=不限時</div></div>
+        <input type="number" id="rs-countdown" class="rs-input" min="1" max="480" placeholder="不限時">
       </div>
     </div>
     <div class="modal-actions">
@@ -835,6 +883,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
 </body>

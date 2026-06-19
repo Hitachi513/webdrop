@@ -1162,7 +1162,7 @@ io.on('connection', (socket) => {
     }
   }
 
-  socket.on('join-room', ({ roomId, name, avatar }) => {
+  socket.on('join-room', ({ roomId, name, avatar, password, countdownMinutes }) => {
     // Client-sent avatar is only used for guest users; logged-in users use socket.userAvatar
     if (!socket.userAvatar && avatar) socket.userAvatar = String(avatar).slice(0, 200000) || null;
     if (socket.currentRoom) {
@@ -1201,6 +1201,16 @@ io.on('connection', (socket) => {
       const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
       if ((socket.userId && bans.has(`user:${socket.userId}`)) || (clientIp && bans.has(`ip:${clientIp}`))) {
         socket.emit('room-banned', { message: '你已被此房間封鎖，無法重新加入。' });
+        return;
+      }
+    }
+
+    // Room password check (admin/super-admin bypass)
+    const isAdminRoleForPw = ['admin', 'super-admin'].includes(socket.userRole);
+    if (!isAdminRoleForPw && existing && existing.size > 0) {
+      const roomPw = roomsMeta.get(roomId)?.password;
+      if (roomPw && roomPw !== (password || '')) {
+        socket.emit('room-denied', { reason: 'wrong-password', message: '房間密碼錯誤，請重新輸入。' });
         return;
       }
     }
@@ -1256,16 +1266,16 @@ io.on('connection', (socket) => {
     }
 
     const roomIsNew = !rooms.has(roomId);
-    if (roomIsNew) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null }, hostSocketId: socket.id, hostUserId: socket.userId || null }); }
+    if (roomIsNew) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null }, hostSocketId: socket.id, hostUserId: socket.userId || null, password: password || null, closeAt: countdownMinutes ? Date.now() + countdownMinutes * 60000 : null }); }
     const room = rooms.get(roomId);
-    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
-    room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
+    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null, userId: info.userId || null }));
+    room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null, userId: socket.userId || null });
     const rMeta = roomsMeta.get(roomId);
     if (rMeta && room.size > (rMeta.peakPeers || 0)) rMeta.peakPeers = room.size;
     socket.join(roomId);
     socket.currentRoom = roomId;
-    socket.emit('room-joined', { roomId, peers: existingPeers, roomSettings: roomSettings.get(roomId) || null });
-    socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null, avatar: socket.userAvatar || null });
+    socket.emit('room-joined', { roomId, peers: existingPeers, roomSettings: roomSettings.get(roomId) || null, closeAt: rMeta?.closeAt || null, hasPassword: !!(rMeta?.password) });
+    socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null, avatar: socket.userAvatar || null, userId: socket.userId || null });
     if (roomIsNew) fireWebhook('room-created', { roomId, name, role: socket.userRole || null });
     adminNsp.emit('rooms', getRoomList());
   });
@@ -1282,14 +1292,15 @@ io.on('connection', (socket) => {
     const rsApprove = roomSettings.get(req.roomId);
     const effMax = rsApprove?.maxMembers || settings.maxPeersPerRoom;
     if (room.size >= effMax) { joinerSocket.emit('join-rejected', { message: '房間已滿' }); return; }
-    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
-    room.set(joinerSocket.id, { name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
+    const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null, userId: info.userId || null }));
+    room.set(joinerSocket.id, { name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null, userId: joinerSocket.userId || null });
     const approvedMeta = roomsMeta.get(req.roomId);
     if (approvedMeta && room.size > (approvedMeta.peakPeers || 0)) approvedMeta.peakPeers = room.size;
     joinerSocket.join(req.roomId);
     joinerSocket.currentRoom = req.roomId;
-    joinerSocket.emit('room-joined', { roomId: req.roomId, peers: existingPeers, roomSettings: rsApprove || null });
-    io.to(req.roomId).except(joinerSocket.id).emit('peer-joined', { id: joinerSocket.id, name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
+    const approveMeta = roomsMeta.get(req.roomId);
+    joinerSocket.emit('room-joined', { roomId: req.roomId, peers: existingPeers, roomSettings: rsApprove || null, closeAt: approveMeta?.closeAt || null, hasPassword: !!(approveMeta?.password) });
+    io.to(req.roomId).except(joinerSocket.id).emit('peer-joined', { id: joinerSocket.id, name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null, userId: joinerSocket.userId || null });
     adminNsp.emit('rooms', getRoomList());
   });
 
@@ -1320,6 +1331,15 @@ io.on('connection', (socket) => {
     if (newSettings.maxMembers !== undefined) cur.maxMembers = newSettings.maxMembers ? Math.min(parseInt(newSettings.maxMembers) || 10, settings.maxPeersPerRoom) : null;
     if (newSettings.minFileRole !== undefined) cur.minFileRole = ['vip','business','admin'].includes(newSettings.minFileRole) ? newSettings.minFileRole : null;
     roomSettings.set(roomId, cur);
+    // Password and timer live in roomsMeta, not roomSettings
+    const metaForUpdate = roomsMeta.get(roomId);
+    if (metaForUpdate && newSettings.password !== undefined) {
+      metaForUpdate.password = newSettings.password || null;
+    }
+    if (metaForUpdate && newSettings.countdownMinutes !== undefined) {
+      metaForUpdate.closeAt = newSettings.countdownMinutes ? Date.now() + newSettings.countdownMinutes * 60000 : null;
+      io.to(roomId).emit('room-timer', { closeAt: metaForUpdate.closeAt });
+    }
     io.to(roomId).emit('room-settings', cur);
     adminNsp.emit('rooms', getRoomList());
   });
@@ -1740,6 +1760,28 @@ async function init() {
   const rawAdminLog = await dbGet('admin-log');
   adminLog = Array.isArray(rawAdminLog) ? rawAdminLog : [];
   console.log(`[Init] Loaded ${rawAdminLog ? rawAdminLog.length : 0} admin log entries.`);
+
+  // Auto-close rooms whose countdown has expired
+  setInterval(() => {
+    const now = Date.now();
+    for (const [roomId, meta] of roomsMeta) {
+      if (meta.closeAt && now >= meta.closeAt) {
+        io.to(roomId).emit('room-closed', { reason: 'timeout', message: '房間計時結束，已自動關閉。' });
+        const room = rooms.get(roomId);
+        if (room) {
+          for (const [sid] of room) {
+            const s = io.sockets.sockets.get(sid);
+            if (s) { s.leave(roomId); s.currentRoom = null; }
+          }
+        }
+        recordRoomClosure(roomId, 'timeout');
+        rooms.delete(roomId);
+        roomsMeta.delete(roomId);
+        roomSettings.delete(roomId);
+        adminNsp.emit('rooms', getRoomList());
+      }
+    }
+  }, 10000);
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

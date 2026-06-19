@@ -834,9 +834,11 @@ function addFileBubble(filename, filesize, isMine, peerName, blob) {
 let roomClosedByAdmin = false;
 const socket = io({ auth: { userToken: userToken || null } });
 
+let _roomPassword = null; // password for current room (set when joining password-protected room)
+
 function rejoinRoom() {
   if (roomClosedByAdmin) return;
-  socket.emit('join-room', { roomId, name: myName, avatar: myAvatar });
+  socket.emit('join-room', { roomId, name: myName, avatar: myAvatar, password: _roomPassword || undefined });
 }
 
 socket.on('connect', () => {
@@ -854,15 +856,17 @@ socket.on('connect', () => {
 
 let _reservedRetryTimer = null;
 
-socket.on('room-joined', ({ peers: existing, roomSettings: rs }) => {
+socket.on('room-joined', ({ peers: existing, roomSettings: rs, closeAt, hasPassword }) => {
   joinPendingOverlay.classList.remove('active');
   clearTimeout(_reservedRetryTimer);
-  existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar));
+  existing.forEach(({ id, name, role, avatar, userId }) => addPeer(id, name, true, role, avatar, userId));
   if (rs) applyRoomSettings(rs);
   requestNotificationPermission();
+  startRoomTimer(closeAt || null);
+  if (hasPassword) _roomPassword = _roomPassword || ''; // keep existing password
 });
 socket.on('room-settings', applyRoomSettings);
-socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false, role, avatar));
+socket.on('peer-joined', ({ id, name, role, avatar, userId }) => addPeer(id, name, false, role, avatar, userId));
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
 
@@ -973,6 +977,20 @@ socket.on('room-closed', ({ reason } = {}) => {
 socket.on('kicked-from-room', ({ message } = {}) => forceLeaveRoom(message || '你已被踢出房間'));
 socket.on('room-banned',      ({ message } = {}) => forceLeaveRoom(message || '你已被此房間封鎖'));
 
+socket.on('room-denied', ({ reason, message } = {}) => {
+  if (reason === 'wrong-password') {
+    const modal = document.getElementById('room-password-modal');
+    const errEl = document.getElementById('room-pw-error');
+    if (errEl) errEl.textContent = _roomPassword ? '密碼錯誤，請再試一次' : '';
+    if (modal) modal.classList.add('active');
+    setTimeout(() => document.getElementById('room-pw-input')?.focus(), 100);
+  } else {
+    toast(message || '無法加入房間', 'error');
+  }
+});
+
+socket.on('room-timer', ({ closeAt }) => startRoomTimer(closeAt));
+
 socket.on('server-broadcast', ({ message, sender, at }) => {
   const chatPanel = document.getElementById('panel-chat');
   const chatMessages = document.getElementById('chat-messages');
@@ -1067,6 +1085,51 @@ socket.on('peer-profile-changed', ({ id, name, avatar }) => {
 
 socket.on('profile-error', ({ error }) => toast(error, 'error'));
 
+// ===== Room Timer =====
+let _roomCloseAt = null;
+let _timerInterval = null;
+
+function startRoomTimer(closeAt) {
+  _roomCloseAt = closeAt;
+  clearInterval(_timerInterval);
+  const timerEl = document.getElementById('room-timer');
+  const valEl = document.getElementById('room-timer-val');
+  if (!closeAt || !timerEl || !valEl) { if (timerEl) timerEl.style.display = 'none'; return; }
+  timerEl.style.display = 'flex';
+  timerEl.style.color = '';
+  function tick() {
+    const rem = Math.max(0, _roomCloseAt - Date.now());
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    valEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    if (rem <= 60000) timerEl.style.color = '#ef4444';
+    if (rem === 0) clearInterval(_timerInterval);
+  }
+  tick();
+  _timerInterval = setInterval(tick, 1000);
+}
+
+// ===== Room Password Modal =====
+document.getElementById('room-pw-submit')?.addEventListener('click', () => {
+  const pw = document.getElementById('room-pw-input')?.value?.trim();
+  const errEl = document.getElementById('room-pw-error');
+  if (!pw) { if (errEl) errEl.textContent = '請輸入密碼'; return; }
+  _roomPassword = pw;
+  document.getElementById('room-password-modal')?.classList.remove('active');
+  socket.emit('join-room', { roomId, name: myName, avatar: myAvatar, password: pw });
+});
+
+document.getElementById('room-pw-cancel')?.addEventListener('click', () => {
+  document.getElementById('room-password-modal')?.classList.remove('active');
+});
+
+document.getElementById('room-pw-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('room-pw-submit')?.click();
+});
+
+// QR in chat
+document.getElementById('chat-qr-btn')?.addEventListener('click', () => qrModal.classList.add('active'));
+
 socket.on('offer', async ({ from, offer }) => {
   const peer = peers.get(from);
   if (!peer) return;
@@ -1122,14 +1185,26 @@ socket.on('relay-file-end', ({ from, fileId, name }) => {
 });
 
 // ===== Peer Lifecycle =====
-function addPeer(peerId, name, isInitiator, role, avatar) {
+const resumeBank = new Map(); // userId → { files: File[] }
+
+function addPeer(peerId, name, isInitiator, role, avatar, userId) {
   if (peers.has(peerId)) return;
   const pc = new RTCPeerConnection(ICE_SERVERS);
   pc.onicecandidate = ({ candidate }) => { if (candidate) socket.emit('ice-candidate', { to: peerId, candidate }); };
   pc.onconnectionstatechange = () => { const p = peers.get(peerId); if (p) updateStatusDot(p, pc.connectionState); };
 
-  const peerObj = { pc, dc: null, name, role: role || null, avatar: avatar || null, element: null, sendQueue: [], isSending: false, receiving: null };
+  const peerObj = { pc, dc: null, name, role: role || null, avatar: avatar || null, userId: userId || null, element: null, sendQueue: [], isSending: false, receiving: null, activeSend: null };
   peers.set(peerId, peerObj);
+
+  // Restore pending transfers from before disconnect
+  if (userId && resumeBank.has(userId)) {
+    const { files } = resumeBank.get(userId);
+    resumeBank.delete(userId);
+    setTimeout(() => {
+      files.forEach(f => queueFile(peerId, f));
+      if (files.length) toast(`${name} 重新連線 — 繼續傳送 ${files.length} 個檔案`, 'info');
+    }, 1200);
+  }
   peerObj.element = createPeerEl(peerId, name, role, avatar);
   radarEl.appendChild(peerObj.element);
   updatePositions();
@@ -1174,9 +1249,20 @@ function forceLeaveRoom(message) {
 function removePeer(peerId) {
   const peer = peers.get(peerId);
   if (!peer) return;
+  // Save pending transfers for resume when peer reconnects
+  if (peer.userId) {
+    const pendingFiles = [];
+    if (peer.isSending && peer.activeSend?.file) pendingFiles.push(peer.activeSend.file);
+    peer.sendQueue.forEach(item => { if (item?.file) pendingFiles.push(item.file); else if (item instanceof File || item instanceof Blob) pendingFiles.push(item); });
+    if (pendingFiles.length > 0) {
+      resumeBank.set(peer.userId, { files: pendingFiles });
+      toast(`${peer.name} 斷線，${pendingFiles.length} 個檔案待續傳`, 'info');
+    }
+  }
   peer.pc.close();
   if (peer.element) peer.element.remove();
   peers.delete(peerId);
+  fqUpdate();
   addChatEvent(`${peer.name} left`);
   if (selectedPeerId === peerId) {
     selectedPeerId = null;
@@ -1352,18 +1438,22 @@ async function sendFileToPeer(peerId, file) {
 async function sendFileViaDC(peerId, file) {
   const peer = peers.get(peerId);
   const fileId = randId();
+  peer.activeSend = { fileId, file, offset: 0 };
   peer.dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' }));
   txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size) {
     while (peer.dc.bufferedAmount > MAX_BUFFER) await sleep(50);
+    if (!peers.has(peerId)) { peer.activeSend = null; return; } // peer left, resumeBank already updated
     const buf = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
     peer.dc.send(buf);
     offset += buf.byteLength;
+    peer.activeSend.offset = offset;
     setProgress(peer, offset / file.size);
     txUpdate(offset);
   }
   peer.dc.send(JSON.stringify({ type: 'file-end', fileId }));
+  peer.activeSend = null;
   setProgress(peer, null);
   txEnd();
   addFileBubble(file.name, file.size, true, peer.name, file);
@@ -1373,6 +1463,7 @@ async function sendFileViaDC(peerId, file) {
 async function sendFileViaRelay(peerId, file) {
   const peer = peers.get(peerId);
   const fileId = randId();
+  peer.activeSend = { fileId, file, offset: 0 };
   socket.emit('relay-file-start', { to: peerId, meta: { fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' } });
   txStart(file.name, file.size);
   let offset = 0;
@@ -1385,16 +1476,46 @@ async function sendFileViaRelay(peerId, file) {
     if (offset % (CHUNK_SIZE * 4) === 0) await sleep(10);
   }
   socket.emit('relay-file-end', { to: peerId, fileId, name: file.name });
+  peer.activeSend = null;
   setProgress(peer, null);
   txEnd();
   addFileBubble(file.name, file.size, true, peer.name, file);
   toast(`Sent: ${file.name}`, 'success');
 }
 
+// ===== File Queue Display =====
+const _globalQueue = []; // { id, peerId, file, status:'queued'|'sending'|'done'|'error' }
+let _fqNextId = 0;
+const fileQueuePanel = document.getElementById('file-queue-panel');
+const fqListEl = document.getElementById('fq-list');
+
+function fqUpdate() {
+  const active = _globalQueue.filter(i => i.status === 'queued' || i.status === 'sending');
+  if (!fileQueuePanel) return;
+  if (active.length === 0) { fileQueuePanel.style.display = 'none'; return; }
+  fileQueuePanel.style.display = '';
+  if (!fqListEl) return;
+  fqListEl.innerHTML = '';
+  _globalQueue.forEach(item => {
+    const el = document.createElement('div');
+    el.className = `fq-item fq-${item.status}`;
+    const peerName = peers.get(item.peerId)?.name || '';
+    const statusText = { queued: '等待中', sending: '傳送中', done: '完成', error: '失敗' }[item.status] || '';
+    el.innerHTML = `<div class="fq-icon">${item.status === 'sending' ? '<div class="fq-spin"></div>' : item.status === 'done' ? '✓' : item.status === 'error' ? '✗' : '…'}</div><div class="fq-info"><div class="fq-name">${esc(item.file.name)}</div><div class="fq-meta">${formatBytes(item.file.size)}${peerName ? ' → ' + esc(peerName) : ''} · ${statusText}</div></div>`;
+    fqListEl.appendChild(el);
+  });
+}
+
+document.getElementById('fq-close')?.addEventListener('click', () => { if (fileQueuePanel) fileQueuePanel.style.display = 'none'; });
+
 function queueFile(peerId, file) {
   const peer = peers.get(peerId);
   if (!peer) return;
-  peer.sendQueue.push(file);
+  const qItem = { id: _fqNextId++, peerId, file, status: 'queued' };
+  _globalQueue.push(qItem);
+  if (_globalQueue.length > 50) _globalQueue.splice(0, _globalQueue.length - 50);
+  fqUpdate();
+  peer.sendQueue.push({ file, qItem });
   processSendQueue(peerId);
 }
 
@@ -1402,16 +1523,69 @@ async function processSendQueue(peerId) {
   const peer = peers.get(peerId);
   if (!peer || peer.isSending || !peer.sendQueue.length) return;
   peer.isSending = true;
-  await sendFileToPeer(peerId, peer.sendQueue.shift());
+  const { file, qItem } = peer.sendQueue.shift();
+  if (qItem) { qItem.status = 'sending'; fqUpdate(); }
+  try {
+    await sendFileToPeer(peerId, file);
+    if (qItem) { qItem.status = 'done'; fqUpdate(); }
+  } catch (e) {
+    if (qItem) { qItem.status = 'error'; fqUpdate(); }
+  }
   peer.isSending = false;
   processSendQueue(peerId);
 }
 
-function handleFiles(files) {
+// ===== Image Compression =====
+async function compressImage(file) {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  if (file.size < 500 * 1024) return file;
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1920;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (!blob || blob.size >= file.size) resolve(file);
+        else resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }));
+      }, 'image/jpeg', 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+// ===== ZIP Packaging =====
+let zipMode = false;
+const zipToggleBtn = document.getElementById('zip-toggle-btn');
+zipToggleBtn?.addEventListener('click', () => {
+  zipMode = !zipMode;
+  zipToggleBtn.classList.toggle('zip-active', zipMode);
+  zipToggleBtn.title = zipMode ? 'ZIP 模式已啟用（點擊取消）' : '打包成 ZIP 傳送';
+  toast(zipMode ? '✔ ZIP 打包模式已啟用' : 'ZIP 打包模式已停用', 'info');
+});
+
+async function maybeZip(files) {
+  if (!zipMode || files.length <= 1 || typeof JSZip === 'undefined') return files;
+  toast('正在打包 ZIP…', 'info');
+  const zip = new JSZip();
+  files.forEach(f => zip.file(f.name, f));
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  return [new File([blob], `webdrop-${Date.now()}.zip`, { type: 'application/zip' })];
+}
+
+async function handleFiles(files) {
   if (!files.length) return;
   const targets = resolveTargets();
   if (!targets?.length) { toast(peers.size === 0 ? 'No devices connected' : 'Select a device first', 'error'); return; }
-  targets.forEach(id => files.forEach(f => queueFile(id, f)));
+  let processed = await Promise.all([...files].map(compressImage));
+  processed = await maybeZip(processed);
+  targets.forEach(id => processed.forEach(f => queueFile(id, f)));
 }
 
 async function collectEntry(entry, out) {
@@ -1928,18 +2102,25 @@ modSettingsBtn?.addEventListener('click', () => {
   document.getElementById('rs-chat').checked         = rs.allowChat !== false;
   document.getElementById('rs-min-role').value       = rs.minFileRole || '';
   document.getElementById('rs-max-members').value    = rs.maxMembers || '';
+  const pwEl = document.getElementById('rs-password');
+  if (pwEl) pwEl.value = '';
+  const cdEl = document.getElementById('rs-countdown');
+  if (cdEl) cdEl.value = _roomCloseAt ? Math.round((_roomCloseAt - Date.now()) / 60000) : '';
   roomSettingsModal.classList.add('active');
 });
 
 document.getElementById('rs-cancel')?.addEventListener('click', () => roomSettingsModal.classList.remove('active'));
 document.getElementById('rs-save')?.addEventListener('click', () => {
+  const countdown = parseInt(document.getElementById('rs-countdown')?.value) || null;
   socket.emit('room-update-settings', {
-    locked:       document.getElementById('rs-locked').checked,
-    knockRequired: document.getElementById('rs-knock').checked,
-    allowFiles:   document.getElementById('rs-files').checked,
-    allowChat:    document.getElementById('rs-chat').checked,
-    minFileRole:  document.getElementById('rs-min-role').value || null,
-    maxMembers:   parseInt(document.getElementById('rs-max-members').value) || null,
+    locked:           document.getElementById('rs-locked').checked,
+    knockRequired:    document.getElementById('rs-knock').checked,
+    allowFiles:       document.getElementById('rs-files').checked,
+    allowChat:        document.getElementById('rs-chat').checked,
+    minFileRole:      document.getElementById('rs-min-role').value || null,
+    maxMembers:       parseInt(document.getElementById('rs-max-members').value) || null,
+    password:         document.getElementById('rs-password')?.value?.trim() || null,
+    countdownMinutes: countdown,
   });
   roomSettingsModal.classList.remove('active');
 });

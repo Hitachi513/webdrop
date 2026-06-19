@@ -256,13 +256,13 @@ function onLoginSuccess(data, isNew = false) {
   }
 }
 
-const ROLE_LABELS = { admin: '👑 Admin', vip: '💎 VIP', business: '💼 Business' };
+const ROLE_LABELS = { 'super-admin': '⚡ Super Admin', admin: '👑 Admin', vip: '💎 VIP', business: '💼 Business' };
 
 function applyRoleStyle(role) {
   const badgeBtn = document.getElementById('user-badge-btn');
   const roleBadgeEl = document.getElementById('dropdown-role-badge');
-  badgeBtn.classList.remove('role-admin', 'role-vip');
-  if (role === 'admin' || role === 'vip' || role === 'business') {
+  badgeBtn.classList.remove('role-admin', 'role-vip', 'role-super-admin');
+  if (role === 'super-admin' || role === 'admin' || role === 'vip' || role === 'business') {
     badgeBtn.classList.add(`role-${role}`);
     roleBadgeEl.innerHTML = `<span class="role-badge-display role-${role}">${ROLE_LABELS[role]}</span>`;
     roleBadgeEl.style.display = 'flex';
@@ -274,11 +274,11 @@ function applyRoleStyle(role) {
   const modSettingsBtn = document.getElementById('mod-settings-btn');
   const modClearBtn = document.getElementById('mod-clear-btn');
   const modBroadcastBtn = document.getElementById('mod-broadcast-btn');
-  const isMod = ['admin', 'business', 'vip'].includes(role);
-  const isAdmin = role === 'admin';
+  const isMod = ['super-admin', 'admin', 'business', 'vip'].includes(role);
+  const isAdmin = role === 'admin' || role === 'super-admin';
   if (modToolbar) modToolbar.style.display = isMod ? 'flex' : 'none';
   if (modSettingsBtn) {
-    const canSettings = currentUser && ['admin', 'business', 'vip'].includes(currentUser.role);
+    const canSettings = currentUser && ['super-admin', 'admin', 'business', 'vip'].includes(currentUser.role);
     modSettingsBtn.style.display = canSettings ? 'flex' : 'none';
   }
   if (modClearBtn)     modClearBtn.style.display     = isAdmin ? 'flex' : 'none';
@@ -1396,9 +1396,10 @@ fileInputChatEl.addEventListener('change', () => { handleFiles([...fileInputChat
 
 // ===== UI: Peers =====
 const PEER_ROLE_BADGE = {
-  admin:    `<span class="peer-role-badge peer-role-admin">👑 Admin</span>`,
-  vip:      `<span class="peer-role-badge peer-role-vip">💎 VIP</span>`,
-  business: `<span class="peer-role-badge peer-role-business">💼 Business</span>`,
+  'super-admin': `<span class="peer-role-badge peer-role-super-admin">⚡ Super Admin</span>`,
+  admin:         `<span class="peer-role-badge peer-role-admin">👑 Admin</span>`,
+  vip:           `<span class="peer-role-badge peer-role-vip">💎 VIP</span>`,
+  business:      `<span class="peer-role-badge peer-role-business">💼 Business</span>`,
 };
 
 function peerIconHtml(name, avatar) {
@@ -1417,7 +1418,9 @@ function peerNameHtml(name, role) {
 
 function canModeratePeer(targetRole) {
   const myR = currentUser?.role;
-  if (!['admin', 'business'].includes(myR)) return false;
+  if (!['super-admin', 'admin', 'business'].includes(myR)) return false;
+  if (targetRole === 'super-admin') return false; // nobody can moderate super-admin
+  if (myR === 'admin' && targetRole === 'admin') return false; // admin cannot moderate another admin (unless host — handled server-side)
   if (myR === 'business' && ['admin', 'business'].includes(targetRole)) return false;
   return true;
 }
@@ -1746,7 +1749,7 @@ function refreshMembersPanel() {
   const modBadge = document.getElementById('mod-members-count');
   if (!list) return;
   const myRole = currentUser?.role;
-  const isMod = ['admin', 'business', 'vip'].includes(myRole);
+  const isMod = ['super-admin', 'admin', 'business', 'vip'].includes(myRole);
   const count = peers.size;
   if (badge) badge.textContent = count;
   if (modBadge) { modBadge.textContent = count; modBadge.style.display = count > 0 ? '' : 'none'; }
@@ -1761,10 +1764,12 @@ function refreshMembersPanel() {
     const row = document.createElement('div');
     row.className = 'member-row';
     const avatarHtml = peer.avatar ? `<img src="${peer.avatar}" alt="">` : (peer.name || '?')[0].toUpperCase();
+    const ROLE_BADGE_MAP = { 'super-admin': '⚡ Super Admin', admin: '👑 Admin', business: '💼 Business', vip: '💎 VIP' };
     const roleBadge = peer.role
-      ? `<span class="member-role-badge member-role-${peer.role}">${{admin:'👑 Admin',business:'💼 Business',vip:'💎 VIP'}[peer.role]||peer.role}</span>` : '';
-    const canMod = isMod && !(myRole === 'business' && ['admin','business'].includes(peer.role));
-    const canGrant = myRole === 'admin' && peer.role !== 'admin';
+      ? `<span class="member-role-badge member-role-${peer.role}">${ROLE_BADGE_MAP[peer.role] || peer.role}</span>` : '';
+    const canMod = canModeratePeer(peer.role);
+    const canGrant = (myRole === 'admin' || myRole === 'super-admin') && peer.role !== 'super-admin' && peer.role !== 'admin';
+    const canPermGrant = myRole === 'super-admin' && peer.role !== 'super-admin';
     row.innerHTML = `
       <div class="member-avatar">${avatarHtml}</div>
       <div class="member-info">
@@ -1774,6 +1779,7 @@ function refreshMembersPanel() {
         <button class="member-kick-btn" title="踢出房間">踢出</button>
         <button class="member-ban-btn"  title="封鎖並踢出">封鎖</button>
         ${canGrant ? `<button class="member-grant-btn" title="設定臨時角色">升級</button>` : ''}
+        ${canPermGrant ? `<button class="member-perm-grant-btn" title="永久設定角色">永久</button>` : ''}
       </div>` : ''}`;
     if (canMod) {
       row.querySelector('.member-kick-btn').addEventListener('click', () => {
@@ -1790,6 +1796,16 @@ function refreshMembersPanel() {
           const grantRole = choice.trim().toLowerCase() || null;
           if (grantRole && !['vip', 'business'].includes(grantRole)) { alert('角色只能是 vip 或 business'); return; }
           socket.emit('room-grant-role', { peerId, grantRole });
+        });
+      }
+      if (canPermGrant) {
+        row.querySelector('.member-perm-grant-btn').addEventListener('click', () => {
+          const current = peer.role || '';
+          const choice = prompt(`永久設定 ${peer.name} 的角色\n輸入 vip / business / admin / 留空移除：`, current);
+          if (choice === null) return;
+          const role = choice.trim().toLowerCase() || null;
+          if (role && !['vip', 'business', 'admin'].includes(role)) { alert('角色只能是 vip、business 或 admin'); return; }
+          if (confirm(`確定要永久將 ${peer.name} 的角色設為「${role || '無'}」？`)) socket.emit('room-grant-perm-role', { peerId, role });
         });
       }
     }

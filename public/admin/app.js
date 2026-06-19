@@ -409,7 +409,7 @@ function renderRoomsTable() {
     <tr>
       <td><code>${esc(r.roomId)}</code></td>
       <td><strong>${r.peerCount}</strong></td>
-      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}<span class="peer-chip-actions"><button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button><button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button></span></span>`).join('')}</div></td>
+      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['super-admin','admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role === 'super-admin' ? 'super' : p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}<span class="peer-chip-actions"><button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button><button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button></span></span>`).join('')}</div></td>
       <td style="font-size:.82rem">${locHtml}</td>
       <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}${durationStr}</td>
       <td><strong>${r.filesTransferred || 0}</strong></td>
@@ -665,7 +665,7 @@ function renderUsersTable() {
       ? `<code style="color:var(--primary);font-size:.8rem">${esc(u.customRoomId)}</code>
          <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`
       : `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>`;
-    const ROLE_COLORS = { admin: '#f59e0b', vip: '#a855f7', business: '#10b981' };
+    const ROLE_COLORS = { 'super-admin': '#ef4444', admin: '#f59e0b', vip: '#a855f7', business: '#10b981' };
     const permRoleBadge = u.role
       ? `<span style="display:inline-block;padding:1px 8px;border-radius:12px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[u.role] || '#6b7280'}22;color:${ROLE_COLORS[u.role] || '#6b7280'};border:1px solid ${ROLE_COLORS[u.role] || '#6b7280'}55">${esc(u.role)}</span>`
       : '';
@@ -742,10 +742,13 @@ async function clearUserRoom(id) {
 }
 
 async function setUserRole(id, email, current) {
-  const val = prompt(`Role for ${email}\nOptions: admin, vip, business (leave empty to remove):`, current || '');
+  const isSuperAdmin = currentAdmin?.role === 'super-admin';
+  const options = isSuperAdmin ? 'super-admin, admin, vip, business' : 'admin, vip, business';
+  const val = prompt(`Role for ${email}\nOptions: ${options} (leave empty to remove):`, current || '');
   if (val === null) return;
   const role = val.trim().toLowerCase() || null;
-  if (role && !['admin', 'vip', 'business'].includes(role)) { toast('Invalid role. Use: admin, vip or business', 'error'); return; }
+  const validRoles = isSuperAdmin ? ['super-admin', 'admin', 'vip', 'business'] : ['admin', 'vip', 'business'];
+  if (role && !validRoles.includes(role)) { toast(`Invalid role. Use: ${options}`, 'error'); return; }
   try {
     await api('PUT', `/admin/api/users/${id}`, { role });
     toast(role ? `Role set to ${role}` : 'Role removed', 'success');

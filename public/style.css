@@ -494,6 +494,21 @@ header {
    =========================== */
 
 /* Avatar button states */
+.user-badge-btn.role-super-admin {
+  background: linear-gradient(135deg, #b91c1c, #ef4444, #f87171, #ef4444, #b91c1c);
+  background-size: 300% 300%;
+  animation: roleGradSuperAdmin 3s ease infinite;
+  box-shadow: 0 0 0 2px rgba(239,68,68,.55), 0 0 18px rgba(239,68,68,.4), 0 0 40px rgba(239,68,68,.15);
+}
+.user-badge-btn.role-super-admin:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2.5px #ef4444, 0 0 30px rgba(239,68,68,.6), 0 0 60px rgba(239,68,68,.25);
+}
+@keyframes roleGradSuperAdmin {
+  0%,100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
 .user-badge-btn.role-admin {
   background: linear-gradient(135deg, #d97706, #f59e0b, #fbbf24, #f59e0b, #d97706);
   background-size: 300% 300%;
@@ -566,6 +581,13 @@ header {
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
 }
+.role-badge-display.role-super-admin {
+  background: linear-gradient(90deg, rgba(239,68,68,.15), rgba(248,113,113,.25), rgba(239,68,68,.15));
+  border: 1px solid rgba(239,68,68,.45);
+  color: #f87171;
+  text-shadow: 0 0 10px rgba(239,68,68,.7);
+  box-shadow: 0 0 12px rgba(239,68,68,.2), inset 0 1px 0 rgba(255,255,255,.08);
+}
 .role-badge-display.role-admin {
   background: linear-gradient(90deg, rgba(245,158,11,.15), rgba(251,191,36,.25), rgba(245,158,11,.15));
   border: 1px solid rgba(245,158,11,.45);
@@ -589,6 +611,12 @@ header {
 }
 
 /* Peer bubble when peer has a role */
+.peer-bubble.has-super-admin .peer-icon {
+  border-color: rgba(239,68,68,.65);
+  box-shadow: 0 0 16px rgba(239,68,68,.38);
+}
+.peer-bubble.has-super-admin .peer-icon svg { color: #ef4444; }
+.peer-bubble.has-super-admin .peer-name { color: #ef4444; }
 .peer-bubble.has-admin .peer-icon {
   border-color: rgba(245,158,11,.65);
   box-shadow: 0 0 16px rgba(245,158,11,.38);
@@ -626,6 +654,12 @@ header {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
   background-size: 200% 100%;
   animation: badgeShimmer 2.4s ease-in-out infinite;
+}
+.peer-role-super-admin {
+  background: linear-gradient(90deg, rgba(239,68,68,.2), rgba(248,113,113,.3));
+  color: #f87171;
+  border: 1px solid rgba(239,68,68,.6);
+  text-shadow: 0 0 6px rgba(239,68,68,.65);
 }
 .peer-role-admin {
   background: linear-gradient(90deg, rgba(245,158,11,.2), rgba(251,191,36,.3));
@@ -852,6 +886,7 @@ header {
   display: inline-block;
   margin-top: 2px;
 }
+.member-role-super-admin { background: rgba(239,68,68,.15); color: #ef4444; }
 .member-role-admin    { background: rgba(251,191,36,.15); color: #f59e0b; }
 .member-role-business { background: rgba(99,102,241,.15); color: #818cf8; }
 .member-role-vip      { background: rgba(168,85,247,.15); color: #a855f7; }
@@ -887,6 +922,16 @@ header {
   cursor: pointer;
 }
 .member-grant-btn:hover { opacity: .8; }
+.member-perm-grant-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(239,68,68,.4);
+  background: rgba(239,68,68,.12);
+  color: #ef4444;
+  font-size: .7rem;
+  cursor: pointer;
+}
+.member-perm-grant-btn:hover { opacity: .8; }
 
 .broadcast-msg {
   display: flex;

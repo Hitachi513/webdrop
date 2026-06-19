@@ -261,13 +261,15 @@ function geolocateIp(ip) {
   });
 }
 
+const ROLE_ORDER = { vip: 1, business: 2, admin: 3, 'super-admin': 4 };
+
 function getEffectiveRole(user) {
   if (!user) return null;
+  if (user.role === 'super-admin') return 'super-admin';
   if (user.role === 'admin') return 'admin';
   if (user.promoRole && user.promoRoleExpiresAt && new Date(user.promoRoleExpiresAt) > new Date()) {
-    const roleOrder = { vip: 1, business: 2, admin: 3 };
-    const promoLevel = roleOrder[user.promoRole] || 0;
-    const permLevel  = roleOrder[user.role] || 0;
+    const promoLevel = ROLE_ORDER[user.promoRole] || 0;
+    const permLevel  = ROLE_ORDER[user.role] || 0;
     return promoLevel > permLevel ? user.promoRole : (user.role || null);
   }
   return user.role || null;
@@ -277,7 +279,8 @@ function getUserEffectiveLimit(userId) {
   const user = users.find(u => u.id === userId);
   if (!user) return settings.maxFileSizeMB;
   const role = getEffectiveRole(user);
-  if (role === 'admin')    return settings.adminFileSizeMB || 999999;
+  if (role === 'super-admin') return 999999;
+  if (role === 'admin')       return settings.adminFileSizeMB || 999999;
   if (user.customFileSizeMB != null) return user.customFileSizeMB;
   if (role === 'business') return settings.businessFileSizeMB || settings.maxFileSizeMB;
   if (role === 'vip')      return settings.vipFileSizeMB || settings.maxFileSizeMB;
@@ -652,7 +655,8 @@ app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
     }
   }
   if (role !== undefined) {
-    const allowed = [null, '', 'admin', 'vip', 'business'];
+    const isSuperAdminReq = req.adminUser.role === 'super-admin';
+    const allowed = isSuperAdminReq ? [null, '', 'super-admin', 'admin', 'vip', 'business'] : [null, '', 'admin', 'vip', 'business'];
     const normalized = role || null;
     if (!allowed.includes(normalized)) return res.status(400).json({ error: 'Invalid role' });
     user.role = normalized;
@@ -759,7 +763,9 @@ app.post('/admin/api/rooms/:roomId/kick', requireAdmin, (req, res) => {
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
   const room = rooms.get(roomId);
   if (!room || !room.has(socketId)) return res.status(404).json({ error: 'Peer not in room' });
-  if (room.get(socketId)?.role === 'admin') return res.status(403).json({ error: 'Cannot kick an admin' });
+  const kickTargetRole = room.get(socketId)?.role;
+  if (kickTargetRole === 'super-admin') return res.status(403).json({ error: 'Cannot kick a super-admin' });
+  if (kickTargetRole === 'admin' && req.adminUser.role !== 'super-admin') return res.status(403).json({ error: 'Cannot kick an admin' });
   room.delete(socketId);
   const targetSocket = io.sockets.sockets.get(socketId);
   if (targetSocket) {
@@ -778,7 +784,9 @@ app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
   const room = rooms.get(roomId);
   if (!room || !room.has(socketId)) return res.status(404).json({ error: 'Peer not in room' });
-  if (room.get(socketId)?.role === 'admin') return res.status(403).json({ error: 'Cannot ban an admin' });
+  const banTargetRole = room.get(socketId)?.role;
+  if (banTargetRole === 'super-admin') return res.status(403).json({ error: 'Cannot ban a super-admin' });
+  if (banTargetRole === 'admin' && req.adminUser.role !== 'super-admin') return res.status(403).json({ error: 'Cannot ban an admin' });
   room.delete(socketId);
   if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
   const bans = roomBans.get(roomId);
@@ -1070,8 +1078,8 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Room ban check
-    if (roomBans.has(roomId)) {
+    // Room ban check (super-admin bypasses)
+    if (roomBans.has(roomId) && socket.userRole !== 'super-admin') {
       const bans = roomBans.get(roomId);
       const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
       if ((socket.userId && bans.has(`user:${socket.userId}`)) || (clientIp && bans.has(`ip:${clientIp}`))) {
@@ -1080,9 +1088,9 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Room settings checks — admin role bypasses lock, max members, and knock
+    // Room settings checks — admin/super-admin role bypasses lock, max members, and knock
     const rs = roomSettings.get(roomId);
-    const isAdminRole = socket.userRole === 'admin';
+    const isAdminRole = ['admin', 'super-admin'].includes(socket.userRole);
     if (!isAdminRole && rs?.locked) {
       socket.emit('join-rejected', { message: '此房間已被鎖定，暫時不接受新成員。' });
       return;
@@ -1199,14 +1207,16 @@ io.on('connection', (socket) => {
 
   socket.on('room-kick', ({ peerId }) => {
     const role = socket.userRole || 'default';
-    if (!settings[`${role}CanKickBan`]) return;
+    const isSuperAdmin = role === 'super-admin';
+    if (!isSuperAdmin && !settings[`${role}CanKickBan`]) return;
     const roomId = socket.currentRoom;
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
     const targetRole = room.get(peerId)?.role;
+    if (targetRole === 'super-admin') return; // nobody can kick super-admin in-room
     const host = isRoomHost(socket, roomId);
-    if (targetRole === 'admin' && !host) return; // only host can kick admin
-    if (!host && socket.userRole === 'business' && targetRole === 'business') return;
+    if (targetRole === 'admin' && !host && !isSuperAdmin) return; // only host or super-admin can kick admin
+    if (!host && !isSuperAdmin && role === 'business' && targetRole === 'business') return;
     room.delete(peerId);
     const targetSocket = io.sockets.sockets.get(peerId);
     if (targetSocket) {
@@ -1214,20 +1224,22 @@ io.on('connection', (socket) => {
       targetSocket.currentRoom = null;
       targetSocket.emit('kicked-from-room', { message: `你已被房間主持人踢出` });
     }
-    socket.to(roomId).emit('peer-left', peerId);
+    io.to(roomId).emit('peer-left', peerId);
     adminNsp.emit('rooms', getRoomList());
   });
 
   socket.on('room-ban', ({ peerId }) => {
     const banRole = socket.userRole || 'default';
-    if (!settings[`${banRole}CanKickBan`]) return;
+    const isSuperAdmin = banRole === 'super-admin';
+    if (!isSuperAdmin && !settings[`${banRole}CanKickBan`]) return;
     const roomId = socket.currentRoom;
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
     const targetRole = room.get(peerId)?.role;
+    if (targetRole === 'super-admin') return; // nobody can ban super-admin in-room
     const host = isRoomHost(socket, roomId);
-    if (targetRole === 'admin' && !host) return; // only host can ban admin
-    if (!host && socket.userRole === 'business' && targetRole === 'business') return;
+    if (targetRole === 'admin' && !host && !isSuperAdmin) return; // only host or super-admin can ban admin
+    if (!host && !isSuperAdmin && banRole === 'business' && targetRole === 'business') return;
     room.delete(peerId);
     if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
     const bans = roomBans.get(roomId);
@@ -1240,13 +1252,15 @@ io.on('connection', (socket) => {
       targetSocket.currentRoom = null;
       targetSocket.emit('room-banned', { message: `你已被此房間永久封鎖` });
     }
-    socket.to(roomId).emit('peer-left', peerId);
+    io.to(roomId).emit('peer-left', peerId);
     adminNsp.emit('rooms', getRoomList());
   });
 
-  // Admin role: kick all non-admin members from current room
+  // Admin/super-admin: kick all non-admin members from current room
   socket.on('room-clear-all', () => {
-    if (socket.userRole !== 'admin') return;
+    const clearRole = socket.userRole;
+    if (clearRole !== 'admin' && clearRole !== 'super-admin') return;
+    const isSuperAdmin = clearRole === 'super-admin';
     const roomId = socket.currentRoom;
     if (!roomId) return;
     const room = rooms.get(roomId);
@@ -1256,7 +1270,8 @@ io.on('connection', (socket) => {
     for (const [peerId] of room) {
       if (peerId === socket.id) continue;
       const peerInfo = room.get(peerId);
-      if (!host && peerInfo?.role === 'admin') continue; // non-host admin cannot clear other admins
+      if (peerInfo?.role === 'super-admin') continue; // never kick super-admin
+      if (!host && !isSuperAdmin && peerInfo?.role === 'admin') continue; // non-host admin cannot clear other admins
       toKick.push(peerId);
     }
     toKick.forEach(peerId => {
@@ -1267,15 +1282,15 @@ io.on('connection', (socket) => {
         targetSocket.currentRoom = null;
         targetSocket.emit('kicked-from-room', { message: '房間已被管理員清場' });
       }
-      socket.to(roomId).emit('peer-left', peerId);
+      io.to(roomId).emit('peer-left', peerId);
     });
     socket.emit('room-cleared', { count: toKick.length });
     adminNsp.emit('rooms', getRoomList());
   });
 
-  // Admin role: broadcast message to all connected sockets
+  // Admin/super-admin: broadcast message to all connected sockets
   socket.on('server-broadcast', ({ message }) => {
-    if (socket.userRole !== 'admin') return;
+    if (socket.userRole !== 'admin' && socket.userRole !== 'super-admin') return;
     const msg = String(message || '').trim().slice(0, 500);
     if (!msg) return;
     const senderName = socket.userName || '管理員';
@@ -1287,9 +1302,9 @@ io.on('connection', (socket) => {
     adminNsp.emit('broadcast-history', broadcastHistory);
   });
 
-  // Admin role: grant session role to a peer in the same room
+  // Admin/super-admin: grant session role to a peer in the same room
   socket.on('room-grant-role', ({ peerId, grantRole }) => {
-    if (socket.userRole !== 'admin') return;
+    if (socket.userRole !== 'admin' && socket.userRole !== 'super-admin') return;
     const roomId = socket.currentRoom;
     if (!roomId) return;
     const room = rooms.get(roomId);
@@ -1305,6 +1320,30 @@ io.on('connection', (socket) => {
       targetSocket.emit('role-updated', { role: grantRole, effectiveMaxFileSizeMB: targetSocket.effectiveMaxFileSizeMB });
     }
     io.to(roomId).emit('peer-role-updated', { peerId, role: grantRole });
+    adminNsp.emit('rooms', getRoomList());
+  });
+
+  // Super-admin only: permanently set a user's role
+  socket.on('room-grant-perm-role', ({ peerId, role: newRole }) => {
+    if (socket.userRole !== 'super-admin') return;
+    const validRoles = ['vip', 'business', 'admin', null];
+    if (!validRoles.includes(newRole)) return;
+    const targetSocket = io.sockets.sockets.get(peerId);
+    if (!targetSocket || !targetSocket.userId) return;
+    const user = users.find(u => u.id === targetSocket.userId);
+    if (!user) return;
+    user.role = newRole || null;
+    saveUsers().catch(() => {});
+    const effRole = getEffectiveRole(user);
+    targetSocket.userRole = effRole;
+    const roomId = socket.currentRoom;
+    if (roomId) {
+      const room = rooms.get(roomId);
+      if (room && room.has(peerId)) room.get(peerId).role = effRole;
+      io.to(roomId).emit('peer-role-updated', { peerId, role: effRole });
+    }
+    targetSocket.emit('role-updated', { role: effRole, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), permanent: true });
+    adminNsp.emit('users', getUserList());
     adminNsp.emit('rooms', getRoomList());
   });
 

@@ -787,3 +787,69 @@ input:checked + .slider::before { transform: translateX(20px); }
   .stat-grid { grid-template-columns:1fr 1fr; }
   .section { padding:16px; }
 }
+
+/* ===== Dark Mode ===== */
+#dark-mode-toggle {
+  width:34px; height:34px; border:none; background:transparent; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; border-radius:8px;
+  color:var(--muted); transition:background .15s, color .15s; flex-shrink:0;
+}
+#dark-mode-toggle:hover { background:var(--border); color:var(--text); }
+#dark-mode-toggle svg { width:18px; height:18px; }
+
+body.dark {
+  --bg:       #0d0d1f;
+  --card:     #14142a;
+  --border:   #262650;
+  --text:     #ddddf0;
+  --muted:    #6e6e98;
+  --shadow:   0 2px 12px rgba(0,0,0,.4);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.6);
+}
+
+/* Login card */
+body.dark .login-card { background: var(--card); }
+body.dark .login-card h2 { color: var(--text); }
+
+/* Inputs & selects */
+body.dark .field input,
+body.dark .field select { background: var(--card); color: var(--text); border-color: var(--border); }
+body.dark .setting-row input[type=number] { background: var(--card); color: var(--text); }
+body.dark .role-privs-row input[type=number] { background: var(--card); color: var(--text); }
+body.dark .search-input { background: var(--card); color: var(--text); border-color: var(--border); }
+body.dark textarea { background: var(--card) !important; color: var(--text) !important; border-color: var(--border) !important; }
+
+/* Tables */
+body.dark thead tr { background: rgba(255,255,255,.03); }
+body.dark tbody tr:hover { background: rgba(255,255,255,.04); }
+body.dark .user-banned-row { background: rgba(230,57,70,.07); }
+
+/* Stat icons — use lower-opacity backgrounds in dark */
+body.dark .stat-icon.green  { background:rgba(46,196,182,.15); }
+body.dark .stat-icon.blue   { background:rgba(67,97,238,.15); }
+body.dark .stat-icon.purple { background:rgba(123,47,247,.15); }
+body.dark .stat-icon.orange { background:rgba(255,159,28,.15); }
+body.dark .stat-icon.teal   { background:rgba(13,148,136,.15); }
+body.dark .stat-icon.pink   { background:rgba(230,57,70,.15); }
+
+/* KPI alert states */
+body.dark .stat-card.kpi-warning { background: rgba(255,159,28,.08); border-color: rgba(255,159,28,.3); }
+body.dark .stat-card.kpi-danger  { background: rgba(230,57,70,.08);  border-color: rgba(230,57,70,.3); }
+
+/* Badges & chips */
+body.dark .peer-chip  { background: rgba(67,97,238,.2); color: #8ea6ff; }
+body.dark .role-super { background: rgba(67,97,238,.18); color: #8ea6ff; }
+body.dark .role-admin { background: rgba(46,196,182,.15); color: #2ec4b6; }
+
+/* Status pills */
+body.dark .status-active { background: rgba(46,196,182,.15); color: #2ec4b6; }
+body.dark .status-banned { background: rgba(230,57,70,.15);  color: #e63946; }
+
+/* Role priv rows */
+body.dark .rp-default { background: rgba(255,255,255,.03); }
+body.dark .rp-biz     { background: rgba(16,185,129,.1); }
+body.dark .rp-vip     { background: rgba(168,85,247,.1); }
+body.dark .rp-admin   { background: rgba(245,158,11,.1); }
+
+/* Modal overlays */
+body.dark [style*="background:rgba(0,0,0,.55)"] { background:rgba(0,0,0,.7) !important; }

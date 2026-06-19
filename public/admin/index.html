@@ -6,6 +6,8 @@
   <title>WebDrop Admin</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script>if(localStorage.getItem('wd-admin-dark')==='1')document.documentElement.classList.add('dark-init');</script>
+  <style>.dark-init body{--bg:#0d0d1f;--card:#14142a;--border:#262650;--text:#ddddf0;--muted:#6e6e98;background:var(--bg)}</style>
 </head>
 <body>
 
@@ -118,6 +120,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <div class="header-title" id="section-title">Overview</div>
+      <button id="dark-mode-toggle" title="切換深色模式">
+        <svg id="dark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
       <button class="header-user" id="open-profile-btn" title="Edit Profile" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:8px;color:inherit;padding:4px 8px;border-radius:8px;transition:background .15s;" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='none'">
         <div class="user-avatar" id="user-initial">A</div>
         <div style="text-align:left">

@@ -719,6 +719,10 @@ header {
 .mod-tool-btn:hover { background: var(--primary-dim); border-color: var(--primary); }
 .mod-tool-btn:active { transform: scale(.92); }
 .mod-tool-btn.active-btn { background: var(--primary-dim); border-color: var(--primary); color: var(--primary); }
+.mod-tool-danger { border-color: rgba(255,79,106,.4); color: var(--error); }
+.mod-tool-danger:hover { background: rgba(255,79,106,.15) !important; border-color: var(--error) !important; color: var(--error); }
+.mod-tool-primary { border-color: rgba(68,138,255,.4); color: #448aff; }
+.mod-tool-primary:hover { background: rgba(68,138,255,.15) !important; border-color: #448aff !important; color: #448aff; }
 .mod-tool-badge {
   position: absolute;
   top: -4px; right: -4px;
@@ -872,6 +876,30 @@ header {
   color: var(--error, #ef4444);
 }
 .member-ban-btn:hover { opacity: .8; }
+.member-grant-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(168,85,247,.4);
+  background: rgba(168,85,247,.12);
+  color: #a855f7;
+  font-size: .7rem;
+  cursor: pointer;
+}
+.member-grant-btn:hover { opacity: .8; }
+
+.broadcast-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 6px 0;
+  background: rgba(68,138,255,.1);
+  border: 1px solid rgba(68,138,255,.25);
+  border-radius: 8px;
+  font-size: .82rem;
+  color: var(--text);
+}
+.broadcast-icon { font-size: 1rem; flex-shrink: 0; }
 
 /* ── Room Settings Modal ── */
 .room-settings-box { max-width: 420px; width: 90%; }

@@ -756,7 +756,9 @@ async function unbanUser(id, email) {
 }
 
 // ===== Promo Codes =====
+let allPromos = [];
 function renderPromos(promos) {
+  allPromos = promos;
   const tbody = document.getElementById('promos-tbody');
   if (!promos.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="empty-row">No promo codes yet</td></tr>';
@@ -789,7 +791,10 @@ function renderPromos(promos) {
           <span class="slider"></span>
         </label>
       </td>
-      <td><button class="btn-danger" onclick="deletePromo('${p.id}','${esc(p.code)}')">Delete</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-sm" onclick="openEditPromo('${p.id}')">Edit</button>
+        <button class="btn-danger" onclick="deletePromo('${p.id}','${esc(p.code)}')">Delete</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -844,6 +849,53 @@ async function deletePromo(id, code) {
     toast('Promo code deleted', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
+
+// ===== Edit Promo =====
+let editPromoId = null;
+
+function openEditPromo(id) {
+  const p = allPromos.find(x => x.id === id);
+  if (!p) return;
+  editPromoId = id;
+  document.getElementById('edit-promo-code-label').textContent = p.code;
+  document.getElementById('ep-desc').value          = p.description || '';
+  document.getElementById('ep-mb').value            = p.maxFileSizeMB || '';
+  document.getElementById('ep-limit').value         = p.usageLimit ?? 0;
+  document.getElementById('ep-expires').value       = p.expiresAt ? new Date(p.expiresAt).toISOString().slice(0,16) : '';
+  document.getElementById('ep-room').value          = p.customRoomId || '';
+  document.getElementById('ep-can-custom').checked  = !!p.canCustomRoom;
+  document.getElementById('ep-grant-role').value    = p.grantRole || '';
+  document.getElementById('ep-role-days').value     = p.roleDurationDays || '';
+  document.getElementById('edit-promo-overlay').style.display = 'flex';
+}
+
+function closeEditPromo() {
+  document.getElementById('edit-promo-overlay').style.display = 'none';
+  editPromoId = null;
+}
+
+async function saveEditPromo() {
+  if (!editPromoId) return;
+  const body = {
+    description:     document.getElementById('ep-desc').value.trim(),
+    maxFileSizeMB:   parseInt(document.getElementById('ep-mb').value) || undefined,
+    usageLimit:      parseInt(document.getElementById('ep-limit').value) || 0,
+    expiresAt:       document.getElementById('ep-expires').value || null,
+    customRoomId:    document.getElementById('ep-room').value.trim().toUpperCase() || null,
+    canCustomRoom:   document.getElementById('ep-can-custom').checked,
+    grantRole:       document.getElementById('ep-grant-role').value || null,
+    roleDurationDays: parseInt(document.getElementById('ep-role-days').value) || null,
+  };
+  try {
+    await api('PUT', `/admin/api/promos/${editPromoId}`, body);
+    toast('Promo code updated', 'success');
+    closeEditPromo();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+document.getElementById('edit-promo-overlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('edit-promo-overlay')) closeEditPromo();
+});
 
 // ===== Utils =====
 function esc(str) {

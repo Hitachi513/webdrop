@@ -851,14 +851,15 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Room settings checks
+    // Room settings checks — admin role bypasses lock, max members, and knock
     const rs = roomSettings.get(roomId);
-    if (rs?.locked) {
+    const isAdminRole = socket.userRole === 'admin';
+    if (!isAdminRole && rs?.locked) {
       socket.emit('join-rejected', { message: '此房間已被鎖定，暫時不接受新成員。' });
       return;
     }
     const effectiveMax = rs?.maxMembers || settings.maxPeersPerRoom;
-    if (existing && existing.size >= effectiveMax) {
+    if (!isAdminRole && existing && existing.size >= effectiveMax) {
       socket.emit('error', { message: 'Room is full' });
       return;
     }
@@ -878,8 +879,8 @@ io.on('connection', (socket) => {
       }
 
       if (existing.size > 0) {
-        // knockRequired=false → skip approval, fall through to direct join
-        if (!rs || rs.knockRequired !== false) {
+        // Admin role skips knock requirement and joins directly
+        if (!isAdminRole && (!rs || rs.knockRequired !== false)) {
           const hostSocketId = Array.from(existing.keys())[0];
           const hostSocket = io.sockets.sockets.get(hostSocketId);
           if (hostSocket) {
@@ -1003,6 +1004,64 @@ io.on('connection', (socket) => {
       targetSocket.emit('room-banned', { message: `你已被此房間永久封鎖` });
     }
     socket.to(roomId).emit('peer-left', peerId);
+    adminNsp.emit('rooms', getRoomList());
+  });
+
+  // Admin role: kick all non-admin members from current room
+  socket.on('room-clear-all', () => {
+    if (socket.userRole !== 'admin') return;
+    const roomId = socket.currentRoom;
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const toKick = [];
+    for (const [peerId] of room) {
+      if (peerId === socket.id) continue;
+      const peerInfo = room.get(peerId);
+      if (peerInfo?.role === 'admin') continue;
+      toKick.push(peerId);
+    }
+    toKick.forEach(peerId => {
+      room.delete(peerId);
+      const targetSocket = io.sockets.sockets.get(peerId);
+      if (targetSocket) {
+        targetSocket.leave(roomId);
+        targetSocket.currentRoom = null;
+        targetSocket.emit('kicked-from-room', { message: '房間已被管理員清場' });
+      }
+      socket.to(roomId).emit('peer-left', peerId);
+    });
+    socket.emit('room-cleared', { count: toKick.length });
+    adminNsp.emit('rooms', getRoomList());
+  });
+
+  // Admin role: broadcast message to all connected sockets
+  socket.on('server-broadcast', ({ message }) => {
+    if (socket.userRole !== 'admin') return;
+    const msg = String(message || '').trim().slice(0, 500);
+    if (!msg) return;
+    const senderName = socket.userName || '管理員';
+    io.emit('server-broadcast', { message: msg, sender: senderName, at: Date.now() });
+  });
+
+  // Admin role: grant session role to a peer in the same room
+  socket.on('room-grant-role', ({ peerId, grantRole }) => {
+    if (socket.userRole !== 'admin') return;
+    const roomId = socket.currentRoom;
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room || !room.has(peerId)) return;
+    const validRoles = ['vip', 'business', null];
+    if (!validRoles.includes(grantRole)) return;
+    const peerInfo = room.get(peerId);
+    if (!peerInfo) return;
+    peerInfo.role = grantRole;
+    const targetSocket = io.sockets.sockets.get(peerId);
+    if (targetSocket) {
+      targetSocket.userRole = grantRole;
+      targetSocket.emit('role-updated', { role: grantRole, effectiveMaxFileSizeMB: targetSocket.effectiveMaxFileSizeMB });
+    }
+    io.to(roomId).emit('peer-role-updated', { peerId, role: grantRole });
     adminNsp.emit('rooms', getRoomList());
   });
 

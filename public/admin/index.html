@@ -503,6 +503,40 @@
   </div>
 </div>
 
+<!-- Edit Promo Modal -->
+<div id="edit-promo-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:360px;max-width:580px;width:92%;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;gap:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h3 style="margin:0;font-size:1rem;">編輯 Promo Code — <code id="edit-promo-code-label"></code></h3>
+      <button onclick="closeEditPromo()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;line-height:1;">✕</button>
+    </div>
+    <div class="field-row" style="flex-wrap:wrap;gap:10px;">
+      <div class="field"><label>說明</label><input type="text" id="ep-desc" placeholder="描述"></div>
+      <div class="field"><label>檔案限制 (MB)</label><input type="number" id="ep-mb" min="1"></div>
+      <div class="field"><label>使用上限 <small>(0=無限)</small></label><input type="number" id="ep-limit" min="0"></div>
+      <div class="field"><label>到期時間 <small>(選填)</small></label><input type="datetime-local" id="ep-expires"></div>
+      <div class="field"><label>自訂房間 ID <small>(選填)</small></label><input type="text" id="ep-room" style="text-transform:uppercase" placeholder="MYROOM"></div>
+      <div class="field" style="align-self:flex-end;padding-bottom:6px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="ep-can-custom"> 允許自訂房號
+        </label>
+      </div>
+      <div class="field"><label>授予角色</label>
+        <select id="ep-grant-role">
+          <option value="">不授予角色</option>
+          <option value="vip">💎 VIP</option>
+          <option value="business">💼 Business</option>
+        </select>
+      </div>
+      <div class="field"><label>角色有效天數 <small>(0=永久)</small></label><input type="number" id="ep-role-days" min="0" placeholder="30"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:8px;border-top:1px solid var(--border);">
+      <button class="btn-ghost" onclick="closeEditPromo()">取消</button>
+      <button class="btn-primary" onclick="saveEditPromo()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>

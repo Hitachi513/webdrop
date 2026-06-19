@@ -272,12 +272,17 @@ function applyRoleStyle(role) {
   }
   const modToolbar = document.getElementById('mod-toolbar');
   const modSettingsBtn = document.getElementById('mod-settings-btn');
+  const modClearBtn = document.getElementById('mod-clear-btn');
+  const modBroadcastBtn = document.getElementById('mod-broadcast-btn');
   const isMod = ['admin', 'business', 'vip'].includes(role);
+  const isAdmin = role === 'admin';
   if (modToolbar) modToolbar.style.display = isMod ? 'flex' : 'none';
   if (modSettingsBtn) {
     const canSettings = currentUser && ['admin', 'business', 'vip'].includes(currentUser.role);
     modSettingsBtn.style.display = canSettings ? 'flex' : 'none';
   }
+  if (modClearBtn)     modClearBtn.style.display     = isAdmin ? 'flex' : 'none';
+  if (modBroadcastBtn) modBroadcastBtn.style.display = isAdmin ? 'flex' : 'none';
 }
 
 function showUserBadge(user) {
@@ -938,6 +943,28 @@ socket.on('room-closed', ({ reason } = {}) => {
 
 socket.on('kicked-from-room', ({ message } = {}) => forceLeaveRoom(message || '你已被踢出房間'));
 socket.on('room-banned',      ({ message } = {}) => forceLeaveRoom(message || '你已被此房間封鎖'));
+
+socket.on('server-broadcast', ({ message, sender, at }) => {
+  const chatPanel = document.getElementById('panel-chat');
+  const chatMessages = document.getElementById('chat-messages');
+  if (chatMessages) {
+    const div = document.createElement('div');
+    div.className = 'broadcast-msg';
+    div.innerHTML = `<span class="broadcast-icon">📢</span><strong>${escHtml(sender)}</strong>：${escHtml(message)}`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+  toast(`📢 ${sender}：${message}`, 'info');
+});
+
+socket.on('room-cleared', ({ count }) => {
+  toast(`已清場，踢出 ${count} 名成員`, 'success');
+});
+
+socket.on('peer-role-updated', ({ peerId, role }) => {
+  const peer = peers.get(peerId);
+  if (peer) { peer.role = role; refreshMembersPanel(); }
+});
 
 socket.on('role-updated', ({ role, effectiveMaxFileSizeMB, canCustomRoom }) => {
   if (currentUser) {
@@ -1725,6 +1752,7 @@ function refreshMembersPanel() {
     const roleBadge = peer.role
       ? `<span class="member-role-badge member-role-${peer.role}">${{admin:'👑 Admin',business:'💼 Business',vip:'💎 VIP'}[peer.role]||peer.role}</span>` : '';
     const canMod = isMod && !(myRole === 'business' && ['admin','business'].includes(peer.role));
+    const canGrant = myRole === 'admin' && peer.role !== 'admin';
     row.innerHTML = `
       <div class="member-avatar">${avatarHtml}</div>
       <div class="member-info">
@@ -1733,6 +1761,7 @@ function refreshMembersPanel() {
       ${canMod ? `<div class="member-actions">
         <button class="member-kick-btn" title="踢出房間">踢出</button>
         <button class="member-ban-btn"  title="封鎖並踢出">封鎖</button>
+        ${canGrant ? `<button class="member-grant-btn" title="設定臨時角色">升級</button>` : ''}
       </div>` : ''}`;
     if (canMod) {
       row.querySelector('.member-kick-btn').addEventListener('click', () => {
@@ -1741,6 +1770,16 @@ function refreshMembersPanel() {
       row.querySelector('.member-ban-btn').addEventListener('click', () => {
         if (confirm(`封鎖並踢出 ${peer.name}？對方將無法重新加入本房間。`)) socket.emit('room-ban', { peerId });
       });
+      if (canGrant) {
+        row.querySelector('.member-grant-btn').addEventListener('click', () => {
+          const current = peer.role || '';
+          const choice = prompt(`${peer.name} 的臨時角色（此次連線有效）\n輸入 vip / business / 留空移除：`, current);
+          if (choice === null) return;
+          const grantRole = choice.trim().toLowerCase() || null;
+          if (grantRole && !['vip', 'business'].includes(grantRole)) { alert('角色只能是 vip 或 business'); return; }
+          socket.emit('room-grant-role', { peerId, grantRole });
+        });
+      }
     }
     list.appendChild(row);
   });
@@ -1792,6 +1831,35 @@ document.getElementById('rs-save')?.addEventListener('click', () => {
     maxMembers:   parseInt(document.getElementById('rs-max-members').value) || null,
   });
   roomSettingsModal.classList.remove('active');
+});
+
+// ===== Admin: Clear Room =====
+document.getElementById('mod-clear-btn')?.addEventListener('click', () => {
+  if (!confirm('確定要清場嗎？所有非管理員成員都會被踢出。')) return;
+  socket.emit('room-clear-all');
+});
+
+// ===== Admin: Broadcast =====
+const broadcastModal  = document.getElementById('broadcast-modal');
+const broadcastInput  = document.getElementById('broadcast-input');
+const broadcastSendBtn = document.getElementById('broadcast-send-btn');
+const broadcastCancelBtn = document.getElementById('broadcast-cancel-btn');
+
+document.getElementById('mod-broadcast-btn')?.addEventListener('click', () => {
+  if (broadcastInput) broadcastInput.value = '';
+  broadcastModal?.classList.add('active');
+  broadcastInput?.focus();
+});
+broadcastCancelBtn?.addEventListener('click', () => broadcastModal?.classList.remove('active'));
+broadcastModal?.addEventListener('click', e => { if (e.target === broadcastModal) broadcastModal.classList.remove('active'); });
+broadcastSendBtn?.addEventListener('click', () => {
+  const msg = broadcastInput?.value.trim();
+  if (!msg) return;
+  socket.emit('server-broadcast', { message: msg });
+  broadcastModal?.classList.remove('active');
+});
+broadcastInput?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); broadcastSendBtn?.click(); }
 });
 
 // ===== WebRTC check =====

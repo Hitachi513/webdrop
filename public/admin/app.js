@@ -257,17 +257,21 @@ function renderHealth(h) {
     memBar.className = 'health-bar' + (memPct > 85 ? ' danger' : memPct > 70 ? ' warning' : '');
   }
   setEl('h-mem-pct', memPct + '%');
+  const memSrc = h.memory.source === 'proc' ? ' <small style="color:var(--muted)">(container)</small>' : '';
+  const memEl = document.getElementById('h-mem-pct');
+  if (memEl) memEl.innerHTML = memPct + '%' + memSrc;
   setEl('h-mem-sub', `${fmtBytes(h.memory.used)} / ${fmtBytes(h.memory.total)}`);
 
-  // CPU
-  const cpuPct = Math.min(100, Math.round(h.loadAvg[0] / h.cpuCount * 100));
+  // CPU — use real cpuUsagePct from os.cpus() sampling, fallback to loadavg estimate
+  const cpuPct = (typeof h.cpuUsagePct === 'number') ? h.cpuUsagePct
+    : Math.min(100, Math.round(h.loadAvg[0] / h.cpuCount * 100));
   const cpuBar = document.getElementById('h-cpu-bar');
   if (cpuBar) {
     cpuBar.style.width = cpuPct + '%';
     cpuBar.className = 'health-bar' + (cpuPct > 80 ? ' danger' : cpuPct > 60 ? ' warning' : '');
   }
-  setEl('h-cpu-pct', `${h.loadAvg[0].toFixed(2)} (${cpuPct}%)`);
-  setEl('h-cpu-sub', `${h.cpuCount} cores · 5m: ${h.loadAvg[1].toFixed(2)} · 15m: ${h.loadAvg[2].toFixed(2)}`);
+  setEl('h-cpu-pct', `${cpuPct}%`);
+  setEl('h-cpu-sub', `${h.cpuCount} cores · Load avg: ${h.loadAvg[0].toFixed(2)} / ${h.loadAvg[1].toFixed(2)} / ${h.loadAvg[2].toFixed(2)}`);
 
   // Disk
   if (h.disk) {
@@ -312,8 +316,8 @@ function renderHealth(h) {
     }
   }
 
-  // CPU history for sparkline
-  cpuHistory.push({ t: Date.now(), v: h.loadAvg[0], pct: cpuPct });
+  // CPU history sparkline — use real cpuUsagePct
+  cpuHistory.push({ t: Date.now(), v: cpuPct, pct: cpuPct });
   if (cpuHistory.length > 30) cpuHistory.shift();
   renderCpuChart();
 
@@ -325,11 +329,11 @@ function renderCpuChart() {
   const el = document.getElementById('cpu-chart');
   if (!el) return;
   if (!cpuHistory.length) return;
-  const max = Math.max(...cpuHistory.map(h => h.v), 1);
+  const max = Math.max(...cpuHistory.map(h => h.pct), 1);
   el.innerHTML = cpuHistory.map(h => {
-    const pct  = Math.max(4, Math.round((h.v / max) * 100));
+    const barH = Math.max(4, Math.round((h.pct / max) * 100));
     const time = new Date(h.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return `<div class="cpu-chart-bar" style="height:${pct}%" data-tip="Load ${h.v.toFixed(2)} (${h.pct}%) @ ${time}"></div>`;
+    return `<div class="cpu-chart-bar" style="height:${barH}%" data-tip="CPU ${h.pct}% @ ${time}"></div>`;
   }).join('');
 }
 

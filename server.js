@@ -124,28 +124,83 @@ function getStats() {
   };
 }
 
+// CPU usage sampling — compare cpu.times snapshots between calls
+let _prevCpuSample = null;
+function _takeCpuSample() {
+  return os.cpus().map(c => ({
+    idle:  c.times.idle,
+    total: Object.values(c.times).reduce((s, v) => s + v, 0)
+  }));
+}
+function _calcCpuUsagePct() {
+  const curr = _takeCpuSample();
+  if (!_prevCpuSample || _prevCpuSample.length !== curr.length) {
+    _prevCpuSample = curr;
+    return 0;
+  }
+  let idleDiff = 0, totalDiff = 0;
+  curr.forEach((c, i) => {
+    idleDiff  += c.idle  - _prevCpuSample[i].idle;
+    totalDiff += c.total - _prevCpuSample[i].total;
+  });
+  _prevCpuSample = curr;
+  if (totalDiff === 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((1 - idleDiff / totalDiff) * 100)));
+}
+// Warm up the first sample immediately so the first reading isn't 0
+_takeCpuSample && (() => { _prevCpuSample = _takeCpuSample(); })();
+
+// Try to read container-level memory from /proc/meminfo (Linux/Render)
+function _readProcMem() {
+  try {
+    const raw = fs.readFileSync('/proc/meminfo', 'utf8');
+    const get = key => {
+      const m = raw.match(new RegExp(`^${key}:\\s+(\\d+)`, 'm'));
+      return m ? parseInt(m[1]) * 1024 : null;
+    };
+    const total     = get('MemTotal');
+    const available = get('MemAvailable');
+    if (total && available !== null) {
+      const used = total - available;
+      return { total, free: available, used, usedPct: Math.round(used / total * 100), source: 'proc' };
+    }
+  } catch {}
+  return null;
+}
+
 function getSystemHealth() {
-  const totalMem = os.totalmem();
-  const freeMem  = os.freemem();
   const loadAvg  = os.loadavg();
   const cpuCount = os.cpus().length;
+  const cpuUsagePct = _calcCpuUsagePct();
+
+  // Prefer /proc/meminfo for container-accurate memory on Linux
+  const procMem = _readProcMem();
+  const totalMem = os.totalmem();
+  const freeMem  = os.freemem();
+  const memory = procMem || {
+    total: totalMem, free: freeMem, used: totalMem - freeMem,
+    usedPct: Math.round((totalMem - freeMem) / totalMem * 100)
+  };
+
   let disk = null;
   try {
     if (fs.statfsSync) {
       const sf = fs.statfsSync('/');
       disk = {
-        total: sf.bsize * sf.blocks,
-        free:  sf.bsize * sf.bavail,
-        used:  sf.bsize * (sf.blocks - sf.bavail),
+        total:   sf.bsize * sf.blocks,
+        free:    sf.bsize * sf.bavail,
+        used:    sf.bsize * (sf.blocks - sf.bavail),
         usedPct: Math.round((sf.blocks - sf.bavail) / sf.blocks * 100)
       };
     }
   } catch {}
+
   const pm = process.memoryUsage();
   return {
-    memory:   { total: totalMem, free: freeMem, used: totalMem - freeMem, usedPct: Math.round((totalMem - freeMem) / totalMem * 100) },
+    memory,
     loadAvg,
     cpuCount,
+    cpuUsagePct,
     disk,
     nodeHeap: { used: pm.heapUsed, total: pm.heapTotal },
     proc: {
@@ -746,14 +801,14 @@ adminNsp.on('connection', (socket) => {
 
   const tick = setInterval(() => {
     try {
-      socket.emit('stats', getStats());
-      socket.emit('rooms', getRoomList());
+      socket.emit('stats',         getStats());
+      socket.emit('rooms',         getRoomList());
       socket.emit('system-health', getSystemHealth());
       const locs = [];
       io.sockets.sockets.forEach(s => { if (s.geo) locs.push(s.geo); });
       socket.emit('conn-locations', locs);
     } catch (e) { console.error('Admin tick error:', e.message); }
-  }, 1500);
+  }, 2000);
 
   socket.on('disconnect', () => clearInterval(tick));
 });

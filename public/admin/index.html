@@ -6,8 +6,8 @@
   <title>WebDrop Admin</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script>if(localStorage.getItem('wd-admin-dark')==='1')document.documentElement.classList.add('dark-init');</script>
-  <style>.dark-init body{--bg:#0d0d1f;--card:#14142a;--border:#262650;--text:#ddddf0;--muted:#6e6e98;background:var(--bg)}</style>
+  <script>if(localStorage.getItem('wd-admin-dark')!=='0')document.documentElement.classList.add('dark-init');</script>
+  <style>.dark-init body{--bg:#06060f;--card:rgba(255,255,255,.04);--border:rgba(255,255,255,.08);--text:#e0e0f4;--muted:#5e5e88;background:#06060f}</style>
 </head>
 <body>
 
@@ -18,8 +18,8 @@
       <svg viewBox="0 0 36 36" fill="none">
         <defs>
           <linearGradient id="lg" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#4361ee"/>
-            <stop offset="100%" stop-color="#7b2ff7"/>
+            <stop offset="0%" stop-color="#818cf8"/>
+            <stop offset="100%" stop-color="#c084fc"/>
           </linearGradient>
         </defs>
         <circle cx="18" cy="18" r="16" stroke="url(#lg)" stroke-width="2"/>
@@ -53,7 +53,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="url(#lg2)" stroke-width="2">
         <defs>
           <linearGradient id="lg2" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#4361ee"/><stop offset="100%" stop-color="#7b2ff7"/>
+            <stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#c084fc"/>
           </linearGradient>
         </defs>
         <circle cx="12" cy="12" r="10"/>

@@ -79,7 +79,10 @@ const defaultSettings = {
   maxPeersPerRoom: 10,
   maxFileSizeMB: 500, vipFileSizeMB: 2048, businessFileSizeMB: 5120, adminFileSizeMB: 999999,
   defaultCanCustomRoom: false, vipCanCustomRoom: true, businessCanCustomRoom: true, adminCanCustomRoom: true,
-  allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false
+  allowFileRelay: true, allowMessageRelay: true, maintenanceMode: false,
+  defaultCanKickBan: false, vipCanKickBan: false, businessCanKickBan: true, adminCanKickBan: true,
+  defaultCanRoomSettings: false, vipCanRoomSettings: true, businessCanRoomSettings: true, adminCanRoomSettings: true,
+  defaultCanJoin: true, vipCanJoin: true, businessCanJoin: true, adminCanJoin: true,
 };
 
 async function saveAdmins()   { await dbSet('admins',   admins);   }
@@ -163,7 +166,8 @@ function getRoomList() {
     createdAt:        roomsMeta.get(roomId)?.createdAt || null,
     geo:              roomsMeta.get(roomId)?.geo || null,
     filesTransferred: roomsMeta.get(roomId)?.filesTransferred || 0,
-    banCount: roomBans.get(roomId)?.size || 0
+    banCount: roomBans.get(roomId)?.size || 0,
+    settings: roomSettings.get(roomId) || null,
   }));
 }
 
@@ -572,6 +576,7 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
   rooms.delete(roomId);
   roomsMeta.delete(roomId);
   roomBans.delete(roomId);
+  roomSettings.delete(roomId);
   adminNsp.emit('rooms', getRoomList());
   res.json({ ok: true });
 });
@@ -721,7 +726,12 @@ adminNsp.on('connection', (socket) => {
 const rooms        = new Map();
 const roomsMeta    = new Map();
 const pendingJoins = new Map(); // requestId → { joinerSocketId, hostSocketId, roomId, name, avatar, timer }
-const roomBans = new Map(); // roomId → Set<'user:userId' | 'ip:ipAddress'>
+const roomBans     = new Map(); // roomId → Set<'user:userId' | 'ip:ipAddress'>
+const roomSettings = new Map(); // roomId → RoomSettings
+
+function defaultRoomSettings() {
+  return { locked: false, knockRequired: true, allowFiles: true, allowChat: true, maxMembers: null, minFileRole: null };
+}
 let publicUrl   = null;
 let tunnelProc  = null;
 
@@ -769,7 +779,7 @@ io.on('connection', (socket) => {
       const room = rooms.get(socket.currentRoom);
       if (room) {
         room.delete(socket.id);
-        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); }
+        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); roomSettings.delete(socket.currentRoom); }
         else socket.to(socket.currentRoom).emit('peer-left', socket.id);
       }
       socket.leave(socket.currentRoom);
@@ -785,6 +795,16 @@ io.on('connection', (socket) => {
       }
     }
 
+    // canJoin privilege check (only applies when joining an existing room as non-first member)
+    if (existing && existing.size > 0) {
+      const role = socket.userRole || 'default';
+      const canJoinKey = `${role}CanJoin`;
+      if (settings[canJoinKey] === false) {
+        socket.emit('join-rejected', { message: '你的帳號類型無法加入此房間。' });
+        return;
+      }
+    }
+
     // Room ban check
     if (roomBans.has(roomId)) {
       const bans = roomBans.get(roomId);
@@ -795,14 +815,21 @@ io.on('connection', (socket) => {
       }
     }
 
-    if (existing && existing.size >= settings.maxPeersPerRoom) {
+    // Room settings checks
+    const rs = roomSettings.get(roomId);
+    if (rs?.locked) {
+      socket.emit('join-rejected', { message: '此房間已被鎖定，暫時不接受新成員。' });
+      return;
+    }
+    const effectiveMax = rs?.maxMembers || settings.maxPeersPerRoom;
+    if (existing && existing.size >= effectiveMax) {
       socket.emit('error', { message: 'Room is full' });
       return;
     }
 
     // Approval gate: if room has members, route through host approval
     if (existing && existing.size > 0) {
-      // If same logged-in user already in the room (reconnection), evict old socket and join directly
+      // Same logged-in user reconnecting → evict old socket and join directly
       if (socket.userId) {
         for (const [oldId] of existing) {
           const oldSocket = io.sockets.sockets.get(oldId);
@@ -814,24 +841,26 @@ io.on('connection', (socket) => {
         }
       }
 
-      // After eviction, re-check if room still has other members
       if (existing.size > 0) {
-        const hostSocketId = Array.from(existing.keys())[0];
-        const hostSocket = io.sockets.sockets.get(hostSocketId);
-        if (hostSocket) {
-          const requestId = Math.random().toString(36).slice(2, 10);
-          const joinTimer = setTimeout(() => {
-            pendingJoins.delete(requestId);
-            const js = io.sockets.sockets.get(socket.id);
-            if (js) js.emit('join-rejected', { message: '等待逾時，請重新整理再試。' });
-          }, 60000);
-          const reqAvatar = socket.userAvatar || (typeof avatar === 'string' ? avatar.slice(0, 200000) : null);
-          pendingJoins.set(requestId, { joinerSocketId: socket.id, hostSocketId, roomId, name, avatar: reqAvatar, timer: joinTimer });
-          hostSocket.emit('join-request', { requestId, name, avatar: reqAvatar });
-          socket.emit('join-pending');
-          return;
+        // knockRequired=false → skip approval, fall through to direct join
+        if (!rs || rs.knockRequired !== false) {
+          const hostSocketId = Array.from(existing.keys())[0];
+          const hostSocket = io.sockets.sockets.get(hostSocketId);
+          if (hostSocket) {
+            const requestId = Math.random().toString(36).slice(2, 10);
+            const joinTimer = setTimeout(() => {
+              pendingJoins.delete(requestId);
+              const js = io.sockets.sockets.get(socket.id);
+              if (js) js.emit('join-rejected', { message: '等待逾時，請重新整理再試。' });
+            }, 60000);
+            const reqAvatar = socket.userAvatar || (typeof avatar === 'string' ? avatar.slice(0, 200000) : null);
+            pendingJoins.set(requestId, { joinerSocketId: socket.id, hostSocketId, roomId, name, avatar: reqAvatar, timer: joinTimer });
+            hostSocket.emit('join-request', { requestId, name, avatar: reqAvatar });
+            socket.emit('join-pending');
+            return;
+          }
+          // Host socket gone — allow direct join (fall through)
         }
-        // Host socket gone — allow direct join (fall through)
       }
     }
 
@@ -841,7 +870,7 @@ io.on('connection', (socket) => {
     room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
     socket.join(roomId);
     socket.currentRoom = roomId;
-    socket.emit('room-joined', { roomId, peers: existingPeers });
+    socket.emit('room-joined', { roomId, peers: existingPeers, roomSettings: roomSettings.get(roomId) || null });
     socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null, avatar: socket.userAvatar || null });
     adminNsp.emit('rooms', getRoomList());
   });
@@ -855,12 +884,14 @@ io.on('connection', (socket) => {
     if (!joinerSocket) return;
     const room = rooms.get(req.roomId);
     if (!room) { joinerSocket.emit('join-rejected', { message: '房間已關閉' }); return; }
-    if (room.size >= settings.maxPeersPerRoom) { joinerSocket.emit('join-rejected', { message: '房間已滿' }); return; }
+    const rsApprove = roomSettings.get(req.roomId);
+    const effMax = rsApprove?.maxMembers || settings.maxPeersPerRoom;
+    if (room.size >= effMax) { joinerSocket.emit('join-rejected', { message: '房間已滿' }); return; }
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
     room.set(joinerSocket.id, { name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
     joinerSocket.join(req.roomId);
     joinerSocket.currentRoom = req.roomId;
-    joinerSocket.emit('room-joined', { roomId: req.roomId, peers: existingPeers });
+    joinerSocket.emit('room-joined', { roomId: req.roomId, peers: existingPeers, roomSettings: rsApprove || null });
     io.to(req.roomId).except(joinerSocket.id).emit('peer-joined', { id: joinerSocket.id, name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
     adminNsp.emit('rooms', getRoomList());
   });
@@ -878,8 +909,27 @@ io.on('connection', (socket) => {
     return (sock.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || sock.handshake.address;
   }
 
+  socket.on('room-update-settings', (newSettings) => {
+    const role = socket.userRole || 'default';
+    const canKey = `${role}CanRoomSettings`;
+    if (!settings[canKey]) return;
+    const roomId = socket.currentRoom;
+    if (!roomId || !rooms.has(roomId)) return;
+    const cur = roomSettings.get(roomId) || defaultRoomSettings();
+    if (typeof newSettings.locked      === 'boolean') cur.locked       = newSettings.locked;
+    if (typeof newSettings.knockRequired === 'boolean') cur.knockRequired = newSettings.knockRequired;
+    if (typeof newSettings.allowFiles  === 'boolean') cur.allowFiles   = newSettings.allowFiles;
+    if (typeof newSettings.allowChat   === 'boolean') cur.allowChat    = newSettings.allowChat;
+    if (newSettings.maxMembers !== undefined) cur.maxMembers = newSettings.maxMembers ? Math.min(parseInt(newSettings.maxMembers) || 10, settings.maxPeersPerRoom) : null;
+    if (newSettings.minFileRole !== undefined) cur.minFileRole = ['vip','business','admin'].includes(newSettings.minFileRole) ? newSettings.minFileRole : null;
+    roomSettings.set(roomId, cur);
+    io.to(roomId).emit('room-settings', cur);
+    adminNsp.emit('rooms', getRoomList());
+  });
+
   socket.on('room-kick', ({ peerId }) => {
-    if (!['admin', 'business'].includes(socket.userRole)) return;
+    const role = socket.userRole || 'default';
+    if (!settings[`${role}CanKickBan`]) return;
     const roomId = socket.currentRoom;
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
@@ -897,7 +947,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('room-ban', ({ peerId }) => {
-    if (!['admin', 'business'].includes(socket.userRole)) return;
+    const banRole = socket.userRole || 'default';
+    if (!settings[`${banRole}CanKickBan`]) return;
     const roomId = socket.currentRoom;
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
@@ -952,12 +1003,22 @@ io.on('connection', (socket) => {
 
   socket.on('relay-msg', ({ to, text }) => {
     if (!settings.allowMessageRelay) { socket.emit('relay-error', { error: 'Message relay is disabled' }); return; }
+    const rsMsg = socket.currentRoom ? roomSettings.get(socket.currentRoom) : null;
+    if (rsMsg && !rsMsg.allowChat) { socket.emit('relay-error', { error: '此房間已停用聊天功能' }); return; }
     stats.messagesRelayed++;
     io.to(to).emit('relay-msg', { from: socket.id, text });
     adminNsp.emit('stats', getStats());
   });
   socket.on('relay-file-start', ({ to, meta }) => {
     if (!settings.allowFileRelay) { socket.emit('relay-error', { error: 'File relay is disabled' }); return; }
+    const rsFile = socket.currentRoom ? roomSettings.get(socket.currentRoom) : null;
+    if (rsFile && !rsFile.allowFiles) { socket.emit('relay-error', { error: '此房間已停用檔案傳輸' }); return; }
+    if (rsFile?.minFileRole) {
+      const roleOrder = { guest: 0, default: 0, vip: 1, business: 2, admin: 3 };
+      const myLevel = roleOrder[socket.userRole || 'default'] || 0;
+      const reqLevel = roleOrder[rsFile.minFileRole] || 0;
+      if (myLevel < reqLevel) { socket.emit('relay-error', { error: `僅限 ${rsFile.minFileRole} 以上等級才能傳送檔案` }); return; }
+    }
     const maxBytes = socket.effectiveMaxFileSizeMB * 1024 * 1024;
     if (meta.size > maxBytes) { socket.emit('relay-error', { error: `File exceeds ${socket.effectiveMaxFileSizeMB} MB limit` }); return; }
     io.to(to).emit('relay-file-start', { from: socket.id, meta });
@@ -1011,7 +1072,7 @@ io.on('connection', (socket) => {
       const room = rooms.get(socket.currentRoom);
       if (room) {
         room.delete(socket.id);
-        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); }
+        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); roomSettings.delete(socket.currentRoom); }
         else socket.to(socket.currentRoom).emit('peer-left', socket.id);
       }
       adminNsp.emit('rooms', getRoomList());

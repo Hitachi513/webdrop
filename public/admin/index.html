@@ -408,29 +408,44 @@
           <h3>Role Privileges</h3>
           <div class="role-privs-table">
             <div class="role-privs-header">
-              <span>Role</span>
-              <span>File Limit (MB)</span>
-              <span>Custom Room ID</span>
+              <span>角色</span>
+              <span>檔案上限 (MB)</span>
+              <span title="可設定自訂房間 ID">自訂房號</span>
+              <span title="可踢出/封鎖成員">踢/封</span>
+              <span title="可使用房間設定">房間設定</span>
+              <span title="可加入已有成員的房間">可加入</span>
             </div>
             <div class="role-privs-row rp-default">
-              <span class="rp-label"><span class="rp-dot rp-dot-default"></span>Default (no role)</span>
+              <span class="rp-label"><span class="rp-dot rp-dot-default"></span>Default</span>
               <input type="number" id="set-maxfile" min="1" max="999999" value="500" placeholder="500">
               <label class="toggle"><input type="checkbox" id="set-default-room"><span class="slider"></span></label>
-            </div>
-            <div class="role-privs-row rp-biz">
-              <span class="rp-label"><span class="rp-dot rp-dot-biz"></span>💼 Business</span>
-              <input type="number" id="set-bizfile" min="1" max="999999" value="5120" placeholder="5120">
-              <label class="toggle"><input type="checkbox" id="set-biz-room" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-default-kick"><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-default-rs"><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-default-join" checked><span class="slider"></span></label>
             </div>
             <div class="role-privs-row rp-vip">
               <span class="rp-label"><span class="rp-dot rp-dot-vip"></span>💎 VIP</span>
               <input type="number" id="set-vipfile" min="1" max="999999" value="2048" placeholder="2048">
               <label class="toggle"><input type="checkbox" id="set-vip-room" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-vip-kick"><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-vip-rs" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-vip-join" checked><span class="slider"></span></label>
+            </div>
+            <div class="role-privs-row rp-biz">
+              <span class="rp-label"><span class="rp-dot rp-dot-biz"></span>💼 Business</span>
+              <input type="number" id="set-bizfile" min="1" max="999999" value="5120" placeholder="5120">
+              <label class="toggle"><input type="checkbox" id="set-biz-room" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-biz-kick" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-biz-rs" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-biz-join" checked><span class="slider"></span></label>
             </div>
             <div class="role-privs-row rp-admin">
               <span class="rp-label"><span class="rp-dot rp-dot-admin"></span>👑 Admin</span>
               <input type="number" id="set-adminfile" min="1" max="999999" value="999999" placeholder="999999">
               <label class="toggle"><input type="checkbox" id="set-admin-room" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-admin-kick" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-admin-rs" checked><span class="slider"></span></label>
+              <label class="toggle"><input type="checkbox" id="set-admin-join" checked><span class="slider"></span></label>
             </div>
           </div>
         </div>

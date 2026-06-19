@@ -300,22 +300,35 @@
       </div>
     </section>
 
-    <!-- Members Panel (business / admin only) -->
-    <section id="panel-members" class="panel">
-      <div class="members-header-bar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-        <span>成員管理</span>
-        <span id="members-count-badge" class="members-count-badge">0</span>
-      </div>
-      <div id="members-list" class="members-list">
-        <div class="members-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          <p>目前沒有其他成員</p>
-        </div>
-      </div>
-    </section>
-
   </div><!-- #main -->
+
+  <!-- Mod Toolbar (business/vip/admin only) -->
+  <div id="mod-toolbar" style="display:none">
+    <button id="mod-members-btn" class="mod-tool-btn" title="成員管理">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      <span id="mod-members-count" class="mod-tool-badge" style="display:none">0</span>
+    </button>
+    <button id="mod-settings-btn" class="mod-tool-btn" id="mod-settings-btn" title="房間設定" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span id="room-lock-indicator" class="mod-lock-dot" style="display:none" title="房間已鎖定">🔒</span>
+    </button>
+  </div>
+
+  <!-- Members Slide Panel -->
+  <div id="members-panel" class="members-panel">
+    <div class="members-panel-header">
+      <span>成員管理</span>
+      <span id="members-count-badge" class="members-count-badge">0</span>
+      <button id="members-panel-close" class="members-panel-close">✕</button>
+    </div>
+    <div id="members-list" class="members-list">
+      <div class="members-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <p>目前沒有其他成員</p>
+      </div>
+    </div>
+  </div>
+  <div id="members-panel-overlay" class="members-panel-overlay"></div>
 
   <!-- Mobile tab bar -->
   <nav class="tab-bar">
@@ -328,13 +341,53 @@
       <span data-i18n="tab-chat">Messages</span>
       <span id="chat-badge" class="badge" style="display:none"></span>
     </button>
-    <button class="tab-btn" data-tab="members" id="tab-members" style="display:none">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-      <span>成員</span>
-    </button>
   </nav>
 
 </div><!-- #app -->
+
+<!-- Room Settings Modal -->
+<div id="room-settings-modal" class="modal">
+  <div class="modal-box room-settings-box">
+    <h3 class="modal-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      房間設定
+    </h3>
+    <div class="rs-list">
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">🔒 鎖定房間</div><div class="rs-desc">拒絕所有新成員加入</div></div>
+        <label class="toggle"><input type="checkbox" id="rs-locked"><span class="slider"></span></label>
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">✋ 需要敲門審核</div><div class="rs-desc">新成員加入須經由房主同意</div></div>
+        <label class="toggle"><input type="checkbox" id="rs-knock" checked><span class="slider"></span></label>
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">📁 允許傳送檔案</div><div class="rs-desc">關閉後所有人無法傳送檔案</div></div>
+        <label class="toggle"><input type="checkbox" id="rs-files" checked><span class="slider"></span></label>
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">💬 允許聊天</div><div class="rs-desc">關閉後所有人無法傳送訊息</div></div>
+        <label class="toggle"><input type="checkbox" id="rs-chat" checked><span class="slider"></span></label>
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">📤 最低傳檔身份</div><div class="rs-desc">限制特定等級以上才能傳送檔案</div></div>
+        <select id="rs-min-role" class="rs-select">
+          <option value="">所有人</option>
+          <option value="vip">💎 VIP 以上</option>
+          <option value="business">💼 Business 以上</option>
+        </select>
+      </div>
+      <div class="rs-row">
+        <div class="rs-info"><div class="rs-label">👥 最大人數</div><div class="rs-desc">留空使用系統預設值</div></div>
+        <input type="number" id="rs-max-members" class="rs-input" min="2" max="50" placeholder="預設">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="rs-cancel">取消</button>
+      <button class="btn-primary" id="rs-save">套用</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===== QR Modal ===== -->
 <div id="qr-modal" class="modal">

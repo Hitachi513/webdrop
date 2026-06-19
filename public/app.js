@@ -158,7 +158,6 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('panel-files').classList.toggle('active', tab === 'files');
   document.getElementById('panel-chat').classList.toggle('active', tab === 'chat');
-  document.getElementById('panel-members').classList.toggle('active', tab === 'members');
   if (tab === 'chat') clearChatBadge();
 }
 
@@ -271,8 +270,14 @@ function applyRoleStyle(role) {
   } else {
     roleBadgeEl.style.display = 'none';
   }
-  const membersTab = document.getElementById('tab-members');
-  if (membersTab) membersTab.style.display = ['admin', 'business'].includes(role) ? '' : 'none';
+  const modToolbar = document.getElementById('mod-toolbar');
+  const modSettingsBtn = document.getElementById('mod-settings-btn');
+  const isMod = ['admin', 'business', 'vip'].includes(role);
+  if (modToolbar) modToolbar.style.display = isMod ? 'flex' : 'none';
+  if (modSettingsBtn) {
+    const canSettings = currentUser && ['admin', 'business', 'vip'].includes(currentUser.role);
+    modSettingsBtn.style.display = canSettings ? 'flex' : 'none';
+  }
 }
 
 function showUserBadge(user) {
@@ -821,10 +826,12 @@ socket.on('connect', () => {
   rejoinRoom();
 });
 
-socket.on('room-joined', ({ peers: existing }) => {
+socket.on('room-joined', ({ peers: existing, roomSettings: rs }) => {
   joinPendingOverlay.classList.remove('active');
   existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar));
+  if (rs) applyRoomSettings(rs);
 });
+socket.on('room-settings', applyRoomSettings);
 socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false, role, avatar));
 socket.on('peer-left',   id => removePeer(id));
 socket.on('tunnel-url',  url => setShareUrl(url));
@@ -1665,15 +1672,41 @@ window.addEventListener('load', async () => {
   }, 800);
 });
 
-// ===== Members Panel =====
+// ===== Members Slide Panel =====
+const membersPanel    = document.getElementById('members-panel');
+const membersPanelOv  = document.getElementById('members-panel-overlay');
+const modMembersBtn   = document.getElementById('mod-members-btn');
+const membersPanelClose = document.getElementById('members-panel-close');
+
+function openMembersPanel() {
+  membersPanel.classList.add('open');
+  membersPanelOv.classList.add('open');
+  modMembersBtn?.classList.add('active-btn');
+  refreshMembersPanel();
+}
+function closeMembersPanel() {
+  membersPanel.classList.remove('open');
+  membersPanelOv.classList.remove('open');
+  modMembersBtn?.classList.remove('active-btn');
+}
+
+modMembersBtn?.addEventListener('click', () => {
+  membersPanel.classList.contains('open') ? closeMembersPanel() : openMembersPanel();
+});
+membersPanelClose?.addEventListener('click', closeMembersPanel);
+membersPanelOv?.addEventListener('click', closeMembersPanel);
+
 function refreshMembersPanel() {
   const list = document.getElementById('members-list');
   const badge = document.getElementById('members-count-badge');
+  const modBadge = document.getElementById('mod-members-count');
   if (!list) return;
   const myRole = currentUser?.role;
-  const isMod = ['admin', 'business'].includes(myRole);
-  badge.textContent = peers.size;
-  if (!peers.size) {
+  const isMod = ['admin', 'business', 'vip'].includes(myRole);
+  const count = peers.size;
+  if (badge) badge.textContent = count;
+  if (modBadge) { modBadge.textContent = count; modBadge.style.display = count > 0 ? '' : 'none'; }
+  if (!count) {
     list.innerHTML = `<div class="members-empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       <p>目前沒有其他成員</p></div>`;
@@ -1683,23 +1716,18 @@ function refreshMembersPanel() {
   peers.forEach((peer, peerId) => {
     const row = document.createElement('div');
     row.className = 'member-row';
-    const initial = (peer.name || '?')[0].toUpperCase();
-    const avatarHtml = peer.avatar
-      ? `<img src="${peer.avatar}" alt="">`
-      : initial;
+    const avatarHtml = peer.avatar ? `<img src="${peer.avatar}" alt="">` : (peer.name || '?')[0].toUpperCase();
     const roleBadge = peer.role
-      ? `<span class="member-role-badge member-role-${peer.role}">${{ admin:'👑 Admin', business:'💼 Business', vip:'💎 VIP' }[peer.role] || peer.role}</span>`
-      : '';
+      ? `<span class="member-role-badge member-role-${peer.role}">${{admin:'👑 Admin',business:'💼 Business',vip:'💎 VIP'}[peer.role]||peer.role}</span>` : '';
     const canMod = isMod && !(myRole === 'business' && ['admin','business'].includes(peer.role));
     row.innerHTML = `
       <div class="member-avatar">${avatarHtml}</div>
       <div class="member-info">
-        <div class="member-name">${escHtml(peer.name)}</div>
-        ${roleBadge}
+        <div class="member-name">${escHtml(peer.name)}</div>${roleBadge}
       </div>
       ${canMod ? `<div class="member-actions">
-        <button class="member-kick-btn" data-id="${peerId}" title="踢出房間">踢出</button>
-        <button class="member-ban-btn"  data-id="${peerId}" title="封鎖並踢出">封鎖</button>
+        <button class="member-kick-btn" title="踢出房間">踢出</button>
+        <button class="member-ban-btn"  title="封鎖並踢出">封鎖</button>
       </div>` : ''}`;
     if (canMod) {
       row.querySelector('.member-kick-btn').addEventListener('click', () => {
@@ -1716,6 +1744,50 @@ function refreshMembersPanel() {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ===== Room Settings =====
+let currentRoomSettings = null;
+
+function applyRoomSettings(rs) {
+  currentRoomSettings = rs;
+  const lockDot = document.getElementById('room-lock-indicator');
+  if (lockDot) lockDot.style.display = rs?.locked ? '' : 'none';
+  const sendBtn = document.getElementById('send-btn');
+  const msgInput = document.getElementById('message-input');
+  if (sendBtn && msgInput) {
+    const chatOk = !rs || rs.allowChat !== false;
+    sendBtn.disabled = !chatOk;
+    msgInput.disabled = !chatOk;
+    msgInput.placeholder = chatOk ? (msgInput.dataset.placeholder || 'Type a message…') : '聊天功能已停用';
+  }
+}
+
+const modSettingsBtn = document.getElementById('mod-settings-btn');
+const roomSettingsModal = document.getElementById('room-settings-modal');
+
+modSettingsBtn?.addEventListener('click', () => {
+  const rs = currentRoomSettings || {};
+  document.getElementById('rs-locked').checked       = !!rs.locked;
+  document.getElementById('rs-knock').checked        = rs.knockRequired !== false;
+  document.getElementById('rs-files').checked        = rs.allowFiles !== false;
+  document.getElementById('rs-chat').checked         = rs.allowChat !== false;
+  document.getElementById('rs-min-role').value       = rs.minFileRole || '';
+  document.getElementById('rs-max-members').value    = rs.maxMembers || '';
+  roomSettingsModal.classList.add('active');
+});
+
+document.getElementById('rs-cancel')?.addEventListener('click', () => roomSettingsModal.classList.remove('active'));
+document.getElementById('rs-save')?.addEventListener('click', () => {
+  socket.emit('room-update-settings', {
+    locked:       document.getElementById('rs-locked').checked,
+    knockRequired: document.getElementById('rs-knock').checked,
+    allowFiles:   document.getElementById('rs-files').checked,
+    allowChat:    document.getElementById('rs-chat').checked,
+    minFileRole:  document.getElementById('rs-min-role').value || null,
+    maxMembers:   parseInt(document.getElementById('rs-max-members').value) || null,
+  });
+  roomSettingsModal.classList.remove('active');
+});
 
 // ===== WebRTC check =====
 if (!window.RTCPeerConnection) {

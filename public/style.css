@@ -694,20 +694,97 @@ header {
   to   { opacity:1; transform:translate(var(--tx),var(--ty)) translate(-50%,-50%) scale(1); }
 }
 
-/* ── Members Panel ── */
-.members-header-bar {
+/* ── Mod Toolbar ── */
+#mod-toolbar {
+  position: fixed;
+  bottom: calc(56px + 12px);
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+}
+.mod-tool-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+  transition: background .15s, transform .1s, border-color .15s;
+}
+.mod-tool-btn:hover { background: var(--primary-dim); border-color: var(--primary); }
+.mod-tool-btn:active { transform: scale(.92); }
+.mod-tool-btn.active-btn { background: var(--primary-dim); border-color: var(--primary); color: var(--primary); }
+.mod-tool-badge {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 20px;
+  font-size: .62rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.4;
+}
+.mod-lock-dot {
+  position: absolute;
+  top: -4px; right: -4px;
+  font-size: .7rem;
+  line-height: 1;
+}
+
+/* ── Members Slide Panel ── */
+.members-panel {
+  position: fixed;
+  top: 0; right: -320px;
+  width: 300px;
+  height: 100%;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  transition: right .25s cubic-bezier(.4,0,.2,1);
+  box-shadow: -4px 0 20px rgba(0,0,0,.2);
+}
+.members-panel.open { right: 0; }
+.members-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 499;
+  display: none;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.members-panel-overlay.open { display: block; opacity: 1; }
+.members-panel-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 16px 10px;
+  padding: 16px;
   border-bottom: 1px solid var(--border);
-  font-size: .85rem;
+  font-size: .9rem;
   font-weight: 600;
-  color: var(--text);
   flex-shrink: 0;
 }
-.members-count-badge {
+.members-panel-close {
   margin-left: auto;
+  background: none; border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.members-panel-close:hover { background: var(--border); }
+.members-count-badge {
   background: var(--primary);
   color: #fff;
   border-radius: 20px;
@@ -795,6 +872,36 @@ header {
   color: var(--error, #ef4444);
 }
 .member-ban-btn:hover { opacity: .8; }
+
+/* ── Room Settings Modal ── */
+.room-settings-box { max-width: 420px; width: 90%; }
+.room-settings-box .modal-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 1rem; font-weight: 700; margin-bottom: 16px;
+}
+.rs-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px; }
+.rs-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+.rs-row:last-child { border-bottom: none; }
+.rs-info { flex: 1; min-width: 0; }
+.rs-label { font-size: .87rem; font-weight: 500; color: var(--text); }
+.rs-desc { font-size: .76rem; color: var(--text-muted); margin-top: 2px; }
+.rs-select {
+  background: var(--bg); border: 1px solid var(--border-strong);
+  color: var(--text); border-radius: 7px;
+  padding: 5px 8px; font-size: .82rem; cursor: pointer;
+  min-width: 130px;
+}
+.rs-input {
+  width: 70px;
+  background: var(--bg); border: 1px solid var(--border-strong);
+  color: var(--text); border-radius: 7px;
+  padding: 5px 8px; font-size: .82rem; text-align: center;
+}
 
 /* ===========================
    Drop Zone

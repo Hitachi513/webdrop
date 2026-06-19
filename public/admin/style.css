@@ -620,27 +620,31 @@ tbody tr:hover { background:#f9fafc; }
 .role-privs-table { width: 100%; }
 .role-privs-header {
   display: grid;
-  grid-template-columns: 1fr 150px 130px;
+  grid-template-columns: 1fr 120px repeat(4, 70px);
   padding: 6px 14px 10px;
-  font-size: .72rem;
+  font-size: .68rem;
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .5px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 6px;
+  text-align: center;
 }
+.role-privs-header span:first-child { text-align: left; }
 .role-privs-row {
   display: grid;
-  grid-template-columns: 1fr 150px 130px;
+  grid-template-columns: 1fr 120px repeat(4, 70px);
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   padding: 11px 14px;
   border-radius: 10px;
   margin-bottom: 5px;
   border: 1px solid transparent;
   transition: background .15s;
+  justify-items: center;
 }
+.role-privs-row > span:first-child { justify-self: start; }
 .rp-label {
   display: flex;
   align-items: center;

@@ -187,13 +187,24 @@ function switchSection(id) {
   document.querySelectorAll('.nav-item[data-section]').forEach(i => i.classList.toggle('active', i.dataset.section === id));
   document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === `section-${id}`));
   document.getElementById('section-title').textContent = sections[id] || id;
-  document.getElementById('sidebar').classList.remove('open');
+  closeSidebar();
   if (id === 'overview') setTimeout(initMap, 50);
 }
 
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-backdrop').classList.add('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('show');
+}
+
 document.getElementById('sidebar-toggle').addEventListener('click', () => {
-  document.getElementById('sidebar').classList.toggle('open');
+  const isOpen = document.getElementById('sidebar').classList.contains('open');
+  isOpen ? closeSidebar() : openSidebar();
 });
+document.getElementById('sidebar-backdrop').addEventListener('click', closeSidebar);
 
 // ===== Stats Rendering =====
 function fmtUptime(s) {

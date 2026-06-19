@@ -780,12 +780,128 @@ input:checked + .slider::before { transform: translateX(20px); }
 .btn-danger-xs:hover { background:rgba(239,68,68,.1); }
 
 /* ===== Mobile ===== */
+
+/* Sidebar overlay backdrop */
+#sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+#sidebar-backdrop.show { display: block; }
+
 @media (max-width: 768px) {
-  #sidebar { position:fixed; left:0; top:0; bottom:0; z-index:100; transform:translateX(-100%); transition:transform .3s; }
-  #sidebar.open { transform:translateX(0); }
-  .icon-btn { display:flex; }
-  .stat-grid { grid-template-columns:1fr 1fr; }
-  .section { padding:16px; }
+  /* Sidebar */
+  #sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(.4,0,.2,1);
+    width: 240px;
+  }
+  #sidebar.open { transform: translateX(0); }
+  .icon-btn { display: flex; }
+
+  /* Header */
+  .content-header { padding: 0 14px; gap: 10px; }
+  #user-display-name { display: none; }
+  #user-email       { display: none; }
+
+  /* Sections */
+  .section { padding: 14px; gap: 14px; }
+  .section-header { gap: 8px; }
+  .section-header h2 { font-size: 1rem; }
+
+  /* Stat grid — 2 col on tablet, 1 col on small */
+  .stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card { padding: 14px 16px; gap: 10px; }
+  .stat-value { font-size: 1.25rem; }
+  .stat-card-featured .stat-value { font-size: 1.5rem; }
+
+  /* Charts */
+  .chart-row  { grid-template-columns: 1fr; gap: 12px; }
+  .chart-card { padding: 16px; }
+
+  /* Tables — horizontal scroll */
+  .table-card { border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 540px; }
+  th, td { padding: 10px 12px; white-space: nowrap; }
+
+  /* Rooms table needs more room */
+  #section-rooms .table-card table { min-width: 700px; }
+  #section-users .table-card table { min-width: 900px; }
+  #section-history .table-card table { min-width: 620px; }
+
+  /* Forms */
+  .field-row { grid-template-columns: 1fr; gap: 10px; }
+  .form-actions { flex-direction: column; }
+  .form-actions .btn-primary,
+  .form-actions .btn-ghost { width: 100%; text-align: center; }
+  .form-card { padding: 18px; }
+
+  /* Settings */
+  .settings-grid { grid-template-columns: 1fr; gap: 12px; }
+  .setting-card { padding: 18px; }
+  .role-privs-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .role-privs-table { min-width: 520px; }
+
+  /* Health */
+  .health-grid { grid-template-columns: 1fr 1fr; }
+  #admin-map { height: 260px; }
+
+  /* Broadcast card */
+  #section-overview .chart-card > div[style*="display:flex"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  #send-broadcast-btn { width: 100%; justify-content: center; padding: 11px 20px; }
+
+  /* History tabs */
+  .history-tab-btn { padding: 7px 12px !important; font-size: .78rem !important; }
+
+  /* Modal overlays — prevent overflow on small screens */
+  #ban-modal-overlay > div,
+  #profile-modal-overlay > div,
+  #edit-promo-overlay > div {
+    min-width: unset !important;
+    max-width: 96vw !important;
+    max-height: 92vh !important;
+    width: 96vw !important;
+    padding: 18px !important;
+  }
+
+  /* Buttons in section-header */
+  .section-header .btn-primary,
+  .section-header .btn-ghost { font-size: .78rem; padding: 7px 14px; }
+
+  /* Users section filter row */
+  #section-users > div[style*="display:flex"] { flex-wrap: wrap; }
+  #users-search { min-width: 0 !important; width: 100%; }
+
+  /* Feedback stats */
+  #feedback-stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+}
+
+@media (max-width: 420px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  .health-grid { grid-template-columns: 1fr; }
+  #feedback-stats-row { grid-template-columns: 1fr 1fr; }
+  .content-header { padding: 0 10px; gap: 8px; }
+  .section { padding: 10px; gap: 10px; }
+}
+
+/* Broadcast input row */
+.broadcast-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+@media (max-width: 768px) {
+  .broadcast-input-row { flex-direction: column; align-items: stretch; }
+  .broadcast-input-row #send-broadcast-btn { width: 100%; }
 }
 
 /* ===== Dark Mode ===== */

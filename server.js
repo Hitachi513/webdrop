@@ -966,6 +966,13 @@ const pendingJoins = new Map(); // requestId → { joinerSocketId, hostSocketId,
 const roomBans     = new Map(); // roomId → Set<'user:userId' | 'ip:ipAddress'>
 const roomSettings = new Map(); // roomId → RoomSettings
 
+function isRoomHost(socket, roomId) {
+  const meta = roomsMeta.get(roomId);
+  if (!meta) return false;
+  if (socket.userId && meta.hostUserId && socket.userId === meta.hostUserId) return true;
+  return socket.id === meta.hostSocketId;
+}
+
 function recordRoomClosure(roomId, closedBy = 'natural') {
   const meta = roomsMeta.get(roomId);
   if (!meta) return;
@@ -1123,7 +1130,7 @@ io.on('connection', (socket) => {
       }
     }
 
-    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null } }); }
+    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null }, hostSocketId: socket.id, hostUserId: socket.userId || null }); }
     const room = rooms.get(roomId);
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
     room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
@@ -1197,8 +1204,9 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
     const targetRole = room.get(peerId)?.role;
-    if (targetRole === 'admin') return; // nobody can kick an admin
-    if (socket.userRole === 'business' && targetRole === 'business') return;
+    const host = isRoomHost(socket, roomId);
+    if (targetRole === 'admin' && !host) return; // only host can kick admin
+    if (!host && socket.userRole === 'business' && targetRole === 'business') return;
     room.delete(peerId);
     const targetSocket = io.sockets.sockets.get(peerId);
     if (targetSocket) {
@@ -1217,8 +1225,9 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
     const targetRole = room.get(peerId)?.role;
-    if (targetRole === 'admin') return; // nobody can ban an admin
-    if (socket.userRole === 'business' && targetRole === 'business') return;
+    const host = isRoomHost(socket, roomId);
+    if (targetRole === 'admin' && !host) return; // only host can ban admin
+    if (!host && socket.userRole === 'business' && targetRole === 'business') return;
     room.delete(peerId);
     if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
     const bans = roomBans.get(roomId);

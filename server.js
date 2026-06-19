@@ -78,6 +78,10 @@ let feedback = [];
 async function saveFeedback() { await dbSet('feedback', feedback); }
 const feedbackRateLimit = new Map(); // ip → last submit timestamp
 
+let broadcastHistory = []; // in-memory only, max 200
+let roomHistory = [];      // persisted, max 1000
+async function saveRoomHistory() { await dbSet('room-history', roomHistory); }
+
 const defaultSettings = {
   maxPeersPerRoom: 10,
   maxFileSizeMB: 500, vipFileSizeMB: 2048, businessFileSizeMB: 5120, adminFileSizeMB: 999999,
@@ -712,7 +716,11 @@ app.post('/admin/api/broadcast', requireAdmin, (req, res) => {
   if (!msg) return res.status(400).json({ error: 'Message required' });
   const admin = admins.find(a => a.id === req.adminUser.id);
   const sender = admin?.name || admin?.email || '系統管理員';
+  const recipientCount = io.engine.clientsCount;
   io.emit('server-broadcast', { message: msg, sender, at: Date.now() });
+  broadcastHistory.unshift({ message: msg, sender, sentAt: Date.now(), recipientCount, source: 'admin-panel' });
+  if (broadcastHistory.length > 200) broadcastHistory.length = 200;
+  adminNsp.emit('broadcast-history', broadcastHistory);
   res.json({ ok: true });
 });
 
@@ -734,6 +742,7 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
   if (!rooms.has(roomId)) return res.status(404).json({ error: 'Room not found' });
   io.in(roomId).emit('room-closed', { reason: 'Closed by admin' });
   io.in(roomId).disconnectSockets(true);
+  recordRoomClosure(roomId, 'admin');
   rooms.delete(roomId);
   roomsMeta.delete(roomId);
   roomBans.delete(roomId);
@@ -886,6 +895,21 @@ app.delete('/admin/api/feedback', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Broadcast history & Room history
+app.get('/admin/api/broadcast-history', requireAdmin, (req, res) => { res.json(broadcastHistory); });
+app.delete('/admin/api/broadcast-history', requireAdmin, (req, res) => {
+  broadcastHistory.length = 0;
+  adminNsp.emit('broadcast-history', []);
+  res.json({ ok: true });
+});
+app.get('/admin/api/room-history', requireAdmin, (req, res) => { res.json(roomHistory); });
+app.delete('/admin/api/room-history', requireAdmin, (req, res) => {
+  roomHistory.length = 0;
+  saveRoomHistory().catch(e => console.error('saveRoomHistory error:', e.message));
+  adminNsp.emit('room-history', []);
+  res.json({ ok: true });
+});
+
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html')));
 
 // ===== Global error handler (prevents unhandled errors from crashing the server) =====
@@ -904,14 +928,16 @@ adminNsp.use((socket, next) => {
 });
 adminNsp.on('connection', (socket) => {
   try {
-    socket.emit('stats',         getStats());
-    socket.emit('rooms',         getRoomList());
-    socket.emit('admins',        admins.map(({ passwordHash, ...a }) => a));
-    socket.emit('settings',      settings);
-    socket.emit('promos',        promos);
-    socket.emit('users',         getUserList());
-    socket.emit('system-health', getSystemHealth());
-    socket.emit('feedback',      feedback);
+    socket.emit('stats',             getStats());
+    socket.emit('rooms',             getRoomList());
+    socket.emit('admins',            admins.map(({ passwordHash, ...a }) => a));
+    socket.emit('settings',          settings);
+    socket.emit('promos',            promos);
+    socket.emit('users',             getUserList());
+    socket.emit('system-health',     getSystemHealth());
+    socket.emit('feedback',          feedback);
+    socket.emit('broadcast-history', broadcastHistory);
+    socket.emit('room-history',      roomHistory.slice(0, 200));
   } catch (e) { console.error('Admin socket init error:', e.message); }
 
   const tick = setInterval(() => {
@@ -934,6 +960,27 @@ const roomsMeta    = new Map();
 const pendingJoins = new Map(); // requestId → { joinerSocketId, hostSocketId, roomId, name, avatar, timer }
 const roomBans     = new Map(); // roomId → Set<'user:userId' | 'ip:ipAddress'>
 const roomSettings = new Map(); // roomId → RoomSettings
+
+function recordRoomClosure(roomId, closedBy = 'natural') {
+  const meta = roomsMeta.get(roomId);
+  if (!meta) return;
+  const room = rooms.get(roomId);
+  const entry = {
+    roomId,
+    createdAt:       meta.createdAt || null,
+    closedAt:        Date.now(),
+    duration:        meta.createdAt ? Math.round((Date.now() - meta.createdAt) / 1000) : null,
+    peakPeers:       meta.peakPeers || (room ? room.size : 0),
+    filesTransferred: meta.filesTransferred || 0,
+    geo:             meta.geo || null,
+    firstMember:     meta.firstMember || null,
+    closedBy
+  };
+  roomHistory.unshift(entry);
+  if (roomHistory.length > 1000) roomHistory.length = 1000;
+  saveRoomHistory().catch(e => console.error('saveRoomHistory error:', e.message));
+  adminNsp.emit('room-history', roomHistory.slice(0, 200));
+}
 
 function defaultRoomSettings() {
   return { locked: false, knockRequired: true, allowFiles: true, allowChat: true, maxMembers: null, minFileRole: null };
@@ -985,7 +1032,7 @@ io.on('connection', (socket) => {
       const room = rooms.get(socket.currentRoom);
       if (room) {
         room.delete(socket.id);
-        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); roomSettings.delete(socket.currentRoom); }
+        if (room.size === 0) { recordRoomClosure(socket.currentRoom, 'natural'); rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); roomSettings.delete(socket.currentRoom); }
         else socket.to(socket.currentRoom).emit('peer-left', socket.id);
       }
       socket.leave(socket.currentRoom);
@@ -1071,10 +1118,12 @@ io.on('connection', (socket) => {
       }
     }
 
-    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0 }); }
+    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null } }); }
     const room = rooms.get(roomId);
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
     room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
+    const rMeta = roomsMeta.get(roomId);
+    if (rMeta && room.size > (rMeta.peakPeers || 0)) rMeta.peakPeers = room.size;
     socket.join(roomId);
     socket.currentRoom = roomId;
     socket.emit('room-joined', { roomId, peers: existingPeers, roomSettings: roomSettings.get(roomId) || null });
@@ -1096,6 +1145,8 @@ io.on('connection', (socket) => {
     if (room.size >= effMax) { joinerSocket.emit('join-rejected', { message: '房間已滿' }); return; }
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
     room.set(joinerSocket.id, { name: req.name, role: joinerSocket.userRole || null, avatar: joinerSocket.userAvatar || null });
+    const approvedMeta = roomsMeta.get(req.roomId);
+    if (approvedMeta && room.size > (approvedMeta.peakPeers || 0)) approvedMeta.peakPeers = room.size;
     joinerSocket.join(req.roomId);
     joinerSocket.currentRoom = req.roomId;
     joinerSocket.emit('room-joined', { roomId: req.roomId, peers: existingPeers, roomSettings: rsApprove || null });
@@ -1211,7 +1262,11 @@ io.on('connection', (socket) => {
     const msg = String(message || '').trim().slice(0, 500);
     if (!msg) return;
     const senderName = socket.userName || '管理員';
+    const recipientCount = io.engine.clientsCount;
     io.emit('server-broadcast', { message: msg, sender: senderName, at: Date.now() });
+    broadcastHistory.unshift({ message: msg, sender: senderName, sentAt: Date.now(), recipientCount, source: 'in-app' });
+    if (broadcastHistory.length > 200) broadcastHistory.length = 200;
+    adminNsp.emit('broadcast-history', broadcastHistory);
   });
 
   // Admin role: grant session role to a peer in the same room
@@ -1337,7 +1392,7 @@ io.on('connection', (socket) => {
       const room = rooms.get(socket.currentRoom);
       if (room) {
         room.delete(socket.id);
-        if (room.size === 0) { rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); roomSettings.delete(socket.currentRoom); }
+        if (room.size === 0) { recordRoomClosure(socket.currentRoom, 'natural'); rooms.delete(socket.currentRoom); roomsMeta.delete(socket.currentRoom); roomSettings.delete(socket.currentRoom); }
         else socket.to(socket.currentRoom).emit('peer-left', socket.id);
       }
       adminNsp.emit('rooms', getRoomList());
@@ -1484,6 +1539,10 @@ async function init() {
   const rawFeedback = await dbGet('feedback');
   feedback = Array.isArray(rawFeedback) ? rawFeedback : [];
   console.log(`[Init] Loaded ${feedback.length} feedback(s) from storage.`);
+
+  const rawRoomHistory = await dbGet('room-history');
+  roomHistory = Array.isArray(rawRoomHistory) ? rawRoomHistory : [];
+  console.log(`[Init] Loaded ${roomHistory.length} room history entries from storage.`);
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

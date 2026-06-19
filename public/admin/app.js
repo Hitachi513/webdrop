@@ -94,15 +94,17 @@ function connectAdminSocket() {
     if (e.message === 'Invalid token' || e.message === 'Authentication required') logout();
   });
 
-  adminSocket.on('stats',          renderStats);
-  adminSocket.on('rooms',          renderRooms);
-  adminSocket.on('users',          renderUsers);
-  adminSocket.on('admins',         renderAdmins);
-  adminSocket.on('settings',       renderSettings);
-  adminSocket.on('promos',         renderPromos);
-  adminSocket.on('conn-locations', updateMapMarkers);
-  adminSocket.on('system-health',  renderHealth);
-  adminSocket.on('feedback',       renderFeedback);
+  adminSocket.on('stats',             renderStats);
+  adminSocket.on('rooms',             renderRooms);
+  adminSocket.on('users',             renderUsers);
+  adminSocket.on('admins',            renderAdmins);
+  adminSocket.on('settings',          renderSettings);
+  adminSocket.on('promos',            renderPromos);
+  adminSocket.on('conn-locations',    updateMapMarkers);
+  adminSocket.on('system-health',     renderHealth);
+  adminSocket.on('feedback',          renderFeedback);
+  adminSocket.on('broadcast-history', renderBroadcastHistory);
+  adminSocket.on('room-history',      renderRoomHistory);
 }
 
 // ===== Map =====
@@ -156,7 +158,7 @@ function updateMapMarkers(locs) {
 }
 
 // ===== Navigation =====
-const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', health: 'System Health', settings: 'Settings' };
+const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', history: '歷史記錄', health: 'System Health', settings: 'Settings' };
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -1034,6 +1036,93 @@ async function saveProfile() {
 
 document.getElementById('profile-modal-overlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('profile-modal-overlay')) closeProfileModal();
+});
+
+// ===== History =====
+let _broadcastHistory = [];
+let _roomHistory = [];
+
+function renderBroadcastHistory(data) {
+  _broadcastHistory = data || [];
+  const countEl = document.getElementById('bh-count');
+  if (countEl) countEl.textContent = `${_broadcastHistory.length} 筆記錄`;
+  const tbody = document.getElementById('bh-tbody');
+  if (!tbody) return;
+  if (!_broadcastHistory.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">尚無廣播記錄</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _broadcastHistory.map(b => `
+    <tr>
+      <td style="white-space:nowrap">${new Date(b.sentAt).toLocaleString()}</td>
+      <td>${esc(b.sender || '—')}</td>
+      <td><span class="badge-pill" style="font-size:.72rem;padding:2px 8px">${b.source === 'admin-panel' ? '後台' : '遊戲內'}</span></td>
+      <td style="text-align:center">${b.recipientCount ?? '—'}</td>
+      <td style="max-width:320px;white-space:pre-wrap;word-break:break-word">${esc(b.message)}</td>
+    </tr>`).join('');
+}
+
+function renderRoomHistory(data) {
+  _roomHistory = data || [];
+  const countEl = document.getElementById('rh-count');
+  if (countEl) countEl.textContent = `${_roomHistory.length} 筆記錄`;
+  const tbody = document.getElementById('rh-tbody');
+  if (!tbody) return;
+  if (!_roomHistory.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">尚無開房記錄</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _roomHistory.map(r => {
+    const dur = r.duration != null ? fmtDuration(r.duration) : '—';
+    const geo = r.geo ? `${r.geo.city || ''} ${r.geo.countryCode || ''}`.trim() : '—';
+    const first = r.firstMember ? `${esc(r.firstMember.name || '匿名')}${r.firstMember.role ? ` (${r.firstMember.role})` : ''}` : '—';
+    const badge = r.closedBy === 'admin'
+      ? '<span style="color:var(--danger);font-size:.72rem">管理員關閉</span>'
+      : '<span style="color:var(--muted);font-size:.72rem">自然關閉</span>';
+    return `<tr>
+      <td><code style="font-size:.78rem">${esc(r.roomId)}</code></td>
+      <td style="white-space:nowrap">${r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}</td>
+      <td>${dur}</td>
+      <td style="text-align:center">${r.peakPeers ?? '—'}</td>
+      <td style="text-align:center">${r.filesTransferred ?? 0}</td>
+      <td>${geo}</td>
+      <td>${first}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtDuration(s) {
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+// History tab switching
+document.querySelectorAll('.history-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.history-tab-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.className = b === btn ? 'btn-primary history-tab-btn active' : 'btn-ghost history-tab-btn';
+      b.style.padding = '6px 16px';
+      b.style.fontSize = '.82rem';
+    });
+    document.getElementById('history-tab-broadcast').style.display = tab === 'broadcast' ? '' : 'none';
+    document.getElementById('history-tab-rooms').style.display = tab === 'rooms' ? '' : 'none';
+  });
+});
+
+document.getElementById('clear-broadcast-history-btn')?.addEventListener('click', async () => {
+  if (!confirm('確定要清除所有廣播記錄嗎？')) return;
+  try { await api('DELETE', '/admin/api/broadcast-history'); toast('廣播記錄已清除', 'success'); }
+  catch (e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('clear-room-history-btn')?.addEventListener('click', async () => {
+  if (!confirm('確定要清除所有開房記錄嗎？')) return;
+  try { await api('DELETE', '/admin/api/room-history'); toast('開房記錄已清除', 'success'); }
+  catch (e) { toast(e.message, 'error'); }
 });
 
 // ===== Utils =====

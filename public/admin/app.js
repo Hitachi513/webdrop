@@ -4,6 +4,27 @@ let currentAdmin = null;
 let adminSocket = null;
 let currentSettings = {};
 
+const STAFF_PERMISSIONS = [
+  { key: 'users',     label: '用戶管理',   desc: '查看及編輯用戶、封禁帳號' },
+  { key: 'rooms',     label: '房間管理',   desc: '查看即時房間、踢人、關閉房間' },
+  { key: 'broadcast', label: '廣播訊息',   desc: '發送全站廣播通知' },
+  { key: 'promos',    label: '優惠碼',     desc: '查看優惠碼清單' },
+  { key: 'feedback',  label: '意見回饋',   desc: '查看及處理用戶意見' },
+  { key: 'history',   label: '歷史記錄',   desc: '查看廣播及房間歷史' },
+  { key: 'ipBans',    label: 'IP 封鎖',    desc: '查看及管理全域 IP 封鎖' },
+  { key: 'webhooks',  label: 'Webhooks',   desc: '查看及設定 Webhook 通知' },
+  { key: 'adminLog',  label: '操作日誌',   desc: '查看管理員操作記錄' },
+  { key: 'health',    label: '系統健康',   desc: '查看系統狀態監控' },
+  { key: 'settings',  label: '系統設定',   desc: '查看及修改全域設定（謹慎授予）' },
+];
+
+const SECTION_PERM_MAP = {
+  overview: null, rooms: 'rooms', users: 'users',
+  admins: '__admin__', promos: 'promos', feedback: 'feedback',
+  history: 'history', 'ip-bans': 'ipBans', webhooks: 'webhooks',
+  'admin-log': 'adminLog', health: 'health', settings: 'settings',
+};
+
 // ===== API helper =====
 async function api(method, path, body) {
   const res = await fetch(path, {
@@ -36,8 +57,36 @@ function showDashboard(admin) {
   const dispEl = document.getElementById('user-display-name');
   if (dispEl) dispEl.textContent = displayName;
   document.getElementById('user-initial').textContent    = (admin.name || admin.email)[0].toUpperCase();
+  // Show role badge in sidebar header
+  const roleEl = document.getElementById('user-role-badge');
+  if (roleEl) {
+    roleEl.textContent = admin.role === 'super-admin' ? 'Super Admin' : admin.role === 'staff' ? 'Staff' : 'Admin';
+    roleEl.className = `user-role-badge role-${admin.role === 'super-admin' ? 'super' : admin.role}`;
+    roleEl.style.display = '';
+  }
+  // Apply permission-based nav filtering for staff
+  applyNavPermissions(admin);
   connectAdminSocket();
   setTimeout(initMap, 200);
+}
+
+function canAccessSection(sectionKey, admin) {
+  const role = admin.role;
+  if (role === 'super-admin') return true;
+  if (role === 'admin') return sectionKey !== '__admin__'; // admin can't manage admins beyond creating staff
+  // staff
+  const permKey = SECTION_PERM_MAP[sectionKey];
+  if (!permKey) return true;           // null = always visible (overview)
+  if (permKey === '__admin__') return false; // staff can't manage admins
+  return !!(admin.permissions?.[permKey]);
+}
+
+function applyNavPermissions(admin) {
+  document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+    const sec = item.dataset.section;
+    const allowed = canAccessSection(sec, admin);
+    item.style.display = allowed ? '' : 'none';
+  });
 }
 
 function logout() {
@@ -53,10 +102,9 @@ function logout() {
 // Try to restore session
 if (token) {
   api('GET', '/admin/api/stats').then(() => {
-    // Token valid — get admin info from token payload
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      showDashboard({ email: payload.email, role: payload.role, id: payload.id, name: payload.name || null });
+      showDashboard({ email: payload.email, role: payload.role, id: payload.id, name: payload.name || null, permissions: payload.permissions || {} });
     } catch { logout(); }
   }).catch(logout);
 }
@@ -75,7 +123,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     const res = await api('POST', '/admin/api/login', { email, password });
     token = res.token;
     localStorage.setItem('wd-admin-token', token);
-    showDashboard(res.admin);
+    showDashboard({ ...res.admin, permissions: res.admin.permissions || {} });
   } catch (e) {
     err.textContent = e.message;
   } finally {
@@ -513,15 +561,33 @@ document.getElementById('ban-modal-overlay').addEventListener('click', e => {
 });
 
 // ===== Admins =====
-function renderAdmins(admins) {
+function renderAdmins(adminList) {
+  window._latestAdmins = adminList;
   const tbody = document.getElementById('admins-tbody');
-  tbody.innerHTML = admins.map(a => `
-    <tr>
-      <td>${esc(a.email)}</td>
-      <td><span class="role-badge ${a.role === 'super-admin' ? 'role-super' : 'role-admin'}">${a.role}</span></td>
+  const isAdminOrSuper = currentAdmin?.role === 'super-admin' || currentAdmin?.role === 'admin';
+  tbody.innerHTML = adminList.map(a => {
+    const roleCls = a.role === 'super-admin' ? 'role-super' : a.role === 'staff' ? 'role-staff' : 'role-admin';
+    const roleLabel = a.role === 'super-admin' ? 'Super Admin' : a.role === 'staff' ? 'Staff' : 'Admin';
+    const permCount = a.role === 'staff' ? Object.keys(a.permissions || {}).length : null;
+    const permBadge = permCount !== null ? `<span class="perm-count-badge" title="${permCount} 個權限">${permCount} perms</span>` : '';
+    const isSelf = a.id === currentAdmin?.id;
+    let actions = '';
+    if (isSelf) {
+      actions = '<span style="color:var(--muted);font-size:.78rem">You</span>';
+    } else if (isAdminOrSuper) {
+      actions = '';
+      if (a.role === 'staff') actions += `<button class="btn-sm btn-outline" onclick="openPermModal('${a.id}','${esc(a.email)}')">⚙️ 權限</button> `;
+      if (currentAdmin?.role === 'super-admin' || a.role === 'staff') {
+        actions += `<button class="btn-danger" onclick="removeAdmin('${a.id}','${esc(a.email)}')">Remove</button>`;
+      }
+    }
+    return `<tr>
+      <td>${esc(a.name || '')} <span style="color:var(--muted);font-size:.8rem">${esc(a.email)}</span></td>
+      <td><span class="role-badge ${roleCls}">${roleLabel}</span>${permBadge}</td>
       <td>${new Date(a.createdAt).toLocaleDateString()}</td>
-      <td>${a.id !== currentAdmin?.id ? `<button class="btn-danger" onclick="removeAdmin('${a.id}','${esc(a.email)}')">Remove</button>` : '<span style="color:var(--muted);font-size:.78rem">You</span>'}</td>
-    </tr>`).join('');
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function removeAdmin(id, email) {
@@ -532,9 +598,56 @@ async function removeAdmin(id, email) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+// Staff Permissions Modal
+let _permTargetId = null;
+
+function openPermModal(id, email) {
+  _permTargetId = id;
+  document.getElementById('staff-perm-email').textContent = `設定 ${email} 的後台存取權限`;
+  // Find in the latest rendered data
+  const adminObj = window._latestAdmins?.find(a => a.id === id);
+  const currentPerms = adminObj?.permissions || {};
+  const listEl = document.getElementById('staff-perm-list');
+  listEl.innerHTML = STAFF_PERMISSIONS.map(p => `
+    <label class="perm-row">
+      <input type="checkbox" name="${p.key}" ${currentPerms[p.key] ? 'checked' : ''}>
+      <div class="perm-info">
+        <div class="perm-label">${p.label}</div>
+        <div class="perm-desc">${p.desc}</div>
+      </div>
+    </label>
+  `).join('');
+  document.getElementById('staff-perm-modal').style.display = 'flex';
+}
+
+function closePermModal() {
+  document.getElementById('staff-perm-modal').style.display = 'none';
+  _permTargetId = null;
+}
+
+async function saveStaffPerms() {
+  if (!_permTargetId) return;
+  const checkboxes = document.querySelectorAll('#staff-perm-list input[type=checkbox]');
+  const permissions = {};
+  checkboxes.forEach(cb => { if (cb.checked) permissions[cb.name] = true; });
+  try {
+    await api('PUT', `/admin/api/admins/${_permTargetId}/permissions`, permissions);
+    toast('權限已更新', 'success');
+    closePermModal();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 document.getElementById('open-add-admin').addEventListener('click', () => {
   document.getElementById('add-admin-form').style.display = 'block';
   document.getElementById('open-add-admin').style.display = 'none';
+  // Limit role options based on current admin's role
+  const roleSelect = document.getElementById('new-admin-role');
+  if (currentAdmin?.role !== 'super-admin') {
+    // admin can only create staff
+    roleSelect.innerHTML = '<option value="staff">Staff（受限人員）</option>';
+  } else {
+    roleSelect.innerHTML = '<option value="staff">Staff（受限人員）</option><option value="admin">Admin</option><option value="super-admin">Super Admin</option>';
+  }
 });
 document.getElementById('cancel-add-admin').addEventListener('click', () => {
   document.getElementById('add-admin-form').style.display = 'none';

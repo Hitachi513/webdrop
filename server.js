@@ -370,6 +370,17 @@ function requireSuperAdmin(req, res, next) {
   if (req.adminUser.role !== 'super-admin') return res.status(403).json({ error: 'Forbidden' });
   next();
 }
+function requirePermission(perm) {
+  return (req, res, next) => {
+    const role = req.adminUser.role;
+    if (role === 'super-admin' || role === 'admin') return next();
+    if (role === 'staff') {
+      const adminObj = admins.find(a => a.id === req.adminUser.id);
+      if (adminObj?.permissions?.[perm]) return next();
+    }
+    res.status(403).json({ error: 'Permission denied' });
+  };
+}
 function requireUser(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
@@ -632,20 +643,21 @@ app.post('/admin/api/login', async (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
     const valid = await bcrypt.compare(password, admin.passwordHash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role, name: admin.name || null }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role, name: admin.name || null } });
+    const permissions = admin.role === 'staff' ? (admin.permissions || {}) : undefined;
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role, name: admin.name || null, permissions }, JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role, name: admin.name || null, permissions } });
   } catch (e) { console.error('Admin login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
 app.get('/admin/api/stats',    requireAdmin, (req, res) => res.json(getStats()));
 app.get('/admin/api/health',   requireAdmin, (req, res) => res.json(getSystemHealth()));
-app.get('/admin/api/rooms',    requireAdmin, (req, res) => res.json(getRoomList()));
+app.get('/admin/api/rooms',    requireAdmin, requirePermission('rooms'), (req, res) => res.json(getRoomList()));
 app.get('/admin/api/admins',   requireAdmin, (req, res) => res.json(admins.map(({ passwordHash, ...a }) => a)));
-app.get('/admin/api/settings', requireAdmin, (req, res) => res.json(settings));
-app.get('/admin/api/promos',   requireAdmin, (req, res) => res.json(promos));
-app.get('/admin/api/users',    requireAdmin, (req, res) => res.json(getUserList()));
+app.get('/admin/api/settings', requireAdmin, requirePermission('settings'), (req, res) => res.json(settings));
+app.get('/admin/api/promos',   requireAdmin, requirePermission('promos'), (req, res) => res.json(promos));
+app.get('/admin/api/users',    requireAdmin, requirePermission('users'), (req, res) => res.json(getUserList()));
 
-app.put('/admin/api/users/:id', requireAdmin, (req, res) => {
+app.put('/admin/api/users/:id', requireAdmin, requirePermission('users'), (req, res) => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const { customFileSizeMB, banned, banReason, customRoomId, role } = req.body || {};
@@ -715,11 +727,18 @@ app.put('/admin/api/settings', requireAdmin, requireSuperAdmin, (req, res) => {
   res.json(settings);
 });
 
-app.post('/admin/api/admins', requireAdmin, requireSuperAdmin, async (req, res) => {
+app.post('/admin/api/admins', requireAdmin, async (req, res) => {
+  const requestingRole = req.adminUser.role;
+  if (requestingRole !== 'super-admin' && requestingRole !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { email, password, role } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (admins.find(a => a.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Admin already exists' });
-  const newAdmin = { id: Date.now().toString(), email, passwordHash: await bcrypt.hash(password, 10), role: role === 'super-admin' ? 'super-admin' : 'admin', createdAt: new Date().toISOString() };
+  // admin role can only create staff; super-admin can create any role
+  let newRole = 'staff';
+  if (requestingRole === 'super-admin') {
+    newRole = role === 'super-admin' ? 'super-admin' : role === 'admin' ? 'admin' : 'staff';
+  }
+  const newAdmin = { id: Date.now().toString(), email, passwordHash: await bcrypt.hash(password, 10), role: newRole, permissions: newRole === 'staff' ? {} : undefined, createdAt: new Date().toISOString() };
   admins.push(newAdmin);
   saveAdmins().catch(e => console.error("saveAdmins error:", e.message));
   const { passwordHash, ...safe } = newAdmin;
@@ -743,7 +762,7 @@ app.put('/admin/api/admins/me', requireAdmin, async (req, res) => {
 });
 
 // Admin panel global broadcast
-app.post('/admin/api/broadcast', requireAdmin, (req, res) => {
+app.post('/admin/api/broadcast', requireAdmin, requirePermission('broadcast'), (req, res) => {
   const { message } = req.body || {};
   const msg = String(message || '').trim().slice(0, 500);
   if (!msg) return res.status(400).json({ error: 'Message required' });
@@ -760,20 +779,43 @@ app.post('/admin/api/broadcast', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/admins/:id', requireAdmin, requireSuperAdmin, (req, res) => {
+app.delete('/admin/api/admins/:id', requireAdmin, (req, res) => {
+  const requestingRole = req.adminUser.role;
+  if (requestingRole !== 'super-admin' && requestingRole !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { id } = req.params;
   if (id === req.adminUser.id) return res.status(400).json({ error: 'Cannot remove yourself' });
   const idx = admins.findIndex(a => a.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Admin not found' });
+  const targetRole = admins[idx].role;
+  // admin can only remove staff; super-admin can remove admin or staff (not last super-admin)
+  if (requestingRole === 'admin' && targetRole !== 'staff') return res.status(403).json({ error: 'Admins can only remove staff accounts' });
   const superAdmins = admins.filter(a => a.role === 'super-admin');
-  if (superAdmins.length === 1 && admins[idx].role === 'super-admin') return res.status(400).json({ error: 'Cannot remove the last super-admin' });
+  if (superAdmins.length === 1 && targetRole === 'super-admin') return res.status(400).json({ error: 'Cannot remove the last super-admin' });
   admins.splice(idx, 1);
   saveAdmins().catch(e => console.error("saveAdmins error:", e.message));
   adminNsp.emit('admins', admins.map(({ passwordHash, ...a }) => a));
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
+// Update staff permissions (super-admin or admin only)
+app.put('/admin/api/admins/:id/permissions', requireAdmin, (req, res) => {
+  const requestingRole = req.adminUser.role;
+  if (requestingRole !== 'super-admin' && requestingRole !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const { id } = req.params;
+  const target = admins.find(a => a.id === id);
+  if (!target) return res.status(404).json({ error: 'Admin not found' });
+  if (target.role !== 'staff') return res.status(400).json({ error: 'Permissions can only be set on staff accounts' });
+  const allowed = ['users','rooms','broadcast','promos','feedback','history','ipBans','webhooks','adminLog','health','settings'];
+  const perms = req.body || {};
+  target.permissions = {};
+  allowed.forEach(key => { if (perms[key] === true) target.permissions[key] = true; });
+  saveAdmins().catch(e => console.error('saveAdmins error:', e.message));
+  adminNsp.emit('admins', admins.map(({ passwordHash, ...a }) => a));
+  logAdminAction(req.adminUser.email, '更新 Staff 權限', `${target.email}: ${Object.keys(target.permissions).join(', ') || '無'}`);
+  res.json({ ok: true, permissions: target.permissions });
+});
+
+app.delete('/admin/api/rooms/:roomId', requireAdmin, requirePermission('rooms'), (req, res) => {
   const { roomId } = req.params;
   if (!rooms.has(roomId)) return res.status(404).json({ error: 'Room not found' });
   io.in(roomId).emit('room-closed', { reason: 'Closed by admin' });
@@ -788,7 +830,7 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/admin/api/rooms/:roomId/kick', requireAdmin, (req, res) => {
+app.post('/admin/api/rooms/:roomId/kick', requireAdmin, requirePermission('rooms'), (req, res) => {
   const { roomId } = req.params;
   const { socketId } = req.body || {};
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
@@ -810,7 +852,7 @@ app.post('/admin/api/rooms/:roomId/kick', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
+app.post('/admin/api/rooms/:roomId/ban', requireAdmin, requirePermission('rooms'), (req, res) => {
   const { roomId } = req.params;
   const { socketId } = req.body || {};
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
@@ -837,17 +879,17 @@ app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/admin/api/rooms/:roomId/bans', requireAdmin, (req, res) => {
+app.get('/admin/api/rooms/:roomId/bans', requireAdmin, requirePermission('rooms'), (req, res) => {
   const bans = roomBans.get(req.params.roomId);
   res.json({ bans: bans ? Array.from(bans) : [] });
 });
 
-app.delete('/admin/api/rooms/:roomId/bans', requireAdmin, (req, res) => {
+app.delete('/admin/api/rooms/:roomId/bans', requireAdmin, requirePermission('rooms'), (req, res) => {
   roomBans.delete(req.params.roomId);
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/rooms/:roomId/bans/:entry', requireAdmin, (req, res) => {
+app.delete('/admin/api/rooms/:roomId/bans/:entry', requireAdmin, requirePermission('rooms'), (req, res) => {
   const bans = roomBans.get(req.params.roomId);
   if (bans) bans.delete(decodeURIComponent(req.params.entry));
   res.json({ ok: true });
@@ -910,11 +952,11 @@ app.delete('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) 
 });
 
 // Admin Feedback routes
-app.get('/admin/api/feedback', requireAdmin, (req, res) => {
+app.get('/admin/api/feedback', requireAdmin, requirePermission('feedback'), (req, res) => {
   res.json([...feedback].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
 });
 
-app.put('/admin/api/feedback/:id', requireAdmin, (req, res) => {
+app.put('/admin/api/feedback/:id', requireAdmin, requirePermission('feedback'), (req, res) => {
   const entry = feedback.find(f => f.id === req.params.id);
   if (!entry) return res.status(404).json({ error: 'Feedback not found' });
   if (req.body.read !== undefined) entry.read = !!req.body.read;
@@ -923,7 +965,7 @@ app.put('/admin/api/feedback/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/feedback/:id', requireAdmin, (req, res) => {
+app.delete('/admin/api/feedback/:id', requireAdmin, requirePermission('feedback'), (req, res) => {
   const idx = feedback.findIndex(f => f.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Feedback not found' });
   feedback.splice(idx, 1);
@@ -932,7 +974,7 @@ app.delete('/admin/api/feedback/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/feedback', requireAdmin, (req, res) => {
+app.delete('/admin/api/feedback', requireAdmin, requirePermission('feedback'), (req, res) => {
   if (req.query.all !== 'true') return res.status(400).json({ error: 'Pass ?all=true to confirm' });
   feedback = [];
   saveFeedback().catch(e => console.error('saveFeedback error:', e.message));
@@ -941,8 +983,8 @@ app.delete('/admin/api/feedback', requireAdmin, (req, res) => {
 });
 
 // ===== Global IP Bans =====
-app.get('/admin/api/ip-bans', requireAdmin, (req, res) => res.json(globalIpBans));
-app.post('/admin/api/ip-bans', requireAdmin, (req, res) => {
+app.get('/admin/api/ip-bans', requireAdmin, requirePermission('ipBans'), (req, res) => res.json(globalIpBans));
+app.post('/admin/api/ip-bans', requireAdmin, requirePermission('ipBans'), (req, res) => {
   const { ip, reason } = req.body || {};
   if (!ip || typeof ip !== 'string') return res.status(400).json({ error: 'IP required' });
   const ipTrimmed = ip.trim();
@@ -960,7 +1002,7 @@ app.post('/admin/api/ip-bans', requireAdmin, (req, res) => {
   adminNsp.emit('global-ip-bans', globalIpBans);
   res.json({ ok: true, entry });
 });
-app.delete('/admin/api/ip-bans/:ip', requireAdmin, (req, res) => {
+app.delete('/admin/api/ip-bans/:ip', requireAdmin, requirePermission('ipBans'), (req, res) => {
   const ip = decodeURIComponent(req.params.ip);
   const idx = globalIpBans.findIndex(b => b.ip === ip);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
@@ -973,7 +1015,7 @@ app.delete('/admin/api/ip-bans/:ip', requireAdmin, (req, res) => {
 });
 
 // ===== Admin Log =====
-app.get('/admin/api/admin-log', requireAdmin, (req, res) => res.json(adminLog));
+app.get('/admin/api/admin-log', requireAdmin, requirePermission('adminLog'), (req, res) => res.json(adminLog));
 app.delete('/admin/api/admin-log', requireAdmin, requireSuperAdmin, (req, res) => {
   adminLog = [];
   saveAdminLog().catch(() => {});
@@ -982,8 +1024,8 @@ app.delete('/admin/api/admin-log', requireAdmin, requireSuperAdmin, (req, res) =
 });
 
 // ===== Webhooks =====
-app.get('/admin/api/webhooks', requireAdmin, (req, res) => res.json(webhooks));
-app.post('/admin/api/webhooks', requireAdmin, (req, res) => {
+app.get('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => res.json(webhooks));
+app.post('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => {
   const { url, events } = req.body || {};
   if (!url || typeof url !== 'string' || !url.startsWith('http')) return res.status(400).json({ error: 'Valid URL required' });
   const evList = Array.isArray(events) ? events : ['*'];
@@ -995,7 +1037,7 @@ app.post('/admin/api/webhooks', requireAdmin, (req, res) => {
   adminNsp.emit('webhooks', webhooks);
   res.json({ ok: true, entry });
 });
-app.put('/admin/api/webhooks/:id', requireAdmin, (req, res) => {
+app.put('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooks'), (req, res) => {
   const wh = webhooks.find(w => w.id === req.params.id);
   if (!wh) return res.status(404).json({ error: 'Not found' });
   if (typeof req.body.enabled === 'boolean') wh.enabled = req.body.enabled;
@@ -1004,7 +1046,7 @@ app.put('/admin/api/webhooks/:id', requireAdmin, (req, res) => {
   adminNsp.emit('webhooks', webhooks);
   res.json({ ok: true });
 });
-app.delete('/admin/api/webhooks/:id', requireAdmin, (req, res) => {
+app.delete('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooks'), (req, res) => {
   const idx = webhooks.findIndex(w => w.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
   const url = webhooks[idx].url;
@@ -1017,15 +1059,15 @@ app.delete('/admin/api/webhooks/:id', requireAdmin, (req, res) => {
 });
 
 // Broadcast history & Room history
-app.get('/admin/api/broadcast-history', requireAdmin, (req, res) => { res.json(broadcastHistory); });
-app.delete('/admin/api/broadcast-history', requireAdmin, (req, res) => {
+app.get('/admin/api/broadcast-history', requireAdmin, requirePermission('history'), (req, res) => { res.json(broadcastHistory); });
+app.delete('/admin/api/broadcast-history', requireAdmin, requirePermission('history'), (req, res) => {
   broadcastHistory.length = 0;
   saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
   adminNsp.emit('broadcast-history', []);
   res.json({ ok: true });
 });
-app.get('/admin/api/room-history', requireAdmin, (req, res) => { res.json(roomHistory); });
-app.delete('/admin/api/room-history', requireAdmin, (req, res) => {
+app.get('/admin/api/room-history', requireAdmin, requirePermission('history'), (req, res) => { res.json(roomHistory); });
+app.delete('/admin/api/room-history', requireAdmin, requirePermission('history'), (req, res) => {
   roomHistory.length = 0;
   saveRoomHistory().catch(e => console.error('saveRoomHistory error:', e.message));
   adminNsp.emit('room-history', []);

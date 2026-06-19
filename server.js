@@ -1372,6 +1372,10 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('typing', () => {
+    if (socket.currentRoom) socket.to(socket.currentRoom).emit('peer-typing', { id: socket.id, name: socket.userName || '有人' });
+  });
+
   socket.on('ping-check', (cb) => { if (typeof cb === 'function') cb(); });
 
   socket.on('offer',         ({ to, offer })     => io.to(to).emit('offer',         { from: socket.id, offer }));

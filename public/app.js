@@ -787,27 +787,43 @@ function addFileBubble(filename, filesize, isMine, peerName, blob) {
   const wrap = document.createElement('div');
   wrap.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const dlBtnHtml = (!isMine && blob) ? `
-      <button class="file-redownload-btn" title="重新下載">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      </button>` : '';
-  wrap.innerHTML = `
-    ${!isMine ? `<div class="chat-sender">${esc(peerName || 'Unknown')}</div>` : ''}
-    <div class="file-bubble ${isMine ? 'mine' : 'theirs'}">
-      <div class="file-bubble-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+  const isImage = blob && (blob.type?.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(filename));
+
+  if (isImage) {
+    const url = URL.createObjectURL(blob);
+    wrap.innerHTML = `
+      ${!isMine ? `<div class="chat-sender">${esc(peerName || 'Unknown')}</div>` : ''}
+      <div class="chat-image-wrap ${isMine ? 'mine' : ''}">
+        <img class="chat-img-preview" src="${url}" alt="${esc(filename)}" loading="lazy" title="${esc(filename)}">
+        <div class="chat-img-meta">${esc(filename)} · ${fmtBytes(filesize)}</div>
+        ${!isMine ? `<button class="chat-img-dl" title="下載"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>` : ''}
       </div>
-      <div class="file-bubble-meta">
-        <div class="file-bubble-name">${esc(filename)}</div>
-        <div class="file-bubble-size">${fmtBytes(filesize)}</div>
-      </div>${dlBtnHtml}
-    </div>
-    <div class="chat-time">${time}</div>`;
-  if (!isMine && blob) {
-    wrap.querySelector('.file-redownload-btn').addEventListener('click', e => {
-      e.stopPropagation();
-      triggerDownload(blob, filename);
-    });
+      <div class="chat-time">${time}</div>`;
+    wrap.querySelector('.chat-img-preview').addEventListener('click', () => window.open(url, '_blank'));
+    if (!isMine) wrap.querySelector('.chat-img-dl')?.addEventListener('click', e => { e.stopPropagation(); triggerDownload(blob, filename); });
+  } else {
+    const dlBtnHtml = (!isMine && blob) ? `
+        <button class="file-redownload-btn" title="重新下載">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>` : '';
+    wrap.innerHTML = `
+      ${!isMine ? `<div class="chat-sender">${esc(peerName || 'Unknown')}</div>` : ''}
+      <div class="file-bubble ${isMine ? 'mine' : 'theirs'}">
+        <div class="file-bubble-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="file-bubble-meta">
+          <div class="file-bubble-name">${esc(filename)}</div>
+          <div class="file-bubble-size">${fmtBytes(filesize)}</div>
+        </div>${dlBtnHtml}
+      </div>
+      <div class="chat-time">${time}</div>`;
+    if (!isMine && blob) {
+      wrap.querySelector('.file-redownload-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        triggerDownload(blob, filename);
+      });
+    }
   }
   chatEl.appendChild(wrap);
   chatEl.scrollTop = chatEl.scrollHeight;
@@ -843,6 +859,7 @@ socket.on('room-joined', ({ peers: existing, roomSettings: rs }) => {
   clearTimeout(_reservedRetryTimer);
   existing.forEach(({ id, name, role, avatar }) => addPeer(id, name, true, role, avatar));
   if (rs) applyRoomSettings(rs);
+  requestNotificationPermission();
 });
 socket.on('room-settings', applyRoomSettings);
 socket.on('peer-joined', ({ id, name, role, avatar }) => addPeer(id, name, false, role, avatar));
@@ -1070,7 +1087,9 @@ socket.on('ice-candidate', ({ from, candidate }) => {
 // Socket relay receive
 socket.on('relay-msg', ({ from, text }) => {
   const peer = peers.get(from);
-  if (peer) addChatMsg(peer.name, text, false);
+  if (!peer) return;
+  addChatMsg(peer.name, text, false);
+  notifyIfHidden(peer.name, text);
 });
 socket.on('relay-error', ({ error }) => toast(error, 'error'));
 socket.on('relay-file-start', ({ from, meta }) => {
@@ -1096,6 +1115,7 @@ socket.on('relay-file-end', ({ from, fileId, name }) => {
   const blob = download(r);
   addFileBubble(r.name, r.size, false, peer.name, blob);
   toast(`Received: ${r.name}`, 'success');
+  notifyIfHidden(peer.name, `📎 ${r.name}`);
   peer.receiving = null;
   setProgress(peer, null);
   txEnd();
@@ -1204,12 +1224,16 @@ function handleDCControl(msg, peerId) {
       const blob = download(r);
       addFileBubble(r.name, r.size, false, peer.name, blob);
       toast(`Received: ${r.name}`, 'success');
+      notifyIfHidden(peer.name, `📎 ${r.name}`);
       peer.receiving = null;
       setProgress(peer, null);
       txEnd();
     }
   } else if (msg.type === 'message') {
     addChatMsg(peer.name, msg.text, false);
+    notifyIfHidden(peer.name, msg.text);
+  } else if (msg.type === 'typing') {
+    handlePeerTyping(peerId, peer.name);
   }
 }
 function handleDCChunk(data, peerId) {
@@ -1261,6 +1285,65 @@ function doSendMessage() {
 sendBtn.addEventListener('click', doSendMessage);
 messageInputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSendMessage(); } });
 
+// Typing indicator — emit to room (throttled)
+let _typingThrottle = 0;
+messageInputEl.addEventListener('input', () => {
+  const now = Date.now();
+  if (now - _typingThrottle < 1400) return;
+  _typingThrottle = now;
+  socket.emit('typing');
+  // Also broadcast via DC for P2P peers
+  peers.forEach((peer, id) => {
+    if (dcReady(id)) peer.dc.send(JSON.stringify({ type: 'typing' }));
+  });
+});
+
+// Paste image from clipboard
+document.addEventListener('paste', e => {
+  const active = document.activeElement;
+  if (active && active !== messageInputEl && active.tagName === 'INPUT' || active?.tagName === 'TEXTAREA') return;
+  const items = Array.from(e.clipboardData?.items || []);
+  const imageItem = items.find(i => i.kind === 'file' && i.type.startsWith('image/'));
+  if (!imageItem) return;
+  const file = imageItem.getAsFile();
+  if (!file) return;
+  e.preventDefault();
+  handleFiles([file]);
+  toast('📋 圖片已貼上，準備傳送', 'info');
+});
+
+// ===== Typing Indicator =====
+const typingIndicatorEl = document.getElementById('typing-indicator');
+const _typingPeers = new Map(); // id → { name, timer }
+
+function handlePeerTyping(peerId, name) {
+  if (_typingPeers.has(peerId)) clearTimeout(_typingPeers.get(peerId).timer);
+  const timer = setTimeout(() => { _typingPeers.delete(peerId); renderTyping(); }, 2500);
+  _typingPeers.set(peerId, { name: name || '有人', timer });
+  renderTyping();
+}
+
+function renderTyping() {
+  if (!typingIndicatorEl) return;
+  if (_typingPeers.size === 0) { typingIndicatorEl.innerHTML = ''; return; }
+  const names = [..._typingPeers.values()].map(v => v.name);
+  const label = names.length === 1 ? `${names[0]} 正在輸入` : `${names.slice(0, 2).join('、')} 正在輸入`;
+  typingIndicatorEl.innerHTML = `<span class="typing-dots"><span></span><span></span><span></span></span><span class="typing-label">${escHtml(label)}…</span>`;
+}
+
+socket.on('peer-typing', ({ id, name }) => handlePeerTyping(id, name));
+
+// ===== Browser Notifications =====
+function notifyIfHidden(title, body) {
+  if (!document.hidden) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try { new Notification(title, { body, icon: '/icon-192.svg', silent: false }); } catch {}
+}
+// Request notification permission when joining a room (non-intrusively)
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+
 async function sendFileToPeer(peerId, file) {
   if (dcReady(peerId)) await sendFileViaDC(peerId, file);
   else await sendFileViaRelay(peerId, file);
@@ -1283,7 +1366,7 @@ async function sendFileViaDC(peerId, file) {
   peer.dc.send(JSON.stringify({ type: 'file-end', fileId }));
   setProgress(peer, null);
   txEnd();
-  addFileBubble(file.name, file.size, true, peer.name, null);
+  addFileBubble(file.name, file.size, true, peer.name, file);
   toast(`Sent: ${file.name}`, 'success');
 }
 
@@ -1304,7 +1387,7 @@ async function sendFileViaRelay(peerId, file) {
   socket.emit('relay-file-end', { to: peerId, fileId, name: file.name });
   setProgress(peer, null);
   txEnd();
-  addFileBubble(file.name, file.size, true, peer.name, null);
+  addFileBubble(file.name, file.size, true, peer.name, file);
   toast(`Sent: ${file.name}`, 'success');
 }
 

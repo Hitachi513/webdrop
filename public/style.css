@@ -1306,6 +1306,72 @@ header {
 }
 .file-redownload-btn:hover { background: var(--primary-dim); border-color: var(--primary); }
 
+/* ===== Image inline preview ===== */
+.chat-image-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 260px;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+}
+.chat-image-wrap.mine { border-color: var(--chat-mine-bd); }
+.chat-img-preview {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 13px 13px 0 0;
+  transition: filter .2s;
+}
+.chat-image-wrap:hover .chat-img-preview { filter: brightness(.88); }
+.chat-img-meta {
+  padding: 4px 10px 5px;
+  font-size: .68rem;
+  color: var(--text-muted);
+  background: var(--chat-their-bg);
+}
+.chat-image-wrap.mine .chat-img-meta { background: var(--chat-mine-bg); }
+.chat-img-dl {
+  position: absolute;
+  bottom: 30px; right: 6px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,.5);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.chat-image-wrap:hover .chat-img-dl { opacity: 1; }
+
+/* ===== Typing indicator ===== */
+#typing-indicator {
+  min-height: 22px;
+  padding: 0 14px 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .75rem;
+  color: var(--text-muted);
+}
+.typing-dots { display: flex; align-items: center; gap: 3px; }
+.typing-dots span {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: inline-block;
+  animation: typingBounce .9s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: .15s; }
+.typing-dots span:nth-child(3) { animation-delay: .30s; }
+@keyframes typingBounce { 0%,80%,100%{transform:translateY(0);opacity:.5} 40%{transform:translateY(-4px);opacity:1} }
+.typing-label { font-style: italic; }
+
 /* ===========================
    Input Bar
    =========================== */

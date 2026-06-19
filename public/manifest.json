@@ -1,0 +1,13 @@
+{
+  "name": "WebDrop",
+  "short_name": "WebDrop",
+  "description": "P2P file sharing and messaging",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07071a",
+  "theme_color": "#00d4ff",
+  "icons": [
+    { "src": "/icon-192.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

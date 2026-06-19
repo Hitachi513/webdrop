@@ -1251,11 +1251,12 @@ io.on('connection', (socket) => {
     if (!roomId) return;
     const room = rooms.get(roomId);
     if (!room) return;
+    const host = isRoomHost(socket, roomId);
     const toKick = [];
     for (const [peerId] of room) {
       if (peerId === socket.id) continue;
       const peerInfo = room.get(peerId);
-      if (peerInfo?.role === 'admin') continue;
+      if (!host && peerInfo?.role === 'admin') continue; // non-host admin cannot clear other admins
       toKick.push(peerId);
     }
     toKick.forEach(peerId => {

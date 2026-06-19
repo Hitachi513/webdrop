@@ -32,7 +32,10 @@ function showDashboard(admin) {
   document.getElementById('login-screen').style.display  = 'none';
   document.getElementById('dashboard').style.display     = 'flex';
   document.getElementById('user-email').textContent      = admin.email;
-  document.getElementById('user-initial').textContent    = admin.email[0].toUpperCase();
+  const displayName = admin.name || admin.email.split('@')[0];
+  const dispEl = document.getElementById('user-display-name');
+  if (dispEl) dispEl.textContent = displayName;
+  document.getElementById('user-initial').textContent    = (admin.name || admin.email)[0].toUpperCase();
   connectAdminSocket();
   setTimeout(initMap, 200);
 }
@@ -53,7 +56,7 @@ if (token) {
     // Token valid — get admin info from token payload
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      showDashboard({ email: payload.email, role: payload.role, id: payload.id });
+      showDashboard({ email: payload.email, role: payload.role, id: payload.id, name: payload.name || null });
     } catch { logout(); }
   }).catch(logout);
 }
@@ -967,6 +970,70 @@ async function saveEditPromo() {
 
 document.getElementById('edit-promo-overlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('edit-promo-overlay')) closeEditPromo();
+});
+
+// ===== Global Broadcast =====
+document.getElementById('send-broadcast-btn')?.addEventListener('click', async () => {
+  const msg = document.getElementById('broadcast-text')?.value.trim();
+  const statusEl = document.getElementById('broadcast-status');
+  if (!msg) { if (statusEl) { statusEl.textContent = '請輸入訊息'; statusEl.style.color = 'var(--danger)'; } return; }
+  const btn = document.getElementById('send-broadcast-btn');
+  btn.disabled = true;
+  try {
+    await api('POST', '/admin/api/broadcast', { message: msg });
+    document.getElementById('broadcast-text').value = '';
+    if (statusEl) { statusEl.textContent = `✓ 廣播已發送 — ${new Date().toLocaleTimeString()}`; statusEl.style.color = 'var(--success, #10b981)'; }
+    toast('廣播已發送', 'success');
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = e.message; statusEl.style.color = 'var(--danger)'; }
+    toast(e.message, 'error');
+  } finally { btn.disabled = false; }
+});
+document.getElementById('broadcast-text')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) document.getElementById('send-broadcast-btn')?.click();
+});
+
+// ===== Profile Modal =====
+document.getElementById('open-profile-btn')?.addEventListener('click', openProfileModal);
+
+function openProfileModal() {
+  const name = currentAdmin?.name || '';
+  document.getElementById('profile-name').value = name;
+  document.getElementById('profile-password').value = '';
+  document.getElementById('profile-error').textContent = '';
+  document.getElementById('profile-modal-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('profile-name')?.focus(), 50);
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal-overlay').style.display = 'none';
+}
+
+async function saveProfile() {
+  const name = document.getElementById('profile-name').value.trim();
+  const password = document.getElementById('profile-password').value;
+  const errEl = document.getElementById('profile-error');
+  const btn = document.getElementById('profile-save-btn');
+  errEl.textContent = '';
+  if (!name && !password) { errEl.textContent = '請輸入名稱或新密碼'; return; }
+  btn.disabled = true;
+  try {
+    const res = await api('PUT', '/admin/api/admins/me', { name: name || undefined, password: password || undefined });
+    if (currentAdmin) {
+      currentAdmin.name = name || currentAdmin.name;
+      const dispEl = document.getElementById('user-display-name');
+      if (dispEl) dispEl.textContent = currentAdmin.name || currentAdmin.email.split('@')[0];
+      const initEl = document.getElementById('user-initial');
+      if (initEl) initEl.textContent = (currentAdmin.name || currentAdmin.email)[0].toUpperCase();
+    }
+    closeProfileModal();
+    toast('個人資料已更新', 'success');
+  } catch (e) { errEl.textContent = e.message; }
+  finally { btn.disabled = false; }
+}
+
+document.getElementById('profile-modal-overlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('profile-modal-overlay')) closeProfileModal();
 });
 
 // ===== Utils =====

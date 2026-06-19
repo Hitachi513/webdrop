@@ -596,8 +596,8 @@ app.post('/admin/api/login', async (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
     const valid = await bcrypt.compare(password, admin.passwordHash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role } });
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role, name: admin.name || null }, JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role, name: admin.name || null } });
   } catch (e) { console.error('Admin login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
 
@@ -688,6 +688,32 @@ app.post('/admin/api/admins', requireAdmin, requireSuperAdmin, async (req, res) 
   const { passwordHash, ...safe } = newAdmin;
   adminNsp.emit('admins', admins.map(({ passwordHash: h, ...a }) => a));
   res.status(201).json(safe);
+});
+
+// Update own admin profile (name + optional password)
+app.put('/admin/api/admins/me', requireAdmin, async (req, res) => {
+  const admin = admins.find(a => a.id === req.adminUser.id);
+  if (!admin) return res.status(404).json({ error: 'Admin not found' });
+  const { name, password } = req.body || {};
+  if (name !== undefined) admin.name = String(name).trim().slice(0, 30) || admin.name;
+  if (password) {
+    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    admin.passwordHash = await bcrypt.hash(password, 10);
+  }
+  saveAdmins().catch(e => console.error('saveAdmins error:', e.message));
+  adminNsp.emit('admins', admins.map(({ passwordHash, ...a }) => a));
+  res.json({ ok: true, name: admin.name || null });
+});
+
+// Admin panel global broadcast
+app.post('/admin/api/broadcast', requireAdmin, (req, res) => {
+  const { message } = req.body || {};
+  const msg = String(message || '').trim().slice(0, 500);
+  if (!msg) return res.status(400).json({ error: 'Message required' });
+  const admin = admins.find(a => a.id === req.adminUser.id);
+  const sender = admin?.name || admin?.email || '系統管理員';
+  io.emit('server-broadcast', { message: msg, sender, at: Date.now() });
+  res.json({ ok: true });
 });
 
 app.delete('/admin/api/admins/:id', requireAdmin, requireSuperAdmin, (req, res) => {

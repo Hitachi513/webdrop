@@ -78,9 +78,10 @@ let feedback = [];
 async function saveFeedback() { await dbSet('feedback', feedback); }
 const feedbackRateLimit = new Map(); // ip → last submit timestamp
 
-let broadcastHistory = []; // in-memory only, max 200
+let broadcastHistory = []; // persisted, max 200
 let roomHistory = [];      // persisted, max 1000
-async function saveRoomHistory() { await dbSet('room-history', roomHistory); }
+async function saveBroadcastHistory() { await dbSet('broadcast-history', broadcastHistory); }
+async function saveRoomHistory()      { await dbSet('room-history',       roomHistory); }
 
 const defaultSettings = {
   maxPeersPerRoom: 10,
@@ -720,6 +721,7 @@ app.post('/admin/api/broadcast', requireAdmin, (req, res) => {
   io.emit('server-broadcast', { message: msg, sender, at: Date.now() });
   broadcastHistory.unshift({ message: msg, sender, sentAt: Date.now(), recipientCount, source: 'admin-panel' });
   if (broadcastHistory.length > 200) broadcastHistory.length = 200;
+  saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
   adminNsp.emit('broadcast-history', broadcastHistory);
   res.json({ ok: true });
 });
@@ -899,6 +901,7 @@ app.delete('/admin/api/feedback', requireAdmin, (req, res) => {
 app.get('/admin/api/broadcast-history', requireAdmin, (req, res) => { res.json(broadcastHistory); });
 app.delete('/admin/api/broadcast-history', requireAdmin, (req, res) => {
   broadcastHistory.length = 0;
+  saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
   adminNsp.emit('broadcast-history', []);
   res.json({ ok: true });
 });
@@ -1266,6 +1269,7 @@ io.on('connection', (socket) => {
     io.emit('server-broadcast', { message: msg, sender: senderName, at: Date.now() });
     broadcastHistory.unshift({ message: msg, sender: senderName, sentAt: Date.now(), recipientCount, source: 'in-app' });
     if (broadcastHistory.length > 200) broadcastHistory.length = 200;
+    saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
     adminNsp.emit('broadcast-history', broadcastHistory);
   });
 
@@ -1539,6 +1543,10 @@ async function init() {
   const rawFeedback = await dbGet('feedback');
   feedback = Array.isArray(rawFeedback) ? rawFeedback : [];
   console.log(`[Init] Loaded ${feedback.length} feedback(s) from storage.`);
+
+  const rawBroadcastHistory = await dbGet('broadcast-history');
+  broadcastHistory = Array.isArray(rawBroadcastHistory) ? rawBroadcastHistory : [];
+  console.log(`[Init] Loaded ${broadcastHistory.length} broadcast history entries from storage.`);
 
   const rawRoomHistory = await dbGet('room-history');
   roomHistory = Array.isArray(rawRoomHistory) ? rawRoomHistory : [];

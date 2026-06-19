@@ -305,6 +305,18 @@
               允許用戶自訂房號
             </label>
           </div>
+          <div class="field">
+            <label>授予角色 <small>(可選)</small></label>
+            <select id="new-promo-grant-role">
+              <option value="">不授予角色</option>
+              <option value="vip">💎 VIP</option>
+              <option value="business">💼 Business</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>角色有效天數 <small>(0 = 永久)</small></label>
+            <input type="number" id="new-promo-role-days" min="0" placeholder="30">
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn-ghost" id="cancel-add-promo">Cancel</button>
@@ -319,6 +331,7 @@
               <th>Code</th>
               <th>Description</th>
               <th>File Limit</th>
+              <th>授予角色</th>
               <th>Room ID</th>
               <th>自訂房號</th>
               <th>Usage</th>
@@ -328,7 +341,7 @@
             </tr>
           </thead>
           <tbody id="promos-tbody">
-            <tr><td colspan="8" class="empty-row">No promo codes</td></tr>
+            <tr><td colspan="10" class="empty-row">No promo codes</td></tr>
           </tbody>
         </table>
       </div>

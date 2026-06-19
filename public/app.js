@@ -482,8 +482,13 @@ async function redeemCode(inputEl, errorEl, onSuccess) {
       document.getElementById('dropdown-limit-val').textContent = mb >= 999999 ? '∞ Unlimited' : mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
       if (data.customRoomId) { currentUser.customRoomId = data.customRoomId; applyCustomRoom(data.customRoomId); }
       if (data.canCustomRoom) { currentUser.canCustomRoom = true; setEditRoomBtnVisible(true); }
+      if (data.role && data.role !== currentUser.role) {
+        currentUser.role = data.role;
+        applyRoleStyle(data.role);
+      }
     }
-    toast(`Code redeemed! File limit: ${mb} MB`, 'success');
+    const roleMsg = data.promo?.grantRole ? `，角色已升級為 ${data.promo.grantRole}` : '';
+    toast(`序號兌換成功！檔案限制：${mb} MB${roleMsg}`, 'success');
     inputEl.value = '';
     if (data.canCustomRoom && !data.customRoomId) {
       onSuccess();

@@ -626,10 +626,20 @@ function renderUsersTable() {
          <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`
       : `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>`;
     const ROLE_COLORS = { admin: '#f59e0b', vip: '#a855f7', business: '#10b981' };
-    const roleDisplay = u.role
-      ? `<span style="display:inline-block;padding:1px 8px;border-radius:12px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[u.role] || '#6b7280'}22;color:${ROLE_COLORS[u.role] || '#6b7280'};border:1px solid ${ROLE_COLORS[u.role] || '#6b7280'}55">${esc(u.role)}</span>
+    const permRoleBadge = u.role
+      ? `<span style="display:inline-block;padding:1px 8px;border-radius:12px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[u.role] || '#6b7280'}22;color:${ROLE_COLORS[u.role] || '#6b7280'};border:1px solid ${ROLE_COLORS[u.role] || '#6b7280'}55">${esc(u.role)}</span>`
+      : '';
+    const promoRoleBadge = u.promoRole
+      ? (() => {
+          const expired = u.promoRoleExpiresAt && new Date(u.promoRoleExpiresAt) < new Date();
+          const expiresStr = u.promoRoleExpiresAt ? new Date(u.promoRoleExpiresAt).toLocaleDateString() : '永久';
+          return `<span style="display:inline-block;margin-left:2px;padding:1px 8px;border-radius:12px;font-size:.70rem;font-weight:700;background:${ROLE_COLORS[u.promoRole] || '#6b7280'}15;color:${expired ? '#9ca3af' : (ROLE_COLORS[u.promoRole] || '#6b7280')};border:1px dashed ${ROLE_COLORS[u.promoRole] || '#6b7280'}66" title="臨時角色：${expired ? '已過期' : expiresStr}">📋${esc(u.promoRole)}</span>`;
+        })()
+      : '';
+    const roleDisplay = (u.role || u.promoRole)
+      ? `${permRoleBadge}${promoRoleBadge}
          <button class="btn-sm" style="margin-left:2px" onclick="setUserRole('${u.id}','${esc(u.email)}','${esc(u.role || '')}')">✎</button>
-         <button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>`
+         ${u.role ? `<button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>` : ''}`
       : `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>`;
     const lastSeenDisplay = u.lastSeenAt
       ? `<span title="${new Date(u.lastSeenAt).toLocaleString()}">${timeAgo(new Date(u.lastSeenAt).getTime())}</span>`
@@ -759,11 +769,16 @@ function renderPromos(promos) {
     const expired = p.expiresAt && new Date(p.expiresAt) < new Date();
     const roomLabel = p.customRoomId ? `<code style="color:var(--primary);font-size:.8rem">${esc(p.customRoomId)}</code>` : '<span style="color:var(--muted)">—</span>';
     const canCustomLabel = p.canCustomRoom ? '<span style="color:var(--success);font-size:.85rem">✓ 可自訂</span>' : '<span style="color:var(--muted)">—</span>';
+    const ROLE_COLORS = { vip: '#a855f7', business: '#10b981' };
+    const roleLabel = p.grantRole
+      ? `<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[p.grantRole]}22;color:${ROLE_COLORS[p.grantRole]};border:1px solid ${ROLE_COLORS[p.grantRole]}55">${p.grantRole}</span>${p.roleDurationDays ? `<br><small style="color:var(--muted)">${p.roleDurationDays}天</small>` : '<br><small style="color:var(--muted)">永久</small>'}`
+      : '<span style="color:var(--muted)">—</span>';
     return `
     <tr>
       <td><code style="font-weight:700;letter-spacing:1px">${esc(p.code)}</code></td>
       <td style="color:var(--muted)">${esc(p.description || '—')}</td>
       <td><strong style="color:var(--primary)">${mbLabel}</strong></td>
+      <td>${roleLabel}</td>
       <td>${roomLabel}</td>
       <td>${canCustomLabel}</td>
       <td>${usageLabel}</td>
@@ -795,9 +810,11 @@ document.getElementById('submit-add-promo').addEventListener('click', async () =
   const expiresAt   = document.getElementById('new-promo-expires').value || null;
   const customRoomId = document.getElementById('new-promo-room').value.trim().toUpperCase() || null;
   const canCustomRoom = document.getElementById('new-promo-can-custom-room').checked;
+  const grantRole = document.getElementById('new-promo-grant-role').value || null;
+  const roleDurationDays = parseInt(document.getElementById('new-promo-role-days').value) || null;
   if (!code || !maxFileSizeMB) { toast('Code and file limit required', 'error'); return; }
   try {
-    await api('POST', '/admin/api/promos', { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId, canCustomRoom });
+    await api('POST', '/admin/api/promos', { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId, canCustomRoom, grantRole, roleDurationDays });
     toast('Promo code created', 'success');
     document.getElementById('new-promo-code').value = '';
     document.getElementById('new-promo-desc').value = '';
@@ -806,6 +823,8 @@ document.getElementById('submit-add-promo').addEventListener('click', async () =
     document.getElementById('new-promo-expires').value = '';
     document.getElementById('new-promo-room').value = '';
     document.getElementById('new-promo-can-custom-room').checked = false;
+    document.getElementById('new-promo-grant-role').value = '';
+    document.getElementById('new-promo-role-days').value = '';
     document.getElementById('add-promo-form').style.display = 'none';
     document.getElementById('open-add-promo').style.display = 'block';
   } catch (e) { toast(e.message, 'error'); }

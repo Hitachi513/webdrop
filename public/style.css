@@ -1372,6 +1372,9 @@ header {
 
   /* Notifications float just above tab bar */
   #notifications { bottom: calc(var(--tab-h) + var(--safe-bottom) + 8px); }
+
+  /* Mod toolbar — push above input bar (~62px) + tab bar to avoid blocking send button */
+  #mod-toolbar { bottom: calc(var(--tab-h) + var(--safe-bottom) + 72px); right: 10px; }
 }
 
 .tab-btn {

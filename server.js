@@ -759,6 +759,7 @@ app.post('/admin/api/rooms/:roomId/kick', requireAdmin, (req, res) => {
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
   const room = rooms.get(roomId);
   if (!room || !room.has(socketId)) return res.status(404).json({ error: 'Peer not in room' });
+  if (room.get(socketId)?.role === 'admin') return res.status(403).json({ error: 'Cannot kick an admin' });
   room.delete(socketId);
   const targetSocket = io.sockets.sockets.get(socketId);
   if (targetSocket) {
@@ -777,6 +778,7 @@ app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
   const room = rooms.get(roomId);
   if (!room || !room.has(socketId)) return res.status(404).json({ error: 'Peer not in room' });
+  if (room.get(socketId)?.role === 'admin') return res.status(403).json({ error: 'Cannot ban an admin' });
   room.delete(socketId);
   if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
   const bans = roomBans.get(roomId);
@@ -1195,7 +1197,8 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
     const targetRole = room.get(peerId)?.role;
-    if (socket.userRole === 'business' && ['admin', 'business'].includes(targetRole)) return;
+    if (targetRole === 'admin') return; // nobody can kick an admin
+    if (socket.userRole === 'business' && targetRole === 'business') return;
     room.delete(peerId);
     const targetSocket = io.sockets.sockets.get(peerId);
     if (targetSocket) {
@@ -1214,7 +1217,8 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (!room || !room.has(peerId)) return;
     const targetRole = room.get(peerId)?.role;
-    if (socket.userRole === 'business' && ['admin', 'business'].includes(targetRole)) return;
+    if (targetRole === 'admin') return; // nobody can ban an admin
+    if (socket.userRole === 'business' && targetRole === 'business') return;
     room.delete(peerId);
     if (!roomBans.has(roomId)) roomBans.set(roomId, new Set());
     const bans = roomBans.get(roomId);

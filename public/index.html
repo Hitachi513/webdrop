@@ -313,6 +313,44 @@
 
   </div><!-- #main -->
 
+  <!-- ===== Onboarding Guide ===== -->
+  <div id="onboarding-overlay" style="display:none">
+    <div id="onboarding-card">
+      <div id="onboarding-steps">
+        <div class="ob-step active" data-step="1">
+          <div class="ob-icon">🚀</div>
+          <h2>歡迎使用 WebDrop</h2>
+          <p>快速、安全的點對點檔案傳輸與訊息傳遞，無需帳號即可使用。</p>
+        </div>
+        <div class="ob-step" data-step="2">
+          <div class="ob-icon">🔗</div>
+          <h2>建立或加入房間</h2>
+          <p>輸入房間名稱建立房間，或用連結 / QR Code 邀請對方加入同一房間。</p>
+        </div>
+        <div class="ob-step" data-step="3">
+          <div class="ob-icon">📂</div>
+          <h2>拖曳或選擇檔案</h2>
+          <p>拖曳檔案到畫面、點選紙夾按鈕，或直接 Ctrl+V 貼上圖片即可傳送。</p>
+        </div>
+        <div class="ob-step" data-step="4">
+          <div class="ob-icon">⌨️</div>
+          <h2>快捷鍵提示</h2>
+          <p><kbd>Esc</kbd> 關閉面板 &nbsp;·&nbsp; <kbd>/</kbd> 聚焦輸入框 &nbsp;·&nbsp; <kbd>Ctrl+V</kbd> 貼上圖片</p>
+        </div>
+      </div>
+      <div id="onboarding-dots">
+        <span class="ob-dot active" data-dot="1"></span>
+        <span class="ob-dot" data-dot="2"></span>
+        <span class="ob-dot" data-dot="3"></span>
+        <span class="ob-dot" data-dot="4"></span>
+      </div>
+      <div id="onboarding-actions">
+        <button id="ob-skip">跳過</button>
+        <button id="ob-next" class="ob-primary">下一步</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Feedback FAB -->
   <button id="feedback-fab" class="feedback-fab" title="意見回饋">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>

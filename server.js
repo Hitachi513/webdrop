@@ -83,6 +83,34 @@ let roomHistory = [];      // persisted, max 1000
 async function saveBroadcastHistory() { await dbSet('broadcast-history', broadcastHistory); }
 async function saveRoomHistory()      { await dbSet('room-history',       roomHistory); }
 
+let globalIpBans = []; // [{ ip, bannedAt, bannedBy, reason }]
+let webhooks     = []; // [{ id, url, events, enabled, createdAt }]
+let adminLog     = []; // [{ at, admin, action, detail }]  max 500
+async function saveGlobalIpBans() { await dbSet('global-ip-bans', globalIpBans); }
+async function saveWebhooks()     { await dbSet('webhooks',       webhooks); }
+async function saveAdminLog()     { await dbSet('admin-log',      adminLog); }
+
+function logAdminAction(adminEmail, action, detail = '') {
+  adminLog.unshift({ at: Date.now(), admin: adminEmail, action, detail });
+  if (adminLog.length > 500) adminLog.length = 500;
+  saveAdminLog().catch(() => {});
+  adminNsp.emit('admin-log', adminLog.slice(0, 200));
+}
+
+async function fireWebhook(event, data) {
+  const matching = webhooks.filter(w => w.enabled && (w.events.includes('*') || w.events.includes(event)));
+  if (!matching.length) return;
+  const body = JSON.stringify({ event, at: Date.now(), ...data });
+  for (const wh of matching) {
+    fetch(wh.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WebDrop-Event': event },
+      body,
+      signal: AbortSignal.timeout(6000)
+    }).catch(() => {});
+  }
+}
+
 const defaultSettings = {
   maxPeersPerRoom: 10,
   maxFileSizeMB: 500, vipFileSizeMB: 2048, businessFileSizeMB: 5120, adminFileSizeMB: 999999,
@@ -727,6 +755,8 @@ app.post('/admin/api/broadcast', requireAdmin, (req, res) => {
   if (broadcastHistory.length > 200) broadcastHistory.length = 200;
   saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
   adminNsp.emit('broadcast-history', broadcastHistory);
+  logAdminAction(admins.find(a=>a.id===req.adminUser.id)?.email||req.adminUser.email, '發送廣播', msg.slice(0,80));
+  fireWebhook('broadcast', { message: msg, sender });
   res.json({ ok: true });
 });
 
@@ -754,6 +784,7 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, (req, res) => {
   roomBans.delete(roomId);
   roomSettings.delete(roomId);
   adminNsp.emit('rooms', getRoomList());
+  logAdminAction(admins.find(a=>a.id===req.adminUser.id)?.email||req.adminUser.email, '關閉房間', roomId);
   res.json({ ok: true });
 });
 
@@ -774,6 +805,7 @@ app.post('/admin/api/rooms/:roomId/kick', requireAdmin, (req, res) => {
     targetSocket.emit('kicked-from-room', { message: '你已被管理員踢出房間' });
   }
   io.to(roomId).emit('peer-left', socketId);
+  logAdminAction(admins.find(a=>a.id===req.adminUser.id)?.email||req.adminUser.email, '踢出成員', socketId);
   adminNsp.emit('rooms', getRoomList());
   res.json({ ok: true });
 });
@@ -800,6 +832,7 @@ app.post('/admin/api/rooms/:roomId/ban', requireAdmin, (req, res) => {
     targetSocket.emit('room-banned', { message: '你已被管理員永久封鎖於此房間' });
   }
   io.to(roomId).emit('peer-left', socketId);
+  logAdminAction(admins.find(a=>a.id===req.adminUser.id)?.email||req.adminUser.email, '封鎖成員', socketId);
   adminNsp.emit('rooms', getRoomList());
   res.json({ ok: true });
 });
@@ -907,6 +940,82 @@ app.delete('/admin/api/feedback', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ===== Global IP Bans =====
+app.get('/admin/api/ip-bans', requireAdmin, (req, res) => res.json(globalIpBans));
+app.post('/admin/api/ip-bans', requireAdmin, (req, res) => {
+  const { ip, reason } = req.body || {};
+  if (!ip || typeof ip !== 'string') return res.status(400).json({ error: 'IP required' });
+  const ipTrimmed = ip.trim();
+  if (globalIpBans.some(b => b.ip === ipTrimmed)) return res.status(409).json({ error: 'IP already banned' });
+  const adminEmail = admins.find(a => a.id === req.adminUser.id)?.email || req.adminUser.email;
+  const entry = { ip: ipTrimmed, bannedAt: new Date().toISOString(), bannedBy: adminEmail, reason: reason || '' };
+  globalIpBans.unshift(entry);
+  saveGlobalIpBans().catch(() => {});
+  // Disconnect any currently connected socket with this IP
+  io.sockets.sockets.forEach(s => {
+    const sIp = (s.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || s.handshake.address;
+    if (sIp === ipTrimmed) { s.emit('account-banned', { reason: '你的 IP 已被全域封鎖' }); s.disconnect(true); }
+  });
+  logAdminAction(adminEmail, '新增全域IP封鎖', ipTrimmed);
+  adminNsp.emit('global-ip-bans', globalIpBans);
+  res.json({ ok: true, entry });
+});
+app.delete('/admin/api/ip-bans/:ip', requireAdmin, (req, res) => {
+  const ip = decodeURIComponent(req.params.ip);
+  const idx = globalIpBans.findIndex(b => b.ip === ip);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  globalIpBans.splice(idx, 1);
+  saveGlobalIpBans().catch(() => {});
+  const adminEmail = admins.find(a => a.id === req.adminUser.id)?.email || req.adminUser.email;
+  logAdminAction(adminEmail, '移除全域IP封鎖', ip);
+  adminNsp.emit('global-ip-bans', globalIpBans);
+  res.json({ ok: true });
+});
+
+// ===== Admin Log =====
+app.get('/admin/api/admin-log', requireAdmin, (req, res) => res.json(adminLog));
+app.delete('/admin/api/admin-log', requireAdmin, requireSuperAdmin, (req, res) => {
+  adminLog = [];
+  saveAdminLog().catch(() => {});
+  adminNsp.emit('admin-log', adminLog);
+  res.json({ ok: true });
+});
+
+// ===== Webhooks =====
+app.get('/admin/api/webhooks', requireAdmin, (req, res) => res.json(webhooks));
+app.post('/admin/api/webhooks', requireAdmin, (req, res) => {
+  const { url, events } = req.body || {};
+  if (!url || typeof url !== 'string' || !url.startsWith('http')) return res.status(400).json({ error: 'Valid URL required' });
+  const evList = Array.isArray(events) ? events : ['*'];
+  const entry = { id: crypto.randomUUID(), url: url.trim(), events: evList, enabled: true, createdAt: new Date().toISOString() };
+  webhooks.push(entry);
+  saveWebhooks().catch(() => {});
+  const adminEmail = admins.find(a => a.id === req.adminUser.id)?.email || req.adminUser.email;
+  logAdminAction(adminEmail, '新增Webhook', url.trim());
+  adminNsp.emit('webhooks', webhooks);
+  res.json({ ok: true, entry });
+});
+app.put('/admin/api/webhooks/:id', requireAdmin, (req, res) => {
+  const wh = webhooks.find(w => w.id === req.params.id);
+  if (!wh) return res.status(404).json({ error: 'Not found' });
+  if (typeof req.body.enabled === 'boolean') wh.enabled = req.body.enabled;
+  if (req.body.events) wh.events = Array.isArray(req.body.events) ? req.body.events : wh.events;
+  saveWebhooks().catch(() => {});
+  adminNsp.emit('webhooks', webhooks);
+  res.json({ ok: true });
+});
+app.delete('/admin/api/webhooks/:id', requireAdmin, (req, res) => {
+  const idx = webhooks.findIndex(w => w.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  const url = webhooks[idx].url;
+  webhooks.splice(idx, 1);
+  saveWebhooks().catch(() => {});
+  const adminEmail = admins.find(a => a.id === req.adminUser.id)?.email || req.adminUser.email;
+  logAdminAction(adminEmail, '刪除Webhook', url);
+  adminNsp.emit('webhooks', webhooks);
+  res.json({ ok: true });
+});
+
 // Broadcast history & Room history
 app.get('/admin/api/broadcast-history', requireAdmin, (req, res) => { res.json(broadcastHistory); });
 app.delete('/admin/api/broadcast-history', requireAdmin, (req, res) => {
@@ -951,6 +1060,9 @@ adminNsp.on('connection', (socket) => {
     socket.emit('feedback',          feedback);
     socket.emit('broadcast-history', broadcastHistory);
     socket.emit('room-history',      roomHistory.slice(0, 200));
+    socket.emit('global-ip-bans', globalIpBans);
+    socket.emit('webhooks',       webhooks);
+    socket.emit('admin-log',      adminLog.slice(0, 200));
   } catch (e) { console.error('Admin socket init error:', e.message); }
 
   const tick = setInterval(() => {
@@ -1037,6 +1149,11 @@ io.on('connection', (socket) => {
   if (publicUrl) socket.emit('tunnel-url', publicUrl);
   const clientIp = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
   geolocateIp(clientIp).then(geo => { socket.geo = geo; });
+  if (globalIpBans.some(b => b.ip === clientIp)) {
+    socket.emit('account-banned', { reason: '你的 IP 已被全域封鎖，無法使用本服務。' });
+    socket.disconnect(true);
+    return;
+  }
   if (socket.userId) {
     const connUser = users.find(u => u.id === socket.userId);
     if (connUser) {
@@ -1138,7 +1255,8 @@ io.on('connection', (socket) => {
       }
     }
 
-    if (!rooms.has(roomId)) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null }, hostSocketId: socket.id, hostUserId: socket.userId || null }); }
+    const roomIsNew = !rooms.has(roomId);
+    if (roomIsNew) { rooms.set(roomId, new Map()); roomsMeta.set(roomId, { createdAt: Date.now(), geo: socket.geo || null, filesTransferred: 0, peakPeers: 0, firstMember: { name, role: socket.userRole || null }, hostSocketId: socket.id, hostUserId: socket.userId || null }); }
     const room = rooms.get(roomId);
     const existingPeers = Array.from(room.entries()).map(([id, info]) => ({ id, name: info.name, role: info.role || null, avatar: info.avatar || null }));
     room.set(socket.id, { name, role: socket.userRole || null, avatar: socket.userAvatar || null });
@@ -1148,6 +1266,7 @@ io.on('connection', (socket) => {
     socket.currentRoom = roomId;
     socket.emit('room-joined', { roomId, peers: existingPeers, roomSettings: roomSettings.get(roomId) || null });
     socket.to(roomId).emit('peer-joined', { id: socket.id, name, role: socket.userRole || null, avatar: socket.userAvatar || null });
+    if (roomIsNew) fireWebhook('room-created', { roomId, name, role: socket.userRole || null });
     adminNsp.emit('rooms', getRoomList());
   });
 
@@ -1417,6 +1536,7 @@ io.on('connection', (socket) => {
       meta.filesTransferred = (meta.filesTransferred || 0) + 1;
     }
     io.to(to).emit('relay-file-end', { from: socket.id, fileId, name });
+    fireWebhook('file-received', { roomId: socket.currentRoom, fileName: name, fromId: socket.id });
     adminNsp.emit('stats', getStats());
   });
 
@@ -1608,6 +1728,18 @@ async function init() {
   const rawRoomHistory = await dbGet('room-history');
   roomHistory = Array.isArray(rawRoomHistory) ? rawRoomHistory : [];
   console.log(`[Init] Loaded ${roomHistory.length} room history entries from storage.`);
+
+  const rawGlobalIpBans = await dbGet('global-ip-bans');
+  globalIpBans = Array.isArray(rawGlobalIpBans) ? rawGlobalIpBans : [];
+  console.log(`[Init] Loaded ${globalIpBans.length} global IP ban(s).`);
+
+  const rawWebhooks = await dbGet('webhooks');
+  webhooks = Array.isArray(rawWebhooks) ? rawWebhooks : [];
+  console.log(`[Init] Loaded ${webhooks.length} webhook(s).`);
+
+  const rawAdminLog = await dbGet('admin-log');
+  adminLog = Array.isArray(rawAdminLog) ? rawAdminLog : [];
+  console.log(`[Init] Loaded ${rawAdminLog ? rawAdminLog.length : 0} admin log entries.`);
 
   const PORT = process.env.PORT || 3000;
   server.listen(PORT, () => {

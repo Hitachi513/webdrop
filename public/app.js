@@ -2056,3 +2056,69 @@ if (!window.RTCPeerConnection) {
   document.getElementById('app').innerHTML =
     '<div style="text-align:center;padding:80px 20px;color:#888"><h2>Browser not supported</h2><p>Please use a modern browser.</p></div>';
 }
+
+// ===== Service Worker =====
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// ===== Keyboard Shortcuts =====
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+  if (e.key === 'Escape') {
+    // Close panels/modals in priority order
+    const qrModal = document.getElementById('qr-modal');
+    const membersPanel = document.getElementById('members-panel');
+    const roomSettingsModal = document.getElementById('room-settings-modal');
+    const joinPendingOverlay = document.getElementById('join-pending-overlay');
+    if (joinPendingOverlay?.classList.contains('active')) return; // don't dismiss pending
+    if (roomSettingsModal && !roomSettingsModal.classList.contains('hidden')) { roomSettingsModal.classList.add('hidden'); return; }
+    if (membersPanel?.classList.contains('open')) { membersPanel.classList.remove('open'); document.getElementById('members-panel-overlay')?.classList.remove('show'); return; }
+    if (qrModal?.classList.contains('active')) { qrModal.classList.remove('active'); return; }
+    const speedCard = document.getElementById('speedtest-card');
+    if (speedCard?.classList.contains('open')) { speedCard.classList.remove('open'); return; }
+    return;
+  }
+
+  if (e.key === '/' && !inInput) {
+    e.preventDefault();
+    const msgInput = document.getElementById('message-input');
+    if (msgInput) { msgInput.focus(); switchTab?.('chat'); }
+    return;
+  }
+});
+
+// ===== Onboarding Guide =====
+(function initOnboarding() {
+  if (localStorage.getItem('wd-onboarded') === '1') return;
+  const overlay = document.getElementById('onboarding-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  let step = 1;
+  const TOTAL = 4;
+
+  function goStep(n) {
+    step = Math.max(1, Math.min(TOTAL, n));
+    overlay.querySelectorAll('.ob-step').forEach(el => el.classList.toggle('active', +el.dataset.step === step));
+    overlay.querySelectorAll('.ob-dot').forEach(el => el.classList.toggle('active', +el.dataset.dot === step));
+    const nextBtn = document.getElementById('ob-next');
+    if (nextBtn) nextBtn.textContent = step === TOTAL ? '開始使用 🎉' : '下一步';
+  }
+
+  document.getElementById('ob-next')?.addEventListener('click', () => {
+    if (step === TOTAL) dismiss();
+    else goStep(step + 1);
+  });
+  document.getElementById('ob-skip')?.addEventListener('click', dismiss);
+  overlay.querySelectorAll('.ob-dot').forEach(el => el.addEventListener('click', () => goStep(+el.dataset.dot)));
+
+  function dismiss() {
+    overlay.style.display = 'none';
+    localStorage.setItem('wd-onboarded', '1');
+  }
+  goStep(1);
+})();

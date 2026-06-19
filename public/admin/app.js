@@ -124,6 +124,9 @@ function connectAdminSocket() {
   adminSocket.on('feedback',          renderFeedback);
   adminSocket.on('broadcast-history', renderBroadcastHistory);
   adminSocket.on('room-history',      renderRoomHistory);
+  adminSocket.on('global-ip-bans', renderIpBans);
+  adminSocket.on('webhooks',       renderWebhooks);
+  adminSocket.on('admin-log',      renderAdminLog);
 }
 
 // ===== Map =====
@@ -177,7 +180,7 @@ function updateMapMarkers(locs) {
 }
 
 // ===== Navigation =====
-const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', history: '歷史記錄', health: 'System Health', settings: 'Settings' };
+const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', history: '歷史記錄', 'ip-bans': 'IP 封鎖', webhooks: 'Webhooks', 'admin-log': '操作日誌', health: 'System Health', settings: 'Settings' };
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -1168,3 +1171,112 @@ function timeAgo(ms) {
   if (s < 3600) return `${Math.floor(s/60)}m ago`;
   return `${Math.floor(s/3600)}h ago`;
 }
+
+// ===== IP Bans =====
+function renderIpBans(list) {
+  const tbody = document.getElementById('ip-bans-tbody');
+  if (!tbody) return;
+  if (!list?.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-row">尚無封鎖紀錄</td></tr>'; return; }
+  tbody.innerHTML = list.map(b => `
+    <tr>
+      <td><code>${esc(b.ip)}</code></td>
+      <td style="font-size:.82rem">${esc(b.reason || '—')}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${b.bannedAt ? new Date(b.bannedAt).toLocaleString() : '—'}</td>
+      <td style="font-size:.78rem">${esc(b.bannedBy || '—')}</td>
+      <td><button class="btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="removeIpBan('${esc(b.ip)}')">解除</button></td>
+    </tr>`).join('');
+}
+async function addIpBan() {
+  const ip = document.getElementById('new-ban-ip')?.value.trim();
+  const reason = document.getElementById('new-ban-reason')?.value.trim();
+  if (!ip) { toast('請輸入 IP', 'error'); return; }
+  try {
+    await api('POST', '/admin/api/ip-bans', { ip, reason });
+    document.getElementById('new-ban-ip').value = '';
+    document.getElementById('new-ban-reason').value = '';
+    toast(`已封鎖 ${ip}`, 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+async function removeIpBan(ip) {
+  if (!confirm(`解除封鎖 ${ip}？`)) return;
+  try {
+    await api('DELETE', `/admin/api/ip-bans/${encodeURIComponent(ip)}`);
+    toast('已解除封鎖', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ===== Webhooks =====
+function renderWebhooks(list) {
+  const tbody = document.getElementById('webhooks-tbody');
+  if (!tbody) return;
+  if (!list?.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-row">尚無 Webhook</td></tr>'; return; }
+  tbody.innerHTML = list.map(w => `
+    <tr>
+      <td style="font-size:.8rem;max-width:240px;overflow:hidden;text-overflow:ellipsis"><code title="${esc(w.url)}">${esc(w.url)}</code></td>
+      <td><span class="badge-pill" style="font-size:.68rem">${esc(Array.isArray(w.events) ? w.events.join(', ') : '*')}</span></td>
+      <td><label class="toggle" title="${w.enabled?'啟用':'停用'}"><input type="checkbox" ${w.enabled?'checked':''} onchange="toggleWebhook('${w.id}',this.checked)"><span class="slider"></span></label></td>
+      <td style="font-size:.75rem;color:var(--muted)">${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}</td>
+      <td><button class="btn-danger" onclick="deleteWebhook('${w.id}')">刪除</button></td>
+    </tr>`).join('');
+}
+async function addWebhook() {
+  const url = document.getElementById('new-wh-url')?.value.trim();
+  const events = [document.getElementById('new-wh-events')?.value || '*'];
+  if (!url) { toast('請輸入 URL', 'error'); return; }
+  try {
+    await api('POST', '/admin/api/webhooks', { url, events });
+    document.getElementById('new-wh-url').value = '';
+    toast('Webhook 已新增', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+async function toggleWebhook(id, enabled) {
+  try { await api('PUT', `/admin/api/webhooks/${id}`, { enabled }); } catch (e) { toast(e.message, 'error'); }
+}
+async function deleteWebhook(id) {
+  if (!confirm('確定刪除此 Webhook？')) return;
+  try { await api('DELETE', `/admin/api/webhooks/${id}`); toast('已刪除', 'success'); } catch (e) { toast(e.message, 'error'); }
+}
+
+// ===== Admin Log =====
+function renderAdminLog(list) {
+  const tbody = document.getElementById('admin-log-tbody');
+  if (!tbody) return;
+  if (!list?.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-row">暫無紀錄</td></tr>'; return; }
+  tbody.innerHTML = list.map(entry => `
+    <tr>
+      <td style="font-size:.75rem;white-space:nowrap;color:var(--muted)">${new Date(entry.at).toLocaleString()}</td>
+      <td style="font-size:.8rem">${esc(entry.admin || '—')}</td>
+      <td><span class="badge-pill" style="font-size:.68rem">${esc(entry.action || '—')}</span></td>
+      <td style="font-size:.78rem;color:var(--muted)">${esc(entry.detail || '—')}</td>
+    </tr>`).join('');
+}
+async function clearAdminLog() {
+  if (!confirm('確定清除所有操作日誌？')) return;
+  try { await api('DELETE', '/admin/api/admin-log'); toast('日誌已清除', 'success'); } catch (e) { toast(e.message, 'error'); }
+}
+
+// ===== CSV Export =====
+function exportUsersCSV() {
+  const headers = ['ID', 'Email', 'Name', 'Role', 'Effective Role', 'Banned', 'Custom Limit (MB)', 'Created At', 'Last Seen', 'Last IP'];
+  const rows = allUsers.map(u => [
+    u.id, u.email, u.name || '', u.role || '', u.effectiveRole || '',
+    u.banned ? 'yes' : 'no', u.customFileSizeMB ?? '', u.createdAt || '', u.lastSeenAt || '', u.lastIp || ''
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `webdrop-users-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ===== Keyboard Shortcuts =====
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    // Close any open modal overlay
+    document.querySelectorAll('[id$="-overlay"]').forEach(el => {
+      if (el.style.display && el.style.display !== 'none') el.style.display = 'none';
+    });
+  }
+});

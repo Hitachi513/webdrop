@@ -294,12 +294,27 @@
       <div class="chat-header-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         <span data-i18n="messages">Messages</span>
-        <button id="chat-qr-btn" class="btn-icon btn-icon-xs" title="邀請掃碼加入" style="margin-left:auto">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
-            <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/>
-          </svg>
-        </button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:2px">
+          <button id="chat-search-btn" class="btn-icon btn-icon-xs" title="搜尋訊息">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button id="chat-sound-btn" class="btn-icon btn-icon-xs" title="訊息音效">
+            <svg id="sound-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+            <svg id="sound-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+          <button id="chat-qr-btn" class="btn-icon btn-icon-xs" title="邀請掃碼加入">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="chat-search-bar" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="chat-search-input" placeholder="搜尋訊息…" autocomplete="off">
+        <span id="chat-search-count" class="search-count"></span>
+        <button id="chat-search-close" class="search-close-btn">✕</button>
       </div>
       <div id="chat-messages">
         <div class="chat-empty">
@@ -309,6 +324,16 @@
         </div>
       </div>
       <div id="typing-indicator"></div>
+      <div id="reply-preview" style="display:none">
+        <div class="reply-preview-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>
+          <div class="reply-preview-body">
+            <span class="reply-preview-sender" id="reply-preview-sender"></span>
+            <span class="reply-preview-text" id="reply-preview-text"></span>
+          </div>
+          <button id="reply-cancel-btn" class="reply-cancel">✕</button>
+        </div>
+      </div>
       <div id="input-bar">
         <label for="file-input-chat" class="btn-icon btn-attach" data-i18n-title="attach-title" title="Attach file">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
@@ -881,6 +906,16 @@
     <div class="drag-overlay-title">放開以上傳</div>
     <div class="drag-overlay-sub">支援單一檔案、多選或整個資料夾</div>
   </div>
+</div>
+
+<!-- Reaction Picker -->
+<div id="reaction-picker" style="display:none">
+  <button class="reaction-opt" data-emoji="👍">👍</button>
+  <button class="reaction-opt" data-emoji="❤️">❤️</button>
+  <button class="reaction-opt" data-emoji="😂">😂</button>
+  <button class="reaction-opt" data-emoji="😮">😮</button>
+  <button class="reaction-opt" data-emoji="😢">😢</button>
+  <button class="reaction-opt" data-emoji="🔥">🔥</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

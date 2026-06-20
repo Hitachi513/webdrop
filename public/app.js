@@ -158,7 +158,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('panel-files').classList.toggle('active', tab === 'files');
   document.getElementById('panel-chat').classList.toggle('active', tab === 'chat');
-  if (tab === 'chat') clearChatBadge();
+  if (tab === 'chat') { clearChatBadge(); setTimeout(markMessagesRead, 300); }
 }
 
 function bumpChatBadge() {
@@ -695,20 +695,66 @@ document.getElementById('room-closed-new').addEventListener('click', () => {
 });
 
 // ===== Chat UI =====
-function addChatMsg(sender, text, isMine) {
+// ===== Chat Enhancement State =====
+let _msgIdCounter = 0;
+function randMsgId() { return `${Date.now().toString(36)}${(++_msgIdCounter).toString(36)}`; }
+const reactionStore = new Map(); // msgId → Map<"from:emoji", emoji>
+const sentMsgs = new Map();      // msgId → { el }
+let _replyingTo = null;          // { msgId, text, sender }
+let _pendingReadMsgIds = new Set();
+
+function addChatMsg(sender, text, isMine, { msgId, replyTo, fromPeerId } = {}) {
   removeChatEmpty();
+  const id = msgId || randMsgId();
   const el = document.createElement('div');
   el.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
+  el.dataset.msgId = id;
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const replyHtml = replyTo ? `
+    <div class="reply-quote" data-target="${replyTo.msgId}">
+      <span class="reply-quote-sender">${esc(replyTo.sender || '')}</span>
+      <span class="reply-quote-text">${esc((replyTo.text || '').length > 60 ? replyTo.text.slice(0, 60) + '…' : replyTo.text || '')}</span>
+    </div>` : '';
+
   el.innerHTML = `
     ${!isMine ? `<div class="chat-sender">${esc(sender)}</div>` : ''}
     <div class="chat-bubble">
+      ${replyHtml}
       <div class="chat-text">${esc(text)}</div>
-      <div class="chat-time">${time}</div>
+      <div class="chat-footer">
+        <span class="chat-time">${time}</span>
+        ${isMine ? '<span class="msg-tick" title="已傳送">✓</span>' : ''}
+      </div>
+    </div>
+    <div class="msg-reactions"></div>
+    <div class="msg-actions">
+      <button class="msg-react-btn" title="表情反應">😊</button>
+      <button class="msg-reply-btn" title="回覆">↩</button>
     </div>`;
+
+  el.querySelector('.reply-quote')?.addEventListener('click', () => scrollToMsg(replyTo.msgId));
+  el.querySelector('.msg-react-btn').addEventListener('click', e => { e.stopPropagation(); showReactionPicker(id, e.currentTarget); });
+  el.querySelector('.msg-reply-btn').addEventListener('click', () => setReply(id, text, isMine ? 'You' : sender));
+
+  if (isMine) {
+    sentMsgs.set(id, { el });
+  } else {
+    _pendingReadMsgIds.add(id);
+    if (activeTab === 'chat') setTimeout(markMessagesRead, 400);
+  }
+
   chatEl.appendChild(el);
   chatEl.scrollTop = chatEl.scrollHeight;
   if (!isMine) bumpChatBadge();
+}
+
+function scrollToMsg(msgId) {
+  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('msg-flash');
+  setTimeout(() => el.classList.remove('msg-flash'), 1000);
 }
 
 function addChatEvent(text) {
@@ -1130,6 +1176,211 @@ document.getElementById('room-pw-input')?.addEventListener('keydown', e => {
 // QR in chat
 document.getElementById('chat-qr-btn')?.addEventListener('click', () => qrModal.classList.add('active'));
 
+// ===== Sound =====
+let _soundEnabled = localStorage.getItem('wd-chat-sound') !== '0';
+
+(function initSoundBtn() {
+  const btn = document.getElementById('chat-sound-btn');
+  const onIcon  = document.getElementById('sound-on-icon');
+  const offIcon = document.getElementById('sound-off-icon');
+  function applySound(on) {
+    if (onIcon)  onIcon.style.display  = on ? '' : 'none';
+    if (offIcon) offIcon.style.display = on ? 'none' : '';
+    if (btn) btn.title = on ? '靜音' : '開啟音效';
+  }
+  applySound(_soundEnabled);
+  btn?.addEventListener('click', () => {
+    _soundEnabled = !_soundEnabled;
+    localStorage.setItem('wd-chat-sound', _soundEnabled ? '1' : '0');
+    applySound(_soundEnabled);
+    toast(_soundEnabled ? '🔊 音效已開啟' : '🔇 音效已靜音', 'info');
+  });
+})();
+
+function playChatSound() {
+  if (!_soundEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.22);
+    setTimeout(() => ctx.close(), 600);
+  } catch {}
+}
+
+// ===== Reply =====
+function setReply(msgId, text, sender) {
+  _replyingTo = { msgId, text, sender };
+  document.getElementById('reply-preview-sender').textContent = sender;
+  document.getElementById('reply-preview-text').textContent = text.length > 80 ? text.slice(0, 80) + '…' : text;
+  document.getElementById('reply-preview').style.display = 'flex';
+  messageInputEl?.focus();
+}
+function clearReply() {
+  _replyingTo = null;
+  document.getElementById('reply-preview').style.display = 'none';
+}
+document.getElementById('reply-cancel-btn')?.addEventListener('click', clearReply);
+
+// ===== Emoji Reactions =====
+let _reactionTargetId = null;
+const reactionPickerEl = document.getElementById('reaction-picker');
+
+function showReactionPicker(msgId, anchor) {
+  _reactionTargetId = msgId;
+  if (!reactionPickerEl) return;
+  const rect = anchor.getBoundingClientRect();
+  reactionPickerEl.style.display = 'flex';
+  const pickerH = 44;
+  let top = rect.top + window.scrollY - pickerH - 6;
+  let left = rect.left + window.scrollX;
+  if (left + 200 > window.innerWidth) left = window.innerWidth - 208;
+  reactionPickerEl.style.top  = `${top}px`;
+  reactionPickerEl.style.left = `${left}px`;
+}
+
+document.addEventListener('click', e => {
+  if (reactionPickerEl && !reactionPickerEl.contains(e.target) && !e.target.closest('.msg-react-btn')) {
+    reactionPickerEl.style.display = 'none';
+    _reactionTargetId = null;
+  }
+});
+
+reactionPickerEl?.querySelectorAll('.reaction-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!_reactionTargetId) return;
+    const emoji = btn.dataset.emoji;
+    doSendReaction(_reactionTargetId, emoji);
+    reactionPickerEl.style.display = 'none';
+    _reactionTargetId = null;
+  });
+});
+
+function doSendReaction(msgId, emoji) {
+  applyReaction(msgId, emoji, 'me');
+  const targets = resolveTargets() || Array.from(peers.keys());
+  targets.forEach(id => {
+    if (dcReady(id)) peers.get(id).dc.send(JSON.stringify({ type: 'reaction', msgId, emoji }));
+    else socket.emit('relay-reaction', { to: id, msgId, emoji });
+  });
+}
+
+function handleReaction(msgId, emoji, fromId) {
+  applyReaction(msgId, emoji, fromId);
+}
+
+function applyReaction(msgId, emoji, fromId) {
+  if (!reactionStore.has(msgId)) reactionStore.set(msgId, new Map());
+  const store = reactionStore.get(msgId);
+  const key = `${fromId}:${emoji}`;
+  if (store.has(key)) store.delete(key); else store.set(key, emoji);
+  renderReactions(msgId);
+}
+
+function renderReactions(msgId) {
+  const el = document.querySelector(`[data-msg-id="${msgId}"] .msg-reactions`);
+  if (!el) return;
+  const store = reactionStore.get(msgId);
+  if (!store || !store.size) { el.innerHTML = ''; return; }
+  const counts = new Map();
+  for (const emoji of store.values()) counts.set(emoji, (counts.get(emoji) || 0) + 1);
+  el.innerHTML = [...counts.entries()].map(([e, n]) =>
+    `<span class="reaction-chip">${e}${n > 1 ? `<span class="rc">${n}</span>` : ''}</span>`).join('');
+}
+
+// ===== Read Receipts =====
+function markMessagesRead() {
+  if (!_pendingReadMsgIds.size) return;
+  const ids = [..._pendingReadMsgIds];
+  _pendingReadMsgIds.clear();
+  const targets = resolveTargets() || Array.from(peers.keys());
+  targets.forEach(id => {
+    if (dcReady(id)) peers.get(id).dc.send(JSON.stringify({ type: 'read-receipt', msgIds: ids }));
+    else socket.emit('relay-read-receipt', { to: id, msgIds: ids });
+  });
+}
+
+function handleReadReceipt(msgIds, fromPeerId) {
+  (msgIds || []).forEach(id => {
+    const entry = sentMsgs.get(id);
+    if (entry?.el) {
+      const tick = entry.el.querySelector('.msg-tick');
+      if (tick) { tick.textContent = '✓✓'; tick.classList.add('read'); tick.title = '已讀'; }
+    }
+  });
+}
+
+// ===== Chat Search =====
+let _searchResults = [], _searchIdx = 0;
+
+document.getElementById('chat-search-btn')?.addEventListener('click', () => {
+  const bar = document.getElementById('chat-search-bar');
+  if (!bar) return;
+  const open = bar.style.display !== 'none' && bar.style.display !== '';
+  bar.style.display = open ? 'none' : 'flex';
+  if (!open) { setTimeout(() => document.getElementById('chat-search-input')?.focus(), 50); }
+  else clearSearch();
+});
+
+document.getElementById('chat-search-close')?.addEventListener('click', () => {
+  document.getElementById('chat-search-bar').style.display = 'none';
+  clearSearch();
+});
+
+document.getElementById('chat-search-input')?.addEventListener('input', e => doSearch(e.target.value.trim()));
+document.getElementById('chat-search-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && _searchResults.length) {
+    _searchIdx = (_searchIdx + 1) % _searchResults.length;
+    highlightResult();
+  }
+});
+
+function doSearch(q) {
+  chatEl.querySelectorAll('.search-hl').forEach(el => {
+    const txt = document.createTextNode(el.textContent);
+    el.replaceWith(txt);
+  });
+  chatEl.querySelectorAll('.search-current').forEach(el => el.classList.remove('search-current'));
+  _searchResults = []; _searchIdx = 0;
+  if (!q) { updateSearchCount(); return; }
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  chatEl.querySelectorAll('.chat-text').forEach(el => {
+    if (!el.textContent.toLowerCase().includes(q.toLowerCase())) return;
+    el.innerHTML = el.innerHTML.replace(re, m => `<mark class="search-hl">${m}</mark>`);
+    _searchResults.push(el.closest('.chat-msg'));
+  });
+  updateSearchCount();
+  if (_searchResults.length) highlightResult();
+}
+
+function highlightResult() {
+  chatEl.querySelectorAll('.search-current').forEach(e => e.classList.remove('search-current'));
+  const el = _searchResults[_searchIdx];
+  if (el) { el.classList.add('search-current'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  updateSearchCount();
+}
+
+function clearSearch() {
+  chatEl.querySelectorAll('.search-hl').forEach(el => el.replaceWith(document.createTextNode(el.textContent)));
+  chatEl.querySelectorAll('.search-current').forEach(el => el.classList.remove('search-current'));
+  _searchResults = []; _searchIdx = 0;
+  const inp = document.getElementById('chat-search-input');
+  if (inp) inp.value = '';
+  updateSearchCount();
+}
+
+function updateSearchCount() {
+  const el = document.getElementById('chat-search-count');
+  if (el) el.textContent = _searchResults.length ? `${_searchIdx + 1} / ${_searchResults.length}` : '';
+}
+
 socket.on('offer', async ({ from, offer }) => {
   const peer = peers.get(from);
   if (!peer) return;
@@ -1148,12 +1399,15 @@ socket.on('ice-candidate', ({ from, candidate }) => {
 });
 
 // Socket relay receive
-socket.on('relay-msg', ({ from, text }) => {
+socket.on('relay-msg', ({ from, text, msgId, replyTo }) => {
   const peer = peers.get(from);
   if (!peer) return;
-  addChatMsg(peer.name, text, false);
+  addChatMsg(peer.name, text, false, { msgId, replyTo, fromPeerId: from });
   notifyIfHidden(peer.name, text);
+  playChatSound();
 });
+socket.on('relay-reaction', ({ from, msgId, emoji }) => handleReaction(msgId, emoji, from));
+socket.on('relay-read-receipt', ({ from, msgIds }) => handleReadReceipt(msgIds, from));
 socket.on('relay-error', ({ error }) => toast(error, 'error'));
 socket.on('relay-file-start', ({ from, meta }) => {
   const peer = peers.get(from);
@@ -1316,10 +1570,15 @@ function handleDCControl(msg, peerId) {
       txEnd();
     }
   } else if (msg.type === 'message') {
-    addChatMsg(peer.name, msg.text, false);
+    addChatMsg(peer.name, msg.text, false, { msgId: msg.msgId, replyTo: msg.replyTo, fromPeerId: peerId });
     notifyIfHidden(peer.name, msg.text);
+    playChatSound();
   } else if (msg.type === 'typing') {
     handlePeerTyping(peerId, peer.name);
+  } else if (msg.type === 'reaction') {
+    handleReaction(msg.msgId, msg.emoji, peerId);
+  } else if (msg.type === 'read-receipt') {
+    handleReadReceipt(msg.msgIds, peerId);
   }
 }
 function handleDCChunk(data, peerId) {
@@ -1357,13 +1616,16 @@ function doSendMessage() {
   if (!text) return;
   const targets = resolveTargets();
   if (!targets?.length) { toast(peers.size === 0 ? 'No devices connected' : 'Select a device first', 'error'); return; }
+  const msgId = randMsgId();
+  const replyTo = _replyingTo ? { ..._replyingTo } : null;
   targets.forEach(id => {
     const peer = peers.get(id);
     if (!peer) return;
-    if (dcReady(id)) peer.dc.send(JSON.stringify({ type: 'message', text }));
-    else socket.emit('relay-msg', { to: id, text });
+    if (dcReady(id)) peer.dc.send(JSON.stringify({ type: 'message', text, msgId, replyTo }));
+    else socket.emit('relay-msg', { to: id, text, msgId, replyTo });
   });
-  addChatMsg('You', text, true);
+  addChatMsg('You', text, true, { msgId, replyTo });
+  clearReply();
   messageInputEl.value = '';
   if (window.innerWidth <= 768) switchTab('chat');
 }

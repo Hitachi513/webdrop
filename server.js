@@ -1563,13 +1563,21 @@ io.on('connection', (socket) => {
   socket.on('answer',        ({ to, answer })    => io.to(to).emit('answer',        { from: socket.id, answer }));
   socket.on('ice-candidate', ({ to, candidate }) => io.to(to).emit('ice-candidate', { from: socket.id, candidate }));
 
-  socket.on('relay-msg', ({ to, text }) => {
+  socket.on('relay-msg', ({ to, text, msgId, replyTo }) => {
     if (!settings.allowMessageRelay) { socket.emit('relay-error', { error: 'Message relay is disabled' }); return; }
     const rsMsg = socket.currentRoom ? roomSettings.get(socket.currentRoom) : null;
     if (rsMsg && !rsMsg.allowChat) { socket.emit('relay-error', { error: '此房間已停用聊天功能' }); return; }
     stats.messagesRelayed++;
-    io.to(to).emit('relay-msg', { from: socket.id, text });
+    io.to(to).emit('relay-msg', { from: socket.id, text, msgId, replyTo });
     adminNsp.emit('stats', getStats());
+  });
+  socket.on('relay-reaction', ({ to, msgId, emoji }) => {
+    if (!to || !msgId || !emoji) return;
+    io.to(to).emit('relay-reaction', { from: socket.id, msgId, emoji });
+  });
+  socket.on('relay-read-receipt', ({ to, msgIds }) => {
+    if (!to || !Array.isArray(msgIds)) return;
+    io.to(to).emit('relay-read-receipt', { from: socket.id, msgIds });
   });
   socket.on('relay-file-start', ({ to, meta }) => {
     if (!settings.allowFileRelay) { socket.emit('relay-error', { error: 'File relay is disabled' }); return; }

@@ -17,6 +17,7 @@ html, body { height:100%; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
   --danger:   #ef4444;
   --shadow:   0 2px 16px rgba(0,0,0,0.08);
   --shadow-lg:0 8px 40px rgba(0,0,0,0.14);
+  --hover:    rgba(99,102,241,0.06);
 }
 
 /* ===== Login ===== */
@@ -100,7 +101,7 @@ html, body { height:100%; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
   letter-spacing: .3px;
 }
 #login-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(99,102,241,.65); }
-#login-btn:active { transform: translateY(0); }
+#login-btn:active { transform: scale(.97); opacity: .9; box-shadow: none; }
 #login-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
 
 .back-link { display:block; text-align:center; color:rgba(255,255,255,.3); font-size:.82rem; text-decoration:none; transition:color .2s; }
@@ -569,10 +570,12 @@ tbody tr:hover { background:#f9fafc; }
 .role-super  { background:#eef2ff; color:var(--primary); }
 .role-admin  { background:#f0f9f6; color:#2ec4b6; }
 
-.btn-danger { padding:5px 12px; border:1.5px solid var(--danger); border-radius:8px; background:transparent; color:var(--danger); font-size:.78rem; cursor:pointer; transition:.2s; }
+.btn-danger { padding:5px 12px; border:1.5px solid var(--danger); border-radius:8px; background:transparent; color:var(--danger); font-size:.78rem; cursor:pointer; transition: background .18s, color .18s, transform .1s; }
 .btn-danger:hover { background:var(--danger); color:#fff; }
-.btn-sm { padding:5px 12px; border:1.5px solid var(--border); border-radius:8px; background:transparent; color:var(--text); font-size:.78rem; cursor:pointer; transition:.2s; }
+.btn-danger:active { transform: scale(.95); }
+.btn-sm { padding:5px 12px; border:1.5px solid var(--border); border-radius:8px; background:transparent; color:var(--text); font-size:.78rem; cursor:pointer; transition: border-color .18s, color .18s, transform .1s; }
 .btn-sm:hover { border-color:var(--primary); color:var(--primary); }
+.btn-sm:active { transform: scale(.95); }
 
 /* ===== Buttons ===== */
 .btn-primary {
@@ -584,11 +587,11 @@ tbody tr:hover { background:#f9fafc; }
   font-size: .85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform .2s, box-shadow .2s;
+  transition: transform .18s, box-shadow .18s, opacity .18s;
   box-shadow: 0 2px 12px rgba(99,102,241,.35);
 }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.55); }
-.btn-primary:active { transform: translateY(0); }
+.btn-primary:active { transform: scale(.96); opacity: .9; box-shadow: none; }
 
 .btn-ghost {
   padding: 9px 20px;
@@ -597,10 +600,12 @@ tbody tr:hover { background:#f9fafc; }
   background: transparent;
   color: var(--muted);
   font-size: .85rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: .2s;
+  transition: border-color .18s, color .18s, background .18s, transform .1s;
 }
-.btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+.btn-ghost:hover { border-color:var(--primary); color:var(--primary); background: var(--hover); }
+.btn-ghost:active { transform: scale(.96); }
 
 .badge-pill {
   background: var(--primary);
@@ -968,7 +973,7 @@ input:checked + .slider::before { transform: translateX(20px); }
   display:flex; align-items:center; justify-content:center; border-radius:8px;
   color:var(--muted); transition:background .15s, color .15s; flex-shrink:0;
 }
-#dark-mode-toggle:hover { background:rgba(255,255,255,.08); color:var(--text); }
+#dark-mode-toggle:hover { background: var(--hover); color:var(--text); }
 #dark-mode-toggle svg { width:18px; height:18px; }
 
 /* ===== Dark Mode ===== */
@@ -980,6 +985,7 @@ body.dark {
   --muted:    #5e5e88;
   --shadow:   0 4px 24px rgba(0,0,0,.5);
   --shadow-lg:0 12px 48px rgba(0,0,0,.75);
+  --hover:    rgba(99,102,241,0.1);
 }
 
 /* Body — cosmic gradient background */
@@ -1159,11 +1165,11 @@ body.dark ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-ra
 }
 .btn-outline {
   background: transparent;
-  border: 1.5px solid var(--border-strong, #4a4a72);
+  border: 1.5px solid var(--border);
   color: var(--text);
-  transition: .15s;
+  transition: background .15s, border-color .15s, color .15s;
 }
-.btn-outline:hover { background: var(--hover); }
+.btn-outline:hover { background: var(--hover); border-color: var(--primary); color: var(--primary); }
 
 /* Staff Permissions Modal */
 .modal-overlay {
@@ -1194,11 +1200,17 @@ body.dark ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-ra
 }
 .modal-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
 .modal-close-btn {
-  background: none; border: none; cursor: pointer;
-  color: var(--muted); font-size: 1.1rem; padding: 4px;
-  border-radius: 6px; transition: .15s;
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color .15s, background .15s, border-color .15s;
 }
-.modal-close-btn:hover { color: var(--text); background: var(--hover); }
+.modal-close-btn:hover { color: var(--danger); background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.25); }
+.modal-close-btn:active { transform: scale(.9); }
 .staff-perm-subtitle { color: var(--muted); font-size: .85rem; margin: 0 0 18px; }
 .staff-perm-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 .perm-row {

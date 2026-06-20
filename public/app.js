@@ -788,6 +788,16 @@ function addChatMsg(sender, text, isMine, { msgId, replyTo, fromPeerId } = {}) {
   chatEl.appendChild(el);
   chatEl.scrollTop = chatEl.scrollHeight;
   if (!isMine) bumpChatBadge();
+  // Keep search results in sync when new message arrives mid-search
+  const searchBar = document.getElementById('chat-search-bar');
+  const searchInp = document.getElementById('chat-search-input');
+  if (searchBar?.style.display !== 'none' && searchInp?.value.trim()) {
+    const q = searchInp.value.trim();
+    const prevIdx = _searchIdx;
+    doSearch(q);
+    _searchIdx = Math.min(prevIdx, Math.max(0, _searchResults.length - 1));
+    if (_searchResults.length) highlightResult();
+  }
 }
 
 function scrollToMsg(msgId) {
@@ -1307,10 +1317,18 @@ function showReactionPicker(msgId, anchor) {
   if (!reactionPickerEl) return;
   const rect = anchor.getBoundingClientRect();
   reactionPickerEl.style.display = 'flex';
-  const pickerH = 44;
-  let top = rect.top + window.scrollY - pickerH - 6;
+  const pickerW = reactionPickerEl.offsetWidth || 200;
+  const pickerH = reactionPickerEl.offsetHeight || 44;
+  const gap = 6;
+  let top  = rect.top  + window.scrollY - pickerH - gap;
   let left = rect.left + window.scrollX;
-  if (left + 200 > window.innerWidth) left = window.innerWidth - 208;
+  // Flip to below anchor if too close to top
+  if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + gap;
+  // Clamp right edge
+  if (left + pickerW + 8 > window.innerWidth) left = window.innerWidth - pickerW - 8;
+  if (left < 8) left = 8;
+  // Clamp bottom edge
+  if (top + pickerH > window.scrollY + window.innerHeight - 8) top = window.scrollY + window.innerHeight - pickerH - 8;
   reactionPickerEl.style.top  = `${top}px`;
   reactionPickerEl.style.left = `${left}px`;
 }

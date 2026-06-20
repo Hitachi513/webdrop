@@ -270,19 +270,14 @@ function applyRoleStyle(role) {
   } else {
     roleBadgeEl.style.display = 'none';
   }
-  const modToolbar = document.getElementById('mod-toolbar');
-  const modSettingsBtn = document.getElementById('mod-settings-btn');
-  const modClearBtn = document.getElementById('mod-clear-btn');
-  const modBroadcastBtn = document.getElementById('mod-broadcast-btn');
   const isMod = ['super-admin', 'admin', 'business', 'vip'].includes(role);
   const isAdmin = role === 'admin' || role === 'super-admin';
-  if (modToolbar) modToolbar.style.display = isMod ? 'flex' : 'none';
-  if (modSettingsBtn) {
-    const canSettings = currentUser && ['super-admin', 'admin', 'business', 'vip'].includes(currentUser.role);
-    modSettingsBtn.style.display = canSettings ? 'flex' : 'none';
-  }
-  if (modClearBtn)     modClearBtn.style.display     = isAdmin ? 'flex' : 'none';
-  if (modBroadcastBtn) modBroadcastBtn.style.display = isAdmin ? 'flex' : 'none';
+  const adminFab = document.getElementById('admin-panel-btn');
+  if (adminFab) adminFab.style.display = isMod ? 'flex' : 'none';
+  const apBroadcast = document.getElementById('ap-broadcast-btn');
+  const apClear = document.getElementById('ap-clear-btn');
+  if (apBroadcast) apBroadcast.style.display = isAdmin ? '' : 'none';
+  if (apClear) apClear.style.display = isAdmin ? '' : 'none';
 }
 
 function showUserBadge(user) {
@@ -402,11 +397,25 @@ const setRoomModal = document.getElementById('set-room-modal');
 const setRoomInput = document.getElementById('set-room-input');
 const setRoomError = document.getElementById('set-room-error');
 
+const _roomAdj  = ['SWIFT','BLUE','RED','DARK','GOLD','WILD','COOL','NEON','BOLD','BRIGHT','IRON','STORM'];
+const _roomNoun = ['STAR','MOON','WOLF','HAWK','LION','FISH','WIND','FIRE','WAVE','PEAK','BIRD','ROCK'];
+function generateRoomId() {
+  const adj  = _roomAdj[Math.floor(Math.random() * _roomAdj.length)];
+  const noun = _roomNoun[Math.floor(Math.random() * _roomNoun.length)];
+  const num  = Math.floor(Math.random() * 90) + 10;
+  return `${adj}${noun}${num}`;
+}
+
 function openSetRoomModal() {
   setRoomInput.value = '';
   setRoomError.textContent = '';
   setRoomModal.classList.add('active');
 }
+
+document.getElementById('set-room-random')?.addEventListener('click', () => {
+  setRoomInput.value = generateRoomId();
+  setRoomError.textContent = '';
+});
 
 document.getElementById('edit-room-btn').addEventListener('click', () => {
   document.getElementById('user-dropdown').classList.remove('open');
@@ -2241,37 +2250,34 @@ window.addEventListener('load', async () => {
 // ===== Members Slide Panel =====
 const membersPanel    = document.getElementById('members-panel');
 const membersPanelOv  = document.getElementById('members-panel-overlay');
-const modMembersBtn   = document.getElementById('mod-members-btn');
 const membersPanelClose = document.getElementById('members-panel-close');
 
 function openMembersPanel() {
   membersPanel.classList.add('open');
   membersPanelOv.classList.add('open');
-  modMembersBtn?.classList.add('active-btn');
+  document.getElementById('admin-panel-modal')?.classList.remove('active');
   refreshMembersPanel();
 }
 function closeMembersPanel() {
   membersPanel.classList.remove('open');
   membersPanelOv.classList.remove('open');
-  modMembersBtn?.classList.remove('active-btn');
 }
 
-modMembersBtn?.addEventListener('click', () => {
-  membersPanel.classList.contains('open') ? closeMembersPanel() : openMembersPanel();
-});
 membersPanelClose?.addEventListener('click', closeMembersPanel);
 membersPanelOv?.addEventListener('click', closeMembersPanel);
 
 function refreshMembersPanel() {
   const list = document.getElementById('members-list');
   const badge = document.getElementById('members-count-badge');
-  const modBadge = document.getElementById('mod-members-count');
+  const apBadge = document.getElementById('ap-members-badge');
+  const fabBadge = document.getElementById('admin-panel-badge');
   if (!list) return;
   const myRole = currentUser?.role;
   const isMod = ['super-admin', 'admin', 'business', 'vip'].includes(myRole);
   const count = peers.size;
   if (badge) badge.textContent = count;
-  if (modBadge) { modBadge.textContent = count; modBadge.style.display = count > 0 ? '' : 'none'; }
+  if (apBadge) { apBadge.textContent = count; apBadge.style.display = count > 0 ? '' : 'none'; }
+  if (fabBadge) { fabBadge.textContent = count; fabBadge.style.display = count > 0 ? '' : 'none'; }
   if (!count) {
     list.innerHTML = `<div class="members-empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
@@ -2353,10 +2359,9 @@ function applyRoomSettings(rs) {
   }
 }
 
-const modSettingsBtn = document.getElementById('mod-settings-btn');
 const roomSettingsModal = document.getElementById('room-settings-modal');
 
-modSettingsBtn?.addEventListener('click', () => {
+function openRoomSettings() {
   const rs = currentRoomSettings || {};
   document.getElementById('rs-locked').checked       = !!rs.locked;
   document.getElementById('rs-knock').checked        = rs.knockRequired !== false;
@@ -2369,7 +2374,7 @@ modSettingsBtn?.addEventListener('click', () => {
   const cdEl = document.getElementById('rs-countdown');
   if (cdEl) cdEl.value = _roomCloseAt ? Math.round((_roomCloseAt - Date.now()) / 60000) : '';
   roomSettingsModal.classList.add('active');
-});
+}
 
 document.getElementById('rs-cancel')?.addEventListener('click', () => roomSettingsModal.classList.remove('active'));
 document.getElementById('rs-save')?.addEventListener('click', () => {
@@ -2387,8 +2392,24 @@ document.getElementById('rs-save')?.addEventListener('click', () => {
   roomSettingsModal.classList.remove('active');
 });
 
-// ===== Admin: Clear Room =====
-document.getElementById('mod-clear-btn')?.addEventListener('click', () => {
+// ===== Admin Panel Hub =====
+const adminPanelModal = document.getElementById('admin-panel-modal');
+
+document.getElementById('admin-panel-btn')?.addEventListener('click', () => {
+  adminPanelModal?.classList.add('active');
+});
+adminPanelModal?.addEventListener('click', e => { if (e.target === adminPanelModal) adminPanelModal.classList.remove('active'); });
+
+document.getElementById('ap-members-btn')?.addEventListener('click', () => {
+  adminPanelModal?.classList.remove('active');
+  openMembersPanel();
+});
+document.getElementById('ap-settings-btn')?.addEventListener('click', () => {
+  adminPanelModal?.classList.remove('active');
+  openRoomSettings();
+});
+document.getElementById('ap-clear-btn')?.addEventListener('click', () => {
+  adminPanelModal?.classList.remove('active');
   if (!confirm('確定要清場嗎？所有非管理員成員都會被踢出。')) return;
   socket.emit('room-clear-all');
 });
@@ -2399,7 +2420,8 @@ const broadcastInput  = document.getElementById('broadcast-input');
 const broadcastSendBtn = document.getElementById('broadcast-send-btn');
 const broadcastCancelBtn = document.getElementById('broadcast-cancel-btn');
 
-document.getElementById('mod-broadcast-btn')?.addEventListener('click', () => {
+document.getElementById('ap-broadcast-btn')?.addEventListener('click', () => {
+  adminPanelModal?.classList.remove('active');
   if (broadcastInput) broadcastInput.value = '';
   broadcastModal?.classList.add('active');
   broadcastInput?.focus();

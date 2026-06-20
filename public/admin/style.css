@@ -65,23 +65,23 @@ html, body { height:100%; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
 .login-sub { color:rgba(255,255,255,.4); font-size:.88rem; margin-bottom:28px; }
 
 .field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
-.field label { font-size:.78rem; font-weight:700; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:.6px; }
+.field label { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; }
 .field input, .field select {
   padding: 12px 14px;
-  border: 1.5px solid rgba(255,255,255,.12);
+  border: 1.5px solid var(--border);
   border-radius: 10px;
   font-size: .9rem;
   outline: none;
   transition: border-color .2s, box-shadow .2s;
-  background: rgba(255,255,255,.07);
-  color: #e8e8f8;
+  background: var(--card);
+  color: var(--text);
 }
 .field input:focus, .field select:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99,102,241,.2), 0 0 20px rgba(99,102,241,.15);
 }
-.field input::placeholder { color: rgba(255,255,255,.25); }
-.field select option { background: #1a1a3a; color: #e8e8f8; }
+.field input::placeholder { color: var(--muted); opacity: .6; }
+.field select option { background: var(--card); color: var(--text); }
 
 .login-error { color:#f87171; font-size:.82rem; margin-bottom:12px; min-height:18px; }
 

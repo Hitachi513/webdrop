@@ -1240,3 +1240,22 @@ body.dark ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-ra
   vertical-align: middle;
 }
 body.dark ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,.6); }
+
+/* Header user profile button */
+.header-user:hover { background: var(--hover) !important; }
+.header-user:active { transform: scale(.97); }
+
+/* Inline modal close button (✕) */
+.modal-close-inline {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.modal-close-inline:hover { color: var(--danger); background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.25); }
+.modal-close-inline:active { transform: scale(.9); }

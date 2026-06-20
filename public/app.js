@@ -298,7 +298,7 @@ function showUserBadge(user) {
   document.getElementById('dropdown-name').textContent = user.name || '';
   document.getElementById('dropdown-email').textContent = user.email;
   const mb = user.effectiveMaxFileSizeMB || 500;
-  document.getElementById('dropdown-limit-val').textContent = mb >= 999999 ? '∞ Unlimited' : mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
+  document.getElementById('dropdown-limit-val').textContent = fmtFileSizeMB(mb);
   applyRoleStyle(user.role);
   if (user.avatar !== undefined) myAvatar = user.avatar || null;
   if (user.name) myName = user.name;
@@ -493,7 +493,7 @@ async function redeemCode(inputEl, errorEl, onSuccess) {
     if (currentUser) {
       currentUser.effectiveMaxFileSizeMB = mb;
       currentUser.activePromoId = true;
-      document.getElementById('dropdown-limit-val').textContent = mb >= 999999 ? '∞ Unlimited' : mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : `${mb} MB`;
+      document.getElementById('dropdown-limit-val').textContent = fmtFileSizeMB(mb);
       if (data.customRoomId) { currentUser.customRoomId = data.customRoomId; applyCustomRoom(data.customRoomId); }
       if (data.canCustomRoom) { currentUser.canCustomRoom = true; setEditRoomBtnVisible(true); }
       if (data.role && data.role !== currentUser.role) {
@@ -803,6 +803,19 @@ function fmtBytes(b) {
   if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
   return `${(b / 1073741824).toFixed(2)} GB`;
 }
+function fmtFileSizeMB(mb) {
+  if (mb >= 999999) return '∞ Unlimited';
+  const gb = mb / 1024;
+  if (gb >= 512) {
+    const tb = Math.round(gb / 1024 * 10) / 10;
+    return `${tb % 1 === 0 ? tb | 0 : tb} TB`;
+  }
+  if (gb >= 1) {
+    const g = Math.round(gb * 10) / 10;
+    return `${g % 1 === 0 ? g | 0 : g} GB`;
+  }
+  return `${mb} MB`;
+}
 function fmtSpeed(bps) {
   if (bps < 1024) return `${Math.round(bps)} B/s`;
   if (bps < 1048576) return `${(bps / 1024).toFixed(0)} KB/s`;
@@ -1104,7 +1117,7 @@ socket.on('role-updated', ({ role, effectiveMaxFileSizeMB, canCustomRoom }) => {
     setEditRoomBtnVisible(!!canCustomRoom);
     const mb = effectiveMaxFileSizeMB || currentUser.effectiveMaxFileSizeMB || 500;
     const el = document.getElementById('dropdown-limit-val');
-    if (el) el.textContent = mb >= 1000 ? `${(mb/1024).toFixed(1)} GB` : mb >= 999999 ? '∞' : `${mb} MB`;
+    if (el) el.textContent = fmtFileSizeMB(mb);
   }
 });
 
@@ -1553,6 +1566,8 @@ function removePeer(peerId) {
   peer.pc.close();
   if (peer.element) peer.element.remove();
   peers.delete(peerId);
+  _peerConnTypes.delete(peerId);
+  refreshConnTypePill();
   fqUpdate();
   addChatEvent(`${peer.name} left`);
   if (selectedPeerId === peerId) {
@@ -1579,7 +1594,7 @@ function autoSelect(peerId) {
 
 function setupDC(dc, peerId) {
   dc.binaryType = 'arraybuffer';
-  dc.onopen  = () => { const p = peers.get(peerId); if (p) { updateStatusDot(p, 'connected'); toast(`Connected to ${p.name}`, 'success'); } };
+  dc.onopen  = () => { const p = peers.get(peerId); if (p) { updateStatusDot(p, 'connected'); toast(`Connected to ${p.name}`, 'success'); detectConnType(peerId, p.pc); } };
   dc.onclose = () => { const p = peers.get(peerId); if (p) updateStatusDot(p, 'disconnected'); };
   dc.onmessage = ({ data }) => {
     if (typeof data === 'string') handleDCControl(JSON.parse(data), peerId);
@@ -1763,6 +1778,7 @@ async function sendFileViaRelay(peerId, file) {
   const peer = peers.get(peerId);
   const fileId = randId();
   peer.activeSend = { fileId, file, offset: 0 };
+  setServerRelayType(peerId);
   socket.emit('relay-file-start', { to: peerId, meta: { fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' } });
   txStart(file.name, file.size);
   let offset = 0;
@@ -2024,6 +2040,60 @@ function updateDropHint() {
 function updateStatusDot(peer, state) {
   if (!peer.element) return;
   peer.element.querySelector('.status-dot').className = `status-dot ${state}`;
+}
+
+// ===== Connection Type Indicator =====
+const _peerConnTypes = new Map(); // peerId → 'local'|'p2p'|'relay'|'server'
+
+async function detectConnType(peerId, pc) {
+  try {
+    const stats = await pc.getStats();
+    const candidates = {};
+    let selectedPair = null;
+    stats.forEach(r => {
+      if (r.type === 'local-candidate' || r.type === 'remote-candidate') candidates[r.id] = r;
+      if (r.type === 'candidate-pair' && r.nominated) selectedPair = r;
+    });
+    if (!selectedPair) return;
+    const loc = candidates[selectedPair.localCandidateId];
+    const rem = candidates[selectedPair.remoteCandidateId];
+    if (!loc || !rem) return;
+    let type;
+    if (loc.candidateType === 'relay' || rem.candidateType === 'relay') type = 'relay';
+    else if (loc.candidateType === 'host' && rem.candidateType === 'host') type = 'local';
+    else type = 'p2p';
+    _peerConnTypes.set(peerId, type);
+    refreshConnTypePill();
+  } catch {}
+}
+
+function refreshConnTypePill() {
+  const el = document.getElementById('conn-type-pill');
+  if (!el) return;
+  if (!peers.size) { el.style.display = 'none'; return; }
+  const types = [..._peerConnTypes.values()];
+  const useServerRelay = [...peers.values()].some(p => p.dc?.readyState !== 'open' && p.dc !== null && !p.pc);
+  let dominant = types.includes('relay') ? 'relay'
+    : types.includes('p2p') ? 'p2p'
+    : types.includes('local') ? 'local'
+    : types.includes('server') ? 'server'
+    : null;
+  if (!dominant) { el.style.display = 'none'; return; }
+  const MAP = {
+    local:  { cls: 'ct-local',  label: '區域網路' },
+    p2p:    { cls: 'ct-p2p',    label: 'P2P 直連' },
+    relay:  { cls: 'ct-relay',  label: 'TURN 中轉' },
+    server: { cls: 'ct-server', label: '伺服器中轉' },
+  };
+  const { cls, label } = MAP[dominant];
+  el.className = `conn-type-pill ${cls}`;
+  el.querySelector('.ct-label').textContent = label;
+  el.style.display = 'flex';
+}
+
+function setServerRelayType(peerId) {
+  _peerConnTypes.set(peerId, 'server');
+  refreshConnTypePill();
 }
 
 function setProgress(peer, fraction) {

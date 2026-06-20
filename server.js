@@ -1594,14 +1594,20 @@ io.on('connection', (socket) => {
     io.to(to).emit('relay-file-start', { from: socket.id, meta });
   });
   socket.on('relay-file-chunk', ({ to, chunk }) => {
+    if (!socket.currentRoom) return;
+    const room = rooms.get(socket.currentRoom);
+    if (!room || !room.has(to)) return;
     const size = Buffer.isBuffer(chunk) ? chunk.length : (chunk?.byteLength || 0);
     stats.bytesRelayed += size;
     stats.bytesRelayedThisTick += size;
     io.to(to).emit('relay-file-chunk', { from: socket.id, chunk });
   });
   socket.on('relay-file-end', ({ to, fileId, name }) => {
+    if (!socket.currentRoom) return;
+    const _room = rooms.get(socket.currentRoom);
+    if (!_room || !_room.has(to)) return;
     stats.filesRelayed++;
-    if (socket.currentRoom && roomsMeta.has(socket.currentRoom)) {
+    if (roomsMeta.has(socket.currentRoom)) {
       const meta = roomsMeta.get(socket.currentRoom);
       meta.filesTransferred = (meta.filesTransferred || 0) + 1;
     }

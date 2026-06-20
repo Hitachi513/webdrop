@@ -595,10 +595,12 @@ document.getElementById('my-device-svg').outerHTML = getDeviceIcon(myName).repla
 copyLinkBtn.addEventListener('click', () =>
   navigator.clipboard.writeText(shareUrl).then(() => toast(i18n.t('link-copied'), 'success')).catch(() => toast(i18n.t('copy-failed'), 'error'))
 );
-copyQRUrlBtn.addEventListener('click', () =>
-  navigator.clipboard.writeText(shareUrl).then(() => toast(i18n.t('link-copied'), 'success')).catch(() => toast(i18n.t('copy-failed'), 'error'))
-);
-showQRBtn.addEventListener('click', () => qrModal.classList.add('active'));
+copyQRUrlBtn.addEventListener('click', () => {
+  qrModal.dataset.userInteracted = '1';
+  navigator.clipboard.writeText(shareUrl).then(() => toast(i18n.t('link-copied'), 'success')).catch(() => toast(i18n.t('copy-failed'), 'error'));
+});
+showQRBtn.addEventListener('click', () => { delete qrModal.dataset.userInteracted; qrModal.classList.add('active'); });
+closeQRBtn.addEventListener('click', () => { delete qrModal.dataset.userInteracted; qrModal.classList.remove('active'); });
 // On narrow screens the copy button is hidden; tap the pill to share
 document.querySelector('.room-pill').addEventListener('click', e => {
   if (window.innerWidth <= 480 && !e.target.closest('button')) qrModal.classList.add('active');
@@ -1205,12 +1207,17 @@ function startRoomTimer(closeAt) {
   if (!closeAt || !timerEl || !valEl) { if (timerEl) timerEl.style.display = 'none'; return; }
   timerEl.style.display = 'flex';
   timerEl.style.color = '';
+  let _warned30 = false;
   function tick() {
     const rem = Math.max(0, _roomCloseAt - Date.now());
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
     valEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
     if (rem <= 60000) timerEl.style.color = '#ef4444';
+    if (rem <= 30000 && rem > 0 && !_warned30) {
+      _warned30 = true;
+      toast('⏱ 房間將在 30 秒後自動關閉', 'error', 8000);
+    }
     if (rem === 0) clearInterval(_timerInterval);
   }
   tick();
@@ -1527,8 +1534,8 @@ function addPeer(peerId, name, isInitiator, role, avatar, userId) {
   noDevicesEl.style.display = 'none';
   setNoDevicesHint('normal');
 
-  if (peers.size === 1 && qrModal.classList.contains('active')) {
-    setTimeout(() => qrModal.classList.remove('active'), 600);
+  if (peers.size === 1 && qrModal.classList.contains('active') && !qrModal.dataset.userInteracted) {
+    setTimeout(() => { if (!qrModal.dataset.userInteracted) qrModal.classList.remove('active'); }, 600);
   }
   if (peers.size === 1) autoSelect(peerId);
 
@@ -1581,6 +1588,12 @@ function removePeer(peerId) {
   peers.delete(peerId);
   _peerConnTypes.delete(peerId);
   refreshConnTypePill();
+  // Clear any lingering typing indicator for this peer
+  if (_typingPeers.has(peerId)) {
+    clearTimeout(_typingPeers.get(peerId).timer);
+    _typingPeers.delete(peerId);
+    renderTyping();
+  }
   fqUpdate();
   addChatEvent(`${peer.name} left`);
   if (selectedPeerId === peerId) {
@@ -1771,18 +1784,24 @@ async function sendFileViaDC(peerId, file) {
   // Event-based backpressure: fire when buffer drains below threshold
   dc.bufferedAmountLowThreshold = MAX_BUFFER / 2;
   let _drainResolve = null;
-  const _savedLow = dc.onbufferedamountlow;
+  let _aborted = false;
+  const _savedLow   = dc.onbufferedamountlow;
+  const _savedClose = dc.onclose;
+  const _abort = () => { _aborted = true; if (_drainResolve) { _drainResolve(); _drainResolve = null; } };
   dc.onbufferedamountlow = () => { if (_drainResolve) { _drainResolve(); _drainResolve = null; } };
-  const waitDrain = () => dc.bufferedAmount <= MAX_BUFFER
+  dc.onclose = (...a) => { _abort(); if (_savedClose) _savedClose(...a); };
+  const waitDrain = () => (dc.bufferedAmount <= MAX_BUFFER || _aborted)
     ? Promise.resolve()
     : new Promise(r => { _drainResolve = r; });
+
+  const restoreHandlers = () => { dc.onbufferedamountlow = _savedLow; dc.onclose = _savedClose; };
 
   dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' }));
   txStart(file.name, file.size);
   let offset = 0;
-  while (offset < file.size) {
+  while (offset < file.size && !_aborted) {
     await waitDrain();
-    if (!peers.has(peerId)) { peer.activeSend = null; dc.onbufferedamountlow = _savedLow; return; }
+    if (_aborted || !peers.has(peerId)) { peer.activeSend = null; restoreHandlers(); txEnd(); return; }
     const buf = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
     dc.send(buf);
     offset += buf.byteLength;
@@ -1790,7 +1809,7 @@ async function sendFileViaDC(peerId, file) {
     setProgress(peer, offset / file.size);
     txUpdate(offset);
   }
-  dc.onbufferedamountlow = _savedLow;
+  restoreHandlers();
   dc.send(JSON.stringify({ type: 'file-end', fileId }));
   peer.activeSend = null;
   setProgress(peer, null);

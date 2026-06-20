@@ -502,7 +502,13 @@
   <div class="modal-box" style="max-width:340px">
     <h3 class="modal-title">🔐 房間密碼</h3>
     <p style="color:var(--text-2);margin-bottom:12px;font-size:0.85rem">此房間需要密碼才能加入</p>
-    <input type="password" id="room-pw-input" class="rs-input" placeholder="輸入房間密碼" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:6px">
+    <div class="pw-field" style="margin-bottom:6px">
+      <input type="password" id="room-pw-input" class="rs-input" placeholder="輸入房間密碼" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:38px">
+      <button type="button" class="pw-toggle" data-target="room-pw-input" tabindex="-1" title="顯示/隱藏密碼" aria-label="顯示/隱藏密碼">
+        <svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <svg class="pw-eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
     <p id="room-pw-error" style="color:#ef4444;font-size:0.8rem;min-height:1.2em;margin:0 0 4px"></p>
     <div class="modal-actions">
       <button class="btn-ghost" id="room-pw-cancel">取消</button>
@@ -612,8 +618,12 @@
     <div class="auth-field">
       <input type="email" id="auth-email" data-i18n-placeholder="email-placeholder" placeholder="Email address" autocomplete="email">
     </div>
-    <div class="auth-field">
+    <div class="auth-field pw-field">
       <input type="password" id="auth-password" data-i18n-placeholder="password-placeholder" placeholder="Password" autocomplete="current-password" minlength="6">
+      <button type="button" class="pw-toggle" data-target="auth-password" tabindex="-1" title="顯示/隱藏密碼" aria-label="顯示/隱藏密碼">
+        <svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <svg class="pw-eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
     </div>
     <p id="auth-error" class="auth-error"></p>
     <button id="auth-submit-btn" class="btn-primary auth-submit" data-i18n="auth-submit">Sign In</button>

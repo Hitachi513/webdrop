@@ -1798,6 +1798,21 @@ header {
 }
 .auth-field input:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--glow-primary); }
 .auth-field input::placeholder { color:var(--text-muted); }
+.pw-field { position: relative; width: 100%; }
+.pw-field input { padding-right: 40px !important; box-sizing: border-box; width: 100%; }
+.pw-toggle {
+  position: absolute;
+  right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  transition: color .15s;
+}
+.pw-toggle:hover { color: var(--text); }
 
 .auth-error { font-size:.75rem; color:var(--error); min-height:16px; text-align:center; width:100%; }
 

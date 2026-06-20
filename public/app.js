@@ -392,6 +392,19 @@ function initGoogleAuth() {
   );
 }
 
+// ===== Password Show/Hide Toggles =====
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.pw-toggle');
+  if (!btn) return;
+  const input = document.getElementById(btn.dataset.target);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.querySelector('.pw-eye-off').style.display = show ? 'none' : '';
+  btn.querySelector('.pw-eye-on').style.display  = show ? '' : 'none';
+  setTimeout(() => input.focus(), 0);
+});
+
 // ===== Set Room ID Modal =====
 const setRoomModal = document.getElementById('set-room-modal');
 const setRoomInput = document.getElementById('set-room-input');
@@ -1751,22 +1764,34 @@ async function sendFileToPeer(peerId, file) {
 
 async function sendFileViaDC(peerId, file) {
   const peer = peers.get(peerId);
+  const dc = peer.dc;
   const fileId = randId();
   peer.activeSend = { fileId, file, offset: 0 };
-  peer.dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' }));
+
+  // Event-based backpressure: fire when buffer drains below threshold
+  dc.bufferedAmountLowThreshold = MAX_BUFFER / 2;
+  let _drainResolve = null;
+  const _savedLow = dc.onbufferedamountlow;
+  dc.onbufferedamountlow = () => { if (_drainResolve) { _drainResolve(); _drainResolve = null; } };
+  const waitDrain = () => dc.bufferedAmount <= MAX_BUFFER
+    ? Promise.resolve()
+    : new Promise(r => { _drainResolve = r; });
+
+  dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' }));
   txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size) {
-    while (peer.dc.bufferedAmount > MAX_BUFFER) await sleep(50);
-    if (!peers.has(peerId)) { peer.activeSend = null; return; } // peer left, resumeBank already updated
+    await waitDrain();
+    if (!peers.has(peerId)) { peer.activeSend = null; dc.onbufferedamountlow = _savedLow; return; }
     const buf = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
-    peer.dc.send(buf);
+    dc.send(buf);
     offset += buf.byteLength;
     peer.activeSend.offset = offset;
     setProgress(peer, offset / file.size);
     txUpdate(offset);
   }
-  peer.dc.send(JSON.stringify({ type: 'file-end', fileId }));
+  dc.onbufferedamountlow = _savedLow;
+  dc.send(JSON.stringify({ type: 'file-end', fileId }));
   peer.activeSend = null;
   setProgress(peer, null);
   txEnd();

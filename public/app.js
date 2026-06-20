@@ -697,6 +697,23 @@ qrModal.addEventListener('click', e => { if (e.target === qrModal) qrModal.class
 
 document.getElementById('open-share-btn').addEventListener('click', () => qrModal.classList.add('active'));
 
+function setNoDevicesHint(mode) {
+  const titleEl = noDevicesEl?.querySelector('.no-dev-title');
+  const shareBtn = noDevicesEl?.querySelector('#open-share-btn');
+  if (!titleEl) return;
+  if (mode === 'reconnected') {
+    titleEl.textContent = '連線重建中，若對方消失了…';
+    if (shareBtn) shareBtn.textContent = '請對方重新整理頁面';
+  } else if (mode === 'disconnected') {
+    titleEl.textContent = '連線中斷，嘗試重連…';
+    if (shareBtn) shareBtn.style.display = 'none';
+  } else {
+    titleEl.setAttribute('data-i18n', 'no-devices');
+    titleEl.textContent = titleEl.getAttribute('data-i18n') ? (window.i18n?.t('no-devices') || 'No devices nearby') : 'No devices nearby';
+    if (shareBtn) { shareBtn.style.display = ''; shareBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/><line x1="14" y1="14" x2="17" y2="14"/><line x1="20" y1="14" x2="20" y2="17"/><line x1="14" y1="17" x2="14" y2="20"/><line x1="14" y1="20" x2="17" y2="20"/></svg><span data-i18n="share-qr">Share QR Code</span>`; }
+  }
+}
+
 document.getElementById('room-closed-new').addEventListener('click', () => {
   const newId = Math.random().toString(36).slice(2, 8).toUpperCase();
   window.location.href = `${window.location.origin}/#${newId}`;
@@ -896,10 +913,16 @@ function rejoinRoom() {
   socket.emit('join-room', { roomId, name: myName, avatar: myAvatar, password: _roomPassword || undefined });
 }
 
+let _hasConnectedOnce = false;
+
 socket.on('connect', () => {
   document.getElementById('maintenance-overlay').style.display = 'none';
+  if (_hasConnectedOnce) {
+    toast('連線已重建。若對方看不到你，請對方重新整理頁面。', 'info', 6000);
+    setNoDevicesHint('reconnected');
+  }
+  _hasConnectedOnce = true;
   lsSetStatus('已連線，測量延遲…');
-  // Measure round-trip ping
   const t0 = Date.now();
   socket.timeout(5000).emit('ping-check', (err) => {
     if (!err) lsShowPing(Date.now() - t0);
@@ -907,6 +930,10 @@ socket.on('connect', () => {
     lsDone();
   });
   rejoinRoom();
+});
+
+socket.on('disconnect', () => {
+  if (_hasConnectedOnce) setNoDevicesHint('disconnected');
 });
 
 let _reservedRetryTimer = null;
@@ -1472,6 +1499,7 @@ function addPeer(peerId, name, isInitiator, role, avatar, userId) {
   radarEl.appendChild(peerObj.element);
   updatePositions();
   noDevicesEl.style.display = 'none';
+  setNoDevicesHint('normal');
 
   if (peers.size === 1 && qrModal.classList.contains('active')) {
     setTimeout(() => qrModal.classList.remove('active'), 600);
@@ -1533,7 +1561,7 @@ function removePeer(peerId) {
     if (next) autoSelect(next); else updateDropHint();
   }
   updatePositions();
-  if (peers.size === 0) noDevicesEl.style.display = 'flex';
+  if (peers.size === 0) { noDevicesEl.style.display = 'flex'; setNoDevicesHint('normal'); }
   toast(`${peer.name} disconnected`, 'info');
   refreshMembersPanel();
 }

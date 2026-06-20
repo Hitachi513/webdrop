@@ -1219,14 +1219,14 @@ function startRoomTimer(closeAt) {
   const valEl = document.getElementById('room-timer-val');
   if (!closeAt || !timerEl || !valEl) { if (timerEl) timerEl.style.display = 'none'; return; }
   timerEl.style.display = 'flex';
-  timerEl.style.color = '';
+  timerEl.classList.remove('warn');
   let _warned30 = false;
   function tick() {
     const rem = Math.max(0, _roomCloseAt - Date.now());
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
     valEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-    if (rem <= 60000) timerEl.style.color = '#ef4444';
+    if (rem <= 60000) timerEl.classList.add('warn');
     if (rem <= 30000 && rem > 0 && !_warned30) {
       _warned30 = true;
       toast('⏱ 房間將在 30 秒後自動關閉', 'error', 8000);

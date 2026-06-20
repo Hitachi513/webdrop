@@ -183,7 +183,7 @@ function setShareUrl(baseUrl) {
   img.classList.add('loading');
   spinner.classList.remove('hidden');
   img.onload  = () => { img.classList.remove('loading'); spinner.classList.add('hidden'); };
-  img.onerror = () => spinner.classList.add('hidden');
+  img.onerror = () => { img.classList.remove('loading'); spinner.classList.add('hidden'); img.alt = 'QR 載入失敗，請複製下方連結'; };
   img.src = `/qr?url=${encodeURIComponent(shareUrl)}`;
   document.getElementById('qr-url').textContent = shareUrl;
 
@@ -661,6 +661,11 @@ async function runSpeedTest() {
   stQuality.textContent = '測試中…';
   stQuality.className = 'st-quality-text';
   stBars.className = 'ls-signal-bars';
+  try { await _runSpeedTestCore(); }
+  catch(e) { stRing.className = 'st-ring q-poor'; stQuality.textContent = '測試失敗'; }
+  finally { stRunBtn.disabled = false; stRunBtn.textContent = '再測一次'; }
+}
+async function _runSpeedTestCore() {
 
   // Ping: 3 round trips
   const pings = [];
@@ -702,8 +707,6 @@ async function runSpeedTest() {
   document.getElementById('st-icon-bars').className = `ls-signal-bars q-${qClass}`;
 
   stTestedOnce = true;
-  stRunBtn.disabled = false;
-  stRunBtn.textContent = '再測一次';
 }
 
 stRunBtn.addEventListener('click', runSpeedTest);
@@ -1530,7 +1533,9 @@ const resumeBank = new Map(); // userId → { files: File[] }
 
 function addPeer(peerId, name, isInitiator, role, avatar, userId) {
   if (peers.has(peerId)) return;
-  const pc = new RTCPeerConnection(ICE_SERVERS);
+  let pc;
+  try { pc = new RTCPeerConnection(ICE_SERVERS); }
+  catch(e) { toast('無法建立 P2P 連線，請確認瀏覽器是否允許 WebRTC', 'error'); return; }
   pc.onicecandidate = ({ candidate }) => { if (candidate) socket.emit('ice-candidate', { to: peerId, candidate }); };
   pc.onconnectionstatechange = () => { const p = peers.get(peerId); if (p) updateStatusDot(p, pc.connectionState); };
 
@@ -1601,6 +1606,7 @@ function removePeer(peerId) {
       toast(`${peer.name} 斷線，${pendingFiles.length} 個檔案待續傳`, 'info');
     }
   }
+  if (peer.receiving) { peer.receiving = null; setProgress(peer, null); if (currentTransfer.active) txEnd(); }
   peer.pc.close();
   if (peer.element) peer.element.remove();
   peers.delete(peerId);
@@ -1845,6 +1851,7 @@ async function sendFileViaRelay(peerId, file) {
   txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size) {
+    if (!peers.has(peerId)) { peer.activeSend = null; txEnd(); return; }
     const buf = await file.slice(offset, offset + CHUNK_SIZE).arrayBuffer();
     socket.emit('relay-file-chunk', { to: peerId, chunk: buf });
     offset += buf.byteLength;
@@ -2185,6 +2192,8 @@ function updatePositions() {
 
 // ===== Toasts =====
 function toast(msg, type = 'info', duration = 3000) {
+  const existing = notificationsEl.querySelectorAll('.toast');
+  if (existing.length >= 5) existing[0].remove();
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
   el.textContent = msg;

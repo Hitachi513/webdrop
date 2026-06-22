@@ -4,7 +4,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY . .
-RUN git log --format="%x00%H%x01%h%x01%aI%x01%an%x01%s%x01%b" 2>/dev/null > /app/git-log.txt || true
+RUN lines=$(git log --format="%H" 2>/dev/null | wc -l || echo 0); \
+    if [ "$lines" -gt 10 ]; then \
+      git log --format="%x00%H%x01%h%x01%aI%x01%an%x01%s%x01%b" > /app/git-log.txt; \
+    fi
 RUN rm -rf .git
 RUN mkdir -p /app/data
 EXPOSE 3000

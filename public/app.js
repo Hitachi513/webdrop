@@ -202,7 +202,6 @@ function setShareUrl(baseUrl) {
 let userToken    = localStorage.getItem('wd-user-token');
 let currentUser  = null;
 let googleConfig = false;
-let facebookConfig = false;
 
 async function authApi(method, path, body) {
   const res = await fetch(path, {
@@ -393,25 +392,64 @@ function initGoogleAuth() {
   );
 }
 
-// ===== Facebook Auth =====
-function initFacebookAuth() {
-  if (!window.FB || !facebookConfig) return;
-  FB.init({ appId: facebookConfig, cookie: true, xfbml: false, version: 'v19.0' });
-}
+// ===== Phone OTP Auth =====
+(function () {
+  const trigger     = document.getElementById('phone-login-trigger');
+  const form        = document.getElementById('phone-login-form');
+  const step1       = document.getElementById('phone-step-1');
+  const step2       = document.getElementById('phone-step-2');
+  const phoneInput  = document.getElementById('phone-number-input');
+  const otpInput    = document.getElementById('phone-otp-input');
+  const sendBtn     = document.getElementById('phone-send-btn');
+  const verifyBtn   = document.getElementById('phone-verify-btn');
+  const backBtn     = document.getElementById('phone-back-btn');
+  const hint        = document.getElementById('phone-sent-hint');
+  const errEl       = document.getElementById('phone-error');
+  if (!trigger) return;
 
-document.getElementById('facebook-signin-btn')?.addEventListener('click', () => {
-  if (!window.FB) return;
-  FB.login(async response => {
-    if (response.status !== 'connected') return;
+  trigger.addEventListener('click', () => {
+    const open = form.style.display !== 'none';
+    form.style.display = open ? 'none' : '';
+    if (!open) phoneInput?.focus();
+  });
+
+  sendBtn?.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const phone = phoneInput.value.trim();
+    sendBtn.disabled = true;
     try {
-      const { accessToken, userID } = response.authResponse;
-      const data = await authApi('POST', '/api/auth/facebook', { accessToken, userId: userID });
+      await authApi('POST', '/api/auth/phone/send', { phone });
+      hint.textContent = i18n.t('otp-sent-to').replace('{phone}', phone);
+      step1.style.display = 'none';
+      step2.style.display = '';
+      otpInput.focus();
+    } catch (e) { errEl.textContent = e.message; }
+    sendBtn.disabled = false;
+  });
+
+  verifyBtn?.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const phone = phoneInput.value.trim();
+    const otp   = otpInput.value.trim();
+    verifyBtn.disabled = true;
+    try {
+      const data = await authApi('POST', '/api/auth/phone/verify', { phone, otp });
       onLoginSuccess(data, false);
-    } catch (e) {
-      authError.textContent = e.message;
-    }
-  }, { scope: 'email' });
-});
+    } catch (e) { errEl.textContent = e.message; }
+    verifyBtn.disabled = false;
+  });
+
+  backBtn?.addEventListener('click', () => {
+    step2.style.display = 'none';
+    step1.style.display = '';
+    otpInput.value = '';
+    errEl.textContent = '';
+    phoneInput.focus();
+  });
+
+  otpInput?.addEventListener('keydown', e => { if (e.key === 'Enter') verifyBtn?.click(); });
+  phoneInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendBtn?.click(); });
+})();
 
 // ===== Password Show/Hide Toggles =====
 const _pwAutoHideTimers = new WeakMap();
@@ -2574,16 +2612,10 @@ window.addEventListener('load', async () => {
     } else {
       document.getElementById('google-btn-wrap').style.display = 'none';
     }
-    if (cfg.facebookAuth && cfg.facebookAppId) {
+    if (cfg.phoneAuth) {
       hasSocial = true;
-      facebookConfig = cfg.facebookAppId;
-      const script = document.createElement('script');
-      script.src = 'https://connect.facebook.net/en_US/sdk.js';
-      script.async = true; script.defer = true;
-      script.onload = initFacebookAuth;
-      document.head.appendChild(script);
     } else {
-      document.getElementById('facebook-btn-wrap').style.display = 'none';
+      document.getElementById('phone-btn-wrap').style.display = 'none';
     }
     if (!hasSocial) document.getElementById('auth-divider').style.display = 'none';
   } catch {}

@@ -1037,32 +1037,29 @@ app.delete('/admin/api/admin-log', requireAdmin, requireSuperAdmin, (req, res) =
 });
 
 // ===== Changelog =====
-app.get('/admin/api/changelog', requireAdmin, async (req, res) => {
+app.get('/admin/api/changelog', requireAdmin, (req, res) => {
+  // Read all commits directly from the embedded .git history (no API token needed,
+  // no rate limits).  \x00 separates commits; \x01 separates fields within each commit.
   let commits = [];
-  if (GITHUB_REPO) {
-    try {
-      const headers = { 'User-Agent': 'webdrop-server' };
-      if (GITHUB_TOKEN) headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
-      const r = await fetch(
-        `https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=100`,
-        { headers, signal: AbortSignal.timeout(8000) }
-      );
-      if (r.ok) {
-        const data = await r.json();
-        commits = data.map(c => ({
-          id:    c.sha,
-          type:  'push',
-          ts:    new Date(c.commit.author.date).getTime(),
-          sha:   c.sha.slice(0, 7),
-          title: c.commit.message.split('\n')[0],
-          body:  c.commit.message.split('\n').slice(2).join('\n').trim() || '',
-          author: c.commit.author.name,
-          url:   c.html_url,
-        }));
-      }
-    } catch {}
-  }
-  // Merge local restart events with GitHub commits, newest first
+  try {
+    const raw = execSync(
+      'git log --format="%x00%H%x01%h%x01%aI%x01%an%x01%s%x01%b"',
+      { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 5000 }
+    );
+    commits = raw.split('\x00').filter(s => s.trim()).map(entry => {
+      const parts  = entry.trim().split('\x01');
+      const sha    = (parts[0] || '').trim();
+      const short  = (parts[1] || '').trim();
+      const date   = (parts[2] || '').trim();
+      const author = (parts[3] || '').trim();
+      const subj   = (parts[4] || '').trim();
+      const body   = parts.slice(5).join('\x01').trim().replace(/\n+$/, '');
+      const url    = GITHUB_REPO ? `https://github.com/${GITHUB_REPO}/commit/${sha}` : '';
+      return { id: sha, type: 'push', ts: new Date(date).getTime(), sha: short, title: subj, body, author, url };
+    }).filter(c => c.id && !isNaN(c.ts));
+  } catch {}
+
+  // Merge with local restart events, newest first
   const all = [...changelog, ...commits].sort((a, b) => b.ts - a.ts);
   res.json({ entries: all, repo: GITHUB_REPO });
 });

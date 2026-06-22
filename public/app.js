@@ -1575,38 +1575,72 @@ function _rxChunk(r, data) {
   }
 }
 
+const _pendingFolders = new Map();
+
+async function _addToFolder(r, fileObj, peerName) {
+  const { folderId, folderName, folderFileCount, relativePath, name, size } = r;
+  if (!_pendingFolders.has(folderId)) {
+    _pendingFolders.set(folderId, { name: folderName, fileCount: folderFileCount, receivedCount: 0, totalSize: 0, files: [], peerName });
+  }
+  const folder = _pendingFolders.get(folderId);
+  folder.files.push({ file: fileObj, relativePath: relativePath || name });
+  folder.receivedCount++;
+  folder.totalSize += size;
+  if (folder.receivedCount === folder.fileCount) {
+    _pendingFolders.delete(folderId);
+    await _downloadFolderAsZip(folder);
+  }
+}
+
+async function _downloadFolderAsZip(folder) {
+  if (typeof JSZip === 'undefined') {
+    folder.files.forEach(({ file, relativePath }) => triggerDownload(file, relativePath.split('/').pop()));
+    toast(`資料夾「${folder.name}」已接收（逐檔下載）`, 'success');
+    return;
+  }
+  toast(`正在打包資料夾「${folder.name}」…`, 'info');
+  const zip = new JSZip();
+  for (const { file, relativePath } of folder.files) {
+    zip.file(relativePath, file);
+  }
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  triggerDownload(blob, `${folder.name}.zip`);
+  addFileBubble(`${folder.name}.zip`, blob.size, false, folder.peerName, blob);
+  notifyIfHidden(folder.peerName, `📁 ${folder.name}`);
+  toast(`資料夾「${folder.name}」已接收完成（${folder.fileCount} 個檔案）`, 'success');
+}
+
 async function _rxFinish(peer, r) {
   peer.receiving = null;
+  let fileObj = null;
   try {
     if (r._writeChain) {
-      await r._writeChain; // flush all pending chunk writes; throws if any write failed
+      await r._writeChain;
       if (r._opfs) {
-        // All chunks written to OPFS — file is byte-perfect copy of the original.
         await r._opfs.writable.close();
-        const file = await r._opfs.handle.getFile();
-        _opfsRxEntries.add(`wd-rx-${r.fileId}`); // cleaned up on pagehide
-        triggerDownload(file, r.name);
-        setProgress(peer, null); txEnd();
-        addFileBubble(r.name, r.size, false, peer.name, file);
-        notifyIfHidden(peer.name, `📎 ${r.name}`);
-        toast(`Received: ${r.name}`, 'success');
-        return;
+        fileObj = await r._opfs.handle.getFile();
+        _opfsRxEntries.add(`wd-rx-${r.fileId}`);
       }
-      // OPFS setup failed silently (r._opfs undefined) — chunks fell back to
-      // r.chunks[], so fall through to the legacy Blob path below.
+    }
+    if (!fileObj) {
+      fileObj = new Blob(r.chunks, { type: r.mime || 'application/octet-stream' });
     }
   } catch (e) {
-    // A mid-stream OPFS write error means r.chunks is empty and the file is
-    // incomplete — do NOT fall through to download(r) or the user gets a 0-byte file.
-    console.error('[webdrop] OPFS receive error:', e);
+    console.error('[webdrop] receive error:', e);
     setProgress(peer, null); txEnd();
     toast(`Failed to receive: ${r.name}`, 'error');
     return;
   }
-  // Legacy path: assemble Blob from in-memory chunks (small files or OPFS unavailable)
-  const blob = download(r);
+
   setProgress(peer, null); txEnd();
-  addFileBubble(r.name, r.size, false, peer.name, blob);
+
+  if (r.folderId) {
+    await _addToFolder(r, fileObj, peer.name);
+    return;
+  }
+
+  triggerDownload(fileObj, r.name);
+  addFileBubble(r.name, r.size, false, peer.name, fileObj);
   notifyIfHidden(peer.name, `📎 ${r.name}`);
   toast(`Received: ${r.name}`, 'success');
 }
@@ -1614,7 +1648,7 @@ async function _rxFinish(peer, r) {
 socket.on('relay-file-start', ({ from, meta }) => {
   const peer = peers.get(from);
   if (!peer) return;
-  peer.receiving = { fileId: meta.fileId, name: meta.name, size: meta.size, mime: meta.mime, chunks: [], received: 0 };
+  peer.receiving = { fileId: meta.fileId, name: meta.name, size: meta.size, mime: meta.mime, chunks: [], received: 0, relativePath: meta.relativePath || null, folderId: meta.folderId || null, folderName: meta.folderName || null, folderFileCount: meta.folderFileCount || null };
   setProgress(peer, 0);
   txStart(meta.name, meta.size);
   _rxInitOpfs(peer.receiving);
@@ -1763,7 +1797,7 @@ function handleDCControl(msg, peerId) {
   const peer = peers.get(peerId);
   if (!peer) return;
   if (msg.type === 'file-start') {
-    peer.receiving = { fileId: msg.fileId, name: msg.name, size: msg.size, mime: msg.mime, chunks: [], received: 0 };
+    peer.receiving = { fileId: msg.fileId, name: msg.name, size: msg.size, mime: msg.mime, chunks: [], received: 0, relativePath: msg.relativePath || null, folderId: msg.folderId || null, folderName: msg.folderName || null, folderFileCount: msg.folderFileCount || null };
     setProgress(peer, 0);
     txStart(msg.name, msg.size);
     _rxInitOpfs(peer.receiving);
@@ -1895,12 +1929,12 @@ function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
 
-async function sendFileToPeer(peerId, file) {
-  if (dcReady(peerId)) await sendFileViaDC(peerId, file);
-  else await sendFileViaRelay(peerId, file);
+async function sendFileToPeer(peerId, file, meta = {}) {
+  if (dcReady(peerId)) await sendFileViaDC(peerId, file, meta);
+  else await sendFileViaRelay(peerId, file, meta);
 }
 
-async function sendFileViaDC(peerId, file) {
+async function sendFileViaDC(peerId, file, meta = {}) {
   const peer = peers.get(peerId);
   const dc = peer.dc;
   const fileId = randId();
@@ -1921,7 +1955,7 @@ async function sendFileViaDC(peerId, file) {
 
   const restoreHandlers = () => { dc.onbufferedamountlow = _savedLow; dc.onclose = _savedClose; };
 
-  dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' }));
+  dc.send(JSON.stringify({ type: 'file-start', fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream', relativePath: meta.relativePath || null, folderId: meta.folderId || null, folderName: meta.folderName || null, folderFileCount: meta.folderFileCount || null }));
   txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size && !_aborted) {
@@ -1943,12 +1977,12 @@ async function sendFileViaDC(peerId, file) {
   toast(`Sent: ${file.name}`, 'success');
 }
 
-async function sendFileViaRelay(peerId, file) {
+async function sendFileViaRelay(peerId, file, meta = {}) {
   const peer = peers.get(peerId);
   const fileId = randId();
   peer.activeSend = { fileId, file, offset: 0 };
   setServerRelayType(peerId);
-  socket.emit('relay-file-start', { to: peerId, meta: { fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' } });
+  socket.emit('relay-file-start', { to: peerId, meta: { fileId, name: file.name, size: file.size, mime: file.type || 'application/octet-stream', relativePath: meta.relativePath || null, folderId: meta.folderId || null, folderName: meta.folderName || null, folderFileCount: meta.folderFileCount || null } });
   txStart(file.name, file.size);
   let offset = 0;
   while (offset < file.size) {
@@ -1993,14 +2027,17 @@ function fqUpdate() {
 
 document.getElementById('fq-close')?.addEventListener('click', () => { if (fileQueuePanel) fileQueuePanel.style.display = 'none'; });
 
-function queueFile(peerId, file) {
+function queueFile(peerId, fileItem) {
   const peer = peers.get(peerId);
   if (!peer) return;
-  const qItem = { id: _fqNextId++, peerId, file, status: 'queued' };
+  const meta = fileItem instanceof File
+    ? { file: fileItem, relativePath: null, folderId: null, folderName: null, folderFileCount: null }
+    : fileItem;
+  const qItem = { id: _fqNextId++, peerId, file: meta.file, status: 'queued' };
   _globalQueue.push(qItem);
   if (_globalQueue.length > 50) _globalQueue.splice(0, _globalQueue.length - 50);
   fqUpdate();
-  peer.sendQueue.push({ file, qItem });
+  peer.sendQueue.push({ ...meta, qItem });
   processSendQueue(peerId);
 }
 
@@ -2008,10 +2045,10 @@ async function processSendQueue(peerId) {
   const peer = peers.get(peerId);
   if (!peer || peer.isSending || !peer.sendQueue.length) return;
   peer.isSending = true;
-  const { file, qItem } = peer.sendQueue.shift();
+  const { file, relativePath, folderId, folderName, folderFileCount, qItem } = peer.sendQueue.shift();
   if (qItem) { qItem.status = 'sending'; fqUpdate(); }
   try {
-    await sendFileToPeer(peerId, file);
+    await sendFileToPeer(peerId, file, { relativePath, folderId, folderName, folderFileCount });
     if (qItem) { qItem.status = 'done'; fqUpdate(); }
   } catch (e) {
     if (qItem) { qItem.status = 'error'; fqUpdate(); }
@@ -2064,24 +2101,54 @@ async function maybeZip(files) {
   return [new File([blob], `webdrop-${Date.now()}.zip`, { type: 'application/zip' })];
 }
 
-async function handleFiles(files) {
-  if (!files.length) return;
+async function handleFiles(rawItems) {
+  if (!rawItems.length) return;
   const targets = resolveTargets();
   if (!targets?.length) { toast(peers.size === 0 ? 'No devices connected' : 'Select a device first', 'error'); return; }
-  let processed = await Promise.all([...files].map(compressImage));
-  processed = await maybeZip(processed);
-  targets.forEach(id => processed.forEach(f => queueFile(id, f)));
+
+  const items = [...rawItems].map(x => x instanceof File
+    ? { file: x, relativePath: x.webkitRelativePath || null }
+    : x);
+
+  const folderGroups = new Map();
+  const looseFiles = [];
+  for (const item of items) {
+    if (item.relativePath) {
+      const top = item.relativePath.split('/')[0];
+      if (!folderGroups.has(top)) folderGroups.set(top, []);
+      folderGroups.get(top).push(item);
+    } else {
+      looseFiles.push(item.file);
+    }
+  }
+
+  if (looseFiles.length) {
+    let processed = await Promise.all(looseFiles.map(compressImage));
+    processed = await maybeZip(processed);
+    targets.forEach(id => processed.forEach(f => queueFile(id, f)));
+  }
+
+  for (const [folderName, folderItems] of folderGroups) {
+    const folderId = randId();
+    const folderFileCount = folderItems.length;
+    targets.forEach(id => folderItems.forEach(item =>
+      queueFile(id, { file: item.file, relativePath: item.relativePath, folderId, folderName, folderFileCount })
+    ));
+  }
 }
 
-async function collectEntry(entry, out) {
+async function collectEntry(entry, out, parentPath = '') {
   if (entry.isFile) {
-    out.push(await new Promise((res, rej) => entry.file(res, rej)));
+    const file = await new Promise((res, rej) => entry.file(res, rej));
+    const relativePath = parentPath ? `${parentPath}/${entry.name}` : null;
+    out.push({ file, relativePath });
   } else if (entry.isDirectory) {
+    const dirPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
     const reader = entry.createReader();
     let batch;
     do {
       batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-      for (const child of batch) await collectEntry(child, out);
+      for (const child of batch) await collectEntry(child, out, dirPath);
     } while (batch.length > 0);
   }
 }
@@ -2093,11 +2160,11 @@ async function getDropFiles(dataTransfer) {
     for (const item of items) {
       if (item.kind !== 'file') continue;
       const entry = item.webkitGetAsEntry();
-      if (entry) await collectEntry(entry, out);
+      if (entry) await collectEntry(entry, out, '');
     }
     return out;
   }
-  return [...dataTransfer.files];
+  return [...dataTransfer.files].map(f => ({ file: f, relativePath: f.webkitRelativePath || null }));
 }
 
 dropZoneEl.addEventListener('dragover',  e => { e.preventDefault(); dropZoneEl.classList.add('dragover'); });

@@ -1516,33 +1516,122 @@ socket.on('relay-msg', ({ from, text, msgId, replyTo }) => {
 socket.on('relay-reaction', ({ from, msgId, emoji }) => handleReaction(msgId, emoji, from));
 socket.on('relay-read-receipt', ({ from, msgIds }) => handleReadReceipt(msgIds, from));
 socket.on('relay-error', ({ error }) => toast(error, 'error'));
+// ===== Streaming Receive Helpers (OPFS) =====
+// For files >= OPFS_THRESHOLD, stream chunks directly to the Origin Private
+// File System instead of accumulating ArrayBuffers in memory.  After all
+// chunks are written the OPFS File handle is used to trigger the download,
+// which lets the browser serve the bytes from disk without a second in-memory
+// copy.  Falls back silently to the legacy chunks-array path when the API is
+// unavailable (Firefox, older Safari).
+const OPFS_THRESHOLD = 50 * 1024 * 1024; // 50 MB
+
+// Track OPFS entries created this session so they can be cleaned up on pagehide.
+// We intentionally do NOT remove entries immediately after download so that
+// image previews and the re-download button keep working during the session.
+const _opfsRxEntries = new Set();
+
+// Remove any wd-rx-* leftovers from a previous session (e.g. browser was
+// force-killed before pagehide fired).
+if (typeof navigator?.storage?.getDirectory === 'function') {
+  navigator.storage.getDirectory().then(async root => {
+    const stale = [];
+    for await (const name of root.keys()) {
+      if (name.startsWith('wd-rx-')) stale.push(name);
+    }
+    stale.forEach(n => root.removeEntry(n).catch(() => {}));
+  }).catch(() => {});
+}
+
+// Best-effort cleanup when the tab is hidden / closed.
+window.addEventListener('pagehide', () => {
+  if (!_opfsRxEntries.size) return;
+  navigator.storage?.getDirectory?.()?.then(root =>
+    _opfsRxEntries.forEach(name => root.removeEntry(name).catch(() => {}))
+  );
+});
+
+function _rxInitOpfs(r) {
+  if (r.size < OPFS_THRESHOLD || typeof navigator?.storage?.getDirectory !== 'function') return;
+  // _writeChain starts as the OPFS setup promise so that the first _rxChunk
+  // call automatically waits for the writable to be ready.
+  r._writeChain = navigator.storage.getDirectory().then(async root => {
+    const h = await root.getFileHandle(`wd-rx-${r.fileId}`, { create: true });
+    r._opfs = { handle: h, writable: await h.createWritable() };
+  }).catch(() => {});
+  // Note: setup errors are swallowed here; _rxChunk will fall back to
+  // r.chunks.push() if r._opfs was never assigned.
+}
+
+function _rxChunk(r, data) {
+  if (r._writeChain !== undefined) {
+    // Chain writes sequentially; each write resolves before the next begins,
+    // so the ArrayBuffer for chunk N can be GC'd once its write promise
+    // resolves — keeping memory usage near zero regardless of file size.
+    r._writeChain = r._writeChain.then(() =>
+      r._opfs ? r._opfs.writable.write(data) : void r.chunks.push(data)
+    );
+  } else {
+    r.chunks.push(data);
+  }
+}
+
+async function _rxFinish(peer, r) {
+  peer.receiving = null;
+  try {
+    if (r._writeChain) {
+      await r._writeChain; // flush all pending chunk writes; throws if any write failed
+      if (r._opfs) {
+        // All chunks written to OPFS — file is byte-perfect copy of the original.
+        await r._opfs.writable.close();
+        const file = await r._opfs.handle.getFile();
+        _opfsRxEntries.add(`wd-rx-${r.fileId}`); // cleaned up on pagehide
+        triggerDownload(file, r.name);
+        setProgress(peer, null); txEnd();
+        addFileBubble(r.name, r.size, false, peer.name, file);
+        notifyIfHidden(peer.name, `📎 ${r.name}`);
+        toast(`Received: ${r.name}`, 'success');
+        return;
+      }
+      // OPFS setup failed silently (r._opfs undefined) — chunks fell back to
+      // r.chunks[], so fall through to the legacy Blob path below.
+    }
+  } catch (e) {
+    // A mid-stream OPFS write error means r.chunks is empty and the file is
+    // incomplete — do NOT fall through to download(r) or the user gets a 0-byte file.
+    console.error('[webdrop] OPFS receive error:', e);
+    setProgress(peer, null); txEnd();
+    toast(`Failed to receive: ${r.name}`, 'error');
+    return;
+  }
+  // Legacy path: assemble Blob from in-memory chunks (small files or OPFS unavailable)
+  const blob = download(r);
+  setProgress(peer, null); txEnd();
+  addFileBubble(r.name, r.size, false, peer.name, blob);
+  notifyIfHidden(peer.name, `📎 ${r.name}`);
+  toast(`Received: ${r.name}`, 'success');
+}
+
 socket.on('relay-file-start', ({ from, meta }) => {
   const peer = peers.get(from);
   if (!peer) return;
   peer.receiving = { fileId: meta.fileId, name: meta.name, size: meta.size, mime: meta.mime, chunks: [], received: 0 };
   setProgress(peer, 0);
   txStart(meta.name, meta.size);
+  _rxInitOpfs(peer.receiving);
 });
 socket.on('relay-file-chunk', ({ from, chunk }) => {
   const peer = peers.get(from);
   if (!peer?.receiving) return;
   const buf = toArrayBuffer(chunk);
-  peer.receiving.chunks.push(buf);
   peer.receiving.received += buf.byteLength;
   setProgress(peer, peer.receiving.received / peer.receiving.size);
   txUpdate(peer.receiving.received);
+  _rxChunk(peer.receiving, buf);
 });
-socket.on('relay-file-end', ({ from, fileId, name }) => {
+socket.on('relay-file-end', ({ from, fileId }) => {
   const peer = peers.get(from);
   if (!peer?.receiving || peer.receiving.fileId !== fileId) return;
-  const r = peer.receiving;
-  const blob = download(r);
-  addFileBubble(r.name, r.size, false, peer.name, blob);
-  toast(`Received: ${r.name}`, 'success');
-  notifyIfHidden(peer.name, `📎 ${r.name}`);
-  peer.receiving = null;
-  setProgress(peer, null);
-  txEnd();
+  _rxFinish(peer, peer.receiving);
 });
 
 // ===== Peer Lifecycle =====
@@ -1677,16 +1766,10 @@ function handleDCControl(msg, peerId) {
     peer.receiving = { fileId: msg.fileId, name: msg.name, size: msg.size, mime: msg.mime, chunks: [], received: 0 };
     setProgress(peer, 0);
     txStart(msg.name, msg.size);
+    _rxInitOpfs(peer.receiving);
   } else if (msg.type === 'file-end') {
     if (peer.receiving?.fileId === msg.fileId) {
-      const r = peer.receiving;
-      const blob = download(r);
-      addFileBubble(r.name, r.size, false, peer.name, blob);
-      toast(`Received: ${r.name}`, 'success');
-      notifyIfHidden(peer.name, `📎 ${r.name}`);
-      peer.receiving = null;
-      setProgress(peer, null);
-      txEnd();
+      _rxFinish(peer, peer.receiving);
     }
   } else if (msg.type === 'message') {
     addChatMsg(peer.name, msg.text, false, { msgId: msg.msgId, replyTo: msg.replyTo, fromPeerId: peerId });
@@ -1703,10 +1786,11 @@ function handleDCControl(msg, peerId) {
 function handleDCChunk(data, peerId) {
   const peer = peers.get(peerId);
   if (!peer?.receiving) return;
-  peer.receiving.chunks.push(data);
-  peer.receiving.received += data.byteLength;
-  setProgress(peer, peer.receiving.received / peer.receiving.size);
-  txUpdate(peer.receiving.received);
+  const r = peer.receiving;
+  r.received += data.byteLength;
+  setProgress(peer, r.received / r.size);
+  txUpdate(r.received);
+  _rxChunk(r, data);
 }
 
 function download(r) {

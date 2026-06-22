@@ -1829,17 +1829,45 @@ header {
 
 .auth-submit { width:100%; padding:12px; font-size:.9rem; border-radius:12px; }
 
-.auth-footer { width:100%; text-align:center; }
-.btn-guest {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: .78rem;
-  cursor: pointer;
-  padding: 4px 8px;
-  transition: color .18s;
+.auth-footer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
 }
-.btn-guest:hover { color:var(--primary); }
+.auth-footer-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: .75rem;
+}
+.auth-footer-divider::before,
+.auth-footer-divider::after { content:''; flex:1; height:1px; background:var(--border-strong); }
+.btn-guest {
+  width: 100%;
+  background: transparent;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: .92rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: border-color .18s, background .18s, color .18s;
+}
+.btn-guest:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
 
 /* ===========================
    Promo / Redeem Modal

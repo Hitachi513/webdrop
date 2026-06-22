@@ -629,7 +629,11 @@
     <p id="auth-error" class="auth-error"></p>
     <button id="auth-submit-btn" class="btn-primary auth-submit" data-i18n="auth-submit">Sign In</button>
     <div class="auth-footer">
-      <button id="auth-guest-btn" class="btn-guest" data-i18n="continue-guest">Continue as Guest →</button>
+      <div class="auth-footer-divider"><span data-i18n="or-divider">or</span></div>
+      <button id="auth-guest-btn" class="btn-guest">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span data-i18n="continue-guest">Continue as Guest</span>
+      </button>
     </div>
   </div>
 </div>

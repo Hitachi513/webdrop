@@ -22,7 +22,7 @@ document.addEventListener('click', e => {
 });
 
 // ===== State =====
-let token = localStorage.getItem('wd-admin-token');
+let token = null;
 let currentAdmin = null;
 let adminSocket = null;
 let currentSettings = {};
@@ -52,7 +52,11 @@ const SECTION_PERM_MAP = {
 async function api(method, path, body) {
   const res = await fetch(path, {
     method,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json().catch(() => ({}));
@@ -114,7 +118,7 @@ function applyNavPermissions(admin) {
 
 function logout() {
   if (adminSocket) adminSocket.disconnect();
-  localStorage.removeItem('wd-admin-token');
+  fetch('/admin/api/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   token = null;
   currentAdmin = null;
   document.getElementById('dashboard').style.display    = 'none';
@@ -122,15 +126,11 @@ function logout() {
   document.getElementById('login-error').textContent    = '';
 }
 
-// Try to restore session
-if (token) {
-  api('GET', '/admin/api/stats').then(() => {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      showDashboard({ email: payload.email, role: payload.role, id: payload.id, name: payload.name || null, permissions: payload.permissions || {} });
-    } catch { logout(); }
-  }).catch(logout);
-}
+// Try to restore session via HttpOnly cookie
+api('GET', '/admin/api/me').then(data => {
+  token = data.token;
+  showDashboard({ email: data.email, role: data.role, id: data.id, name: data.name || null, permissions: data.permissions || {} });
+}).catch(() => {});
 
 // Login form
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -145,7 +145,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   try {
     const res = await api('POST', '/admin/api/login', { email, password });
     token = res.token;
-    localStorage.setItem('wd-admin-token', token);
     showDashboard({ ...res.admin, permissions: res.admin.permissions || {} });
   } catch (e) {
     err.textContent = e.message;

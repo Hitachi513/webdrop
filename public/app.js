@@ -199,13 +199,14 @@ function setShareUrl(baseUrl) {
 }
 
 // ===== Auth State =====
-let userToken    = localStorage.getItem('wd-user-token');
+let userToken    = null;
 let currentUser  = null;
 let googleConfig = false;
 
 async function authApi(method, path, body) {
   const res = await fetch(path, {
     method,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(userToken ? { Authorization: `Bearer ${userToken}` } : {})
@@ -234,7 +235,6 @@ function setEditRoomBtnVisible(visible) {
 function onLoginSuccess(data, isNew = false) {
   userToken   = data.token;
   currentUser = data.user;
-  localStorage.setItem('wd-user-token', userToken);
   applyCustomRoom(data.user.customRoomId);
   setEditRoomBtnVisible(!!data.user.canCustomRoom);
   // Update socket auth & reconnect to apply new per-user file limit
@@ -310,7 +310,7 @@ function showGuestMode() {
 }
 
 function userLogout() {
-  localStorage.removeItem('wd-user-token');
+  fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   userToken   = null;
   currentUser = null;
   socket.auth.userToken = null;
@@ -1226,7 +1226,7 @@ socket.on('role-updated', ({ role, effectiveMaxFileSizeMB, canCustomRoom }) => {
 });
 
 socket.on('account-banned', ({ reason } = {}) => {
-  localStorage.removeItem('wd-user-token');
+  fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   userToken = null;
   currentUser = null;
   const overlay = document.getElementById('banned-overlay');
@@ -1242,7 +1242,7 @@ socket.on('connect_error', (e) => {
     lsHide();
   }
   if (e.message === 'Your account has been suspended') {
-    localStorage.removeItem('wd-user-token');
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     userToken = null;
     currentUser = null;
     showGuestMode();
@@ -2620,24 +2620,21 @@ window.addEventListener('load', async () => {
     if (!hasSocial) document.getElementById('auth-divider').style.display = 'none';
   } catch {}
 
-  // Restore session
-  if (userToken) {
-    try {
-      const data = await authApi('GET', '/api/auth/me');
-      currentUser = data;
-      applyCustomRoom(data.customRoomId);
-      setEditRoomBtnVisible(!!data.canCustomRoom);
-      showUserBadge(currentUser);
-      if (data.language) i18n.set(data.language);
-      const langSel = document.getElementById('user-lang-select');
-      if (langSel) langSel.value = data.language || '';
-    } catch {
-      localStorage.removeItem('wd-user-token');
-      userToken = null;
-      socket.auth.userToken = null;
-      setTimeout(() => authModal.classList.add('active'), 600);
-    }
-  } else {
+  // Restore session via HttpOnly cookie
+  try {
+    const data = await authApi('GET', '/api/auth/me');
+    userToken = data.token;
+    currentUser = data;
+    socket.auth.userToken = userToken;
+    socket.disconnect();
+    socket.connect();
+    applyCustomRoom(data.customRoomId);
+    setEditRoomBtnVisible(!!data.canCustomRoom);
+    showUserBadge(currentUser);
+    if (data.language) i18n.set(data.language);
+    const langSel = document.getElementById('user-lang-select');
+    if (langSel) langSel.value = data.language || '';
+  } catch {
     setTimeout(() => authModal.classList.add('active'), 600);
   }
 

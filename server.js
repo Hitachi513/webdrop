@@ -381,11 +381,26 @@ function getUserList() {
 }
 
 // ===== Auth Middleware =====
+// ===== Cookie helpers =====
+function getCookie(req, name) {
+  const raw = req.headers?.cookie || '';
+  const m = raw.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+const COOKIE_SECURE = process.env.RENDER ? '; Secure' : '';
+function setAuthCookie(res, token, name = 'wd-token', maxAge = 30 * 24 * 3600) {
+  res.setHeader('Set-Cookie', `${name}=${encodeURIComponent(token)}; HttpOnly${COOKIE_SECURE}; SameSite=Strict; Path=/; Max-Age=${maxAge}`);
+}
+function clearAuthCookie(res, name = 'wd-token') {
+  res.setHeader('Set-Cookie', `${name}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+}
+
 function requireAdmin(req, res, next) {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  const token = (auth?.startsWith('Bearer ') ? auth.slice(7) : null) || getCookie(req, 'wd-admin-token');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    req.adminUser = jwt.verify(auth.slice(7), JWT_SECRET);
+    req.adminUser = jwt.verify(token, JWT_SECRET);
     next();
   } catch { res.status(401).json({ error: 'Invalid or expired token' }); }
 }
@@ -406,9 +421,10 @@ function requirePermission(perm) {
 }
 function requireUser(req, res, next) {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  const token = (auth?.startsWith('Bearer ') ? auth.slice(7) : null) || getCookie(req, 'wd-token');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
     if (payload.type !== 'user') return res.status(401).json({ error: 'Invalid token' });
     req.user = payload;
     next();
@@ -472,6 +488,7 @@ app.post('/api/auth/google', async (req, res) => {
       saveUsers().catch(e => console.error("saveUsers error:", e.message));
     }
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    setAuthCookie(res, token);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
   } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
 });
@@ -515,6 +532,7 @@ app.post('/api/auth/phone/verify', async (req, res) => {
   }
   if (user.banned) return res.status(403).json({ error: user.banReason || 'suspended' });
   const token = jwt.sign({ id: user.id, email: user.email || user.phone, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+  setAuthCookie(res, token);
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
 });
 
@@ -546,6 +564,7 @@ app.post('/api/auth/register', async (req, res) => {
     saveUsers().catch(e => console.error("saveUsers error:", e.message));
     adminNsp.emit('users', getUserList());
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    setAuthCookie(res, token);
     res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: null, effectiveMaxFileSizeMB: settings.maxFileSizeMB, customRoomId: null, canCustomRoom: false, role: null, avatar: null } });
   } catch (e) { console.error('Register error:', e.message); res.status(500).json({ error: 'Registration failed' }); }
 });
@@ -560,6 +579,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    setAuthCookie(res, token);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
   } catch (e) { console.error('Login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
 });
@@ -567,7 +587,14 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', requireUser, (req, res) => {
   const user = users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+  setAuthCookie(res, token);
+  res.json({ token, id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), language: user.language || null, customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ ok: true });
 });
 
 app.put('/api/auth/profile', requireUser, (req, res) => {
@@ -710,8 +737,21 @@ app.post('/admin/api/login', async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     const permissions = admin.role === 'staff' ? (admin.permissions || {}) : undefined;
     const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role, name: admin.name || null, permissions }, JWT_SECRET, { expiresIn: '24h' });
+    setAuthCookie(res, token, 'wd-admin-token', 24 * 3600);
     res.json({ token, admin: { id: admin.id, email: admin.email, role: admin.role, name: admin.name || null, permissions } });
   } catch (e) { console.error('Admin login error:', e.message); res.status(500).json({ error: 'Login failed' }); }
+});
+
+app.get('/admin/api/me', requireAdmin, (req, res) => {
+  const { id, email, role, name, permissions } = req.adminUser;
+  const token = jwt.sign({ id, email, role, name: name || null, permissions }, JWT_SECRET, { expiresIn: '24h' });
+  setAuthCookie(res, token, 'wd-admin-token', 24 * 3600);
+  res.json({ token, id, email, role, name: name || null, permissions: permissions || {} });
+});
+
+app.post('/admin/api/logout', (req, res) => {
+  clearAuthCookie(res, 'wd-admin-token');
+  res.json({ ok: true });
 });
 
 app.get('/admin/api/stats',    requireAdmin, (req, res) => res.json(getStats()));
@@ -826,20 +866,37 @@ app.put('/admin/api/admins/me', requireAdmin, async (req, res) => {
   res.json({ ok: true, name: admin.name || null });
 });
 
+// Per-admin broadcast rate limit (5 s cooldown)
+const _broadcastCooldowns = new Map();
+function chunkedBroadcast(event, payload, batchSize = 100) {
+  const sockets = [...io.sockets.sockets.values()];
+  let i = 0;
+  function emitBatch() {
+    const end = Math.min(i + batchSize, sockets.length);
+    for (; i < end; i++) sockets[i].emit(event, payload);
+    if (i < sockets.length) setImmediate(emitBatch);
+  }
+  setImmediate(emitBatch);
+}
+
 // Admin panel global broadcast
 app.post('/admin/api/broadcast', requireAdmin, requirePermission('broadcast'), (req, res) => {
   const { message } = req.body || {};
   const msg = String(message || '').trim().slice(0, 500);
   if (!msg) return res.status(400).json({ error: 'Message required' });
-  const admin = admins.find(a => a.id === req.adminUser.id);
+  const adminId = req.adminUser.id;
+  const lastSent = _broadcastCooldowns.get(adminId) || 0;
+  if (Date.now() - lastSent < 5000) return res.status(429).json({ error: 'Broadcast cooldown: wait 5 seconds between broadcasts' });
+  _broadcastCooldowns.set(adminId, Date.now());
+  const admin = admins.find(a => a.id === adminId);
   const sender = admin?.name || admin?.email || '系統管理員';
   const recipientCount = io.engine.clientsCount;
-  io.emit('server-broadcast', { message: msg, sender, at: Date.now() });
+  chunkedBroadcast('server-broadcast', { message: msg, sender, at: Date.now() });
   broadcastHistory.unshift({ message: msg, sender, sentAt: Date.now(), recipientCount, source: 'admin-panel' });
   if (broadcastHistory.length > 200) broadcastHistory.length = 200;
   saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
   adminNsp.emit('broadcast-history', broadcastHistory);
-  logAdminAction(admins.find(a=>a.id===req.adminUser.id)?.email||req.adminUser.email, '發送廣播', msg.slice(0,80));
+  logAdminAction(admin?.email || req.adminUser.email, '發送廣播', msg.slice(0, 80));
   fireWebhook('broadcast', { message: msg, sender });
   res.json({ ok: true });
 });

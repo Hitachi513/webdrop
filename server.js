@@ -1086,13 +1086,6 @@ app.post('/admin/api/changelog', requireAdmin, requireSuperAdmin, (req, res) => 
   res.json(entry);
 });
 
-app.delete('/admin/api/changelog/:id', requireAdmin, requireSuperAdmin, (req, res) => {
-  const idx = changelog.findIndex(e => e.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  changelog.splice(idx, 1);
-  saveChangelog().catch(() => {});
-  res.json({ ok: true });
-});
 
 // ===== Webhooks =====
 app.get('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => res.json(webhooks));

@@ -1408,8 +1408,6 @@ function renderCLEntry(e, isLast) {
     ? (e.url ? `<a class="cl-sha" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.sha)}</a>`
              : `<span class="cl-sha">${esc(e.sha)}</span>`)
     : '';
-  const canDelete = !e.url; // only manual + restart entries are deletable (git commits are read-only)
-  const delBtn = canDelete ? `<button class="cl-delete-btn" onclick="clDelete('${esc(e.id)}')" title="刪除此記錄">✕</button>` : '';
   return `
     <div class="cl-entry" data-cl-id="${esc(e.id)}">
       <div class="cl-spine">
@@ -1421,7 +1419,6 @@ function renderCLEntry(e, isLast) {
           <span class="cl-type-badge ${typeClass}">${CL_LABELS[typeClass] || typeClass}</span>
           ${shaHtml}
           <span class="cl-time">${dt}</span>
-          ${delBtn}
         </div>
         <div class="cl-title">${esc(e.title)}</div>
         ${e.body  ? `<div class="cl-body">${esc(e.body)}</div>` : ''}
@@ -1459,16 +1456,6 @@ function renderCLTimeline() {
   const html = _clEntries.map((e, i) => renderCLEntry(e, i === _clEntries.length - 1)).join('');
   if (timeline) { timeline.className = 'cl-timeline'; timeline.innerHTML = html; timeline.style.display = ''; }
   if (loading)  loading.style.display = 'none';
-}
-
-async function clDelete(id) {
-  if (!confirm('確定刪除這筆記錄？')) return;
-  try {
-    await api('DELETE', `/admin/api/changelog/${id}`);
-    _clEntries = _clEntries.filter(e => e.id !== id);
-    renderCLTimeline();
-    toast('記錄已刪除', 'success');
-  } catch (e) { toast(e.message, 'error'); }
 }
 
 // Form wiring

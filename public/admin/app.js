@@ -1,3 +1,26 @@
+// ===== Password Show/Hide Toggles =====
+const _pwAutoHideTimers = new WeakMap();
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.pw-toggle');
+  if (!btn) return;
+  const input = document.getElementById(btn.dataset.target);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.querySelector('.pw-eye-off').style.display = show ? 'none' : '';
+  btn.querySelector('.pw-eye-on').style.display  = show ? '' : 'none';
+  setTimeout(() => input.focus(), 0);
+  if (_pwAutoHideTimers.has(btn)) clearTimeout(_pwAutoHideTimers.get(btn));
+  if (show) {
+    _pwAutoHideTimers.set(btn, setTimeout(() => {
+      input.type = 'password';
+      btn.querySelector('.pw-eye-off').style.display = '';
+      btn.querySelector('.pw-eye-on').style.display  = 'none';
+      _pwAutoHideTimers.delete(btn);
+    }, 3000));
+  }
+});
+
 // ===== State =====
 let token = localStorage.getItem('wd-admin-token');
 let currentAdmin = null;

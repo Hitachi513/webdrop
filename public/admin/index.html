@@ -38,7 +38,13 @@
       </div>
       <div class="field">
         <label>Password</label>
-        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+        <div class="pw-field">
+          <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+          <button type="button" class="pw-toggle" data-target="login-password" tabindex="-1" title="顯示/隱藏密碼" aria-label="顯示/隱藏密碼">
+            <svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg class="pw-eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
       </div>
       <p id="login-error" class="login-error"></p>
       <button type="submit" id="login-btn">Sign In</button>
@@ -304,7 +310,7 @@
         <h3>Add Admin</h3>
         <div class="field-row">
           <div class="field"><label>Email</label><input type="email" id="new-admin-email" placeholder="user@example.com"></div>
-          <div class="field"><label>Password</label><input type="password" id="new-admin-pass" placeholder="••••••••"></div>
+          <div class="field"><label>Password</label><div class="pw-field"><input type="password" id="new-admin-pass" placeholder="••••••••" autocomplete="new-password"><button type="button" class="pw-toggle" data-target="new-admin-pass" tabindex="-1" title="顯示/隱藏密碼" aria-label="顯示/隱藏密碼"><svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg><svg class="pw-eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
           <div class="field"><label>Role</label>
             <select id="new-admin-role"><option value="staff">Staff（受限人員）</option><option value="admin">Admin</option><option value="super-admin">Super Admin</option></select>
           </div>
@@ -709,7 +715,13 @@
     </div>
     <div class="field">
       <label style="font-size:.82rem;color:var(--muted);display:block;margin-bottom:4px">新密碼 <small style="color:var(--muted)">(留空不修改)</small></label>
-      <input type="password" id="profile-password" placeholder="••••••••" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#0e0e28);color:var(--text);font-size:.88rem;box-sizing:border-box">
+      <div class="pw-field">
+        <input type="password" id="profile-password" placeholder="••••••••" autocomplete="new-password" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#0e0e28);color:var(--text);font-size:.88rem;box-sizing:border-box">
+        <button type="button" class="pw-toggle" data-target="profile-password" tabindex="-1" title="顯示/隱藏密碼" aria-label="顯示/隱藏密碼">
+          <svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg class="pw-eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
     </div>
     <p id="profile-error" style="color:var(--danger,#ef4444);font-size:.78rem;margin:0;min-height:16px"></p>
     <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--border);">

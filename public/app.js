@@ -393,6 +393,7 @@ function initGoogleAuth() {
 }
 
 // ===== Password Show/Hide Toggles =====
+const _pwAutoHideTimers = new WeakMap();
 document.addEventListener('click', e => {
   const btn = e.target.closest('.pw-toggle');
   if (!btn) return;
@@ -403,6 +404,15 @@ document.addEventListener('click', e => {
   btn.querySelector('.pw-eye-off').style.display = show ? 'none' : '';
   btn.querySelector('.pw-eye-on').style.display  = show ? '' : 'none';
   setTimeout(() => input.focus(), 0);
+  if (_pwAutoHideTimers.has(btn)) clearTimeout(_pwAutoHideTimers.get(btn));
+  if (show) {
+    _pwAutoHideTimers.set(btn, setTimeout(() => {
+      input.type = 'password';
+      btn.querySelector('.pw-eye-off').style.display = '';
+      btn.querySelector('.pw-eye-on').style.display  = 'none';
+      _pwAutoHideTimers.delete(btn);
+    }, 3000));
+  }
 });
 
 // ===== Set Room ID Modal =====

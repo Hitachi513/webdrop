@@ -1042,10 +1042,13 @@ app.get('/admin/api/changelog', requireAdmin, (req, res) => {
   // no rate limits).  \x00 separates commits; \x01 separates fields within each commit.
   let commits = [];
   try {
-    const raw = execSync(
-      'git log --format="%x00%H%x01%h%x01%aI%x01%an%x01%s%x01%b"',
-      { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 5000 }
-    );
+    const gitLogFile = path.join(__dirname, 'git-log.txt');
+    const raw = fs.existsSync(gitLogFile)
+      ? fs.readFileSync(gitLogFile, 'utf8')
+      : execSync(
+          'git log --format="%x00%H%x01%h%x01%aI%x01%an%x01%s%x01%b"',
+          { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 5000 }
+        );
     commits = raw.split('\x00').filter(s => s.trim()).map(entry => {
       const parts  = entry.trim().split('\x01');
       const sha    = (parts[0] || '').trim();

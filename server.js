@@ -1064,6 +1064,33 @@ app.get('/admin/api/changelog', requireAdmin, (req, res) => {
   res.json({ entries: all, repo: GITHUB_REPO });
 });
 
+app.post('/admin/api/changelog', requireAdmin, requireSuperAdmin, (req, res) => {
+  const { type, ts, title, body } = req.body || {};
+  if (!title?.trim()) return res.status(400).json({ error: 'Title required' });
+  const entry = {
+    id:    crypto.randomUUID(),
+    type:  ['restart','push','manual'].includes(type) ? type : 'manual',
+    ts:    ts ? new Date(ts).getTime() : Date.now(),
+    sha:   '',
+    title: title.trim(),
+    body:  (body || '').trim(),
+    author: req.adminUser?.email || '',
+  };
+  changelog.unshift(entry);
+  if (changelog.length > 300) changelog.length = 300;
+  saveChangelog().catch(() => {});
+  logAdmin(req.adminUser.email, 'changelog-add', entry.title);
+  res.json(entry);
+});
+
+app.delete('/admin/api/changelog/:id', requireAdmin, requireSuperAdmin, (req, res) => {
+  const idx = changelog.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  changelog.splice(idx, 1);
+  saveChangelog().catch(() => {});
+  res.json({ ok: true });
+});
+
 // ===== Webhooks =====
 app.get('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => res.json(webhooks));
 app.post('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => {

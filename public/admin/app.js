@@ -1393,61 +1393,122 @@ async function clearAdminLog() {
 }
 
 // ===== Changelog =====
-let _clLoaded = false;
+const CL_ICONS = {
+  push:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+  restart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M21 2H3v16h5l4 4 4-4h5V2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>`,
+  manual:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`,
+};
+const CL_LABELS = { push: '推送', restart: '重啟', manual: '手動記錄' };
+
+function renderCLEntry(e, isLast) {
+  const typeClass = ['push','restart','manual'].includes(e.type) ? e.type : 'manual';
+  const icon = CL_ICONS[typeClass] || CL_ICONS.manual;
+  const dt   = new Date(e.ts).toLocaleString('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  const shaHtml = e.sha
+    ? (e.url ? `<a class="cl-sha" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.sha)}</a>`
+             : `<span class="cl-sha">${esc(e.sha)}</span>`)
+    : '';
+  const canDelete = !e.url; // only manual + restart entries are deletable (git commits are read-only)
+  const delBtn = canDelete ? `<button class="cl-delete-btn" onclick="clDelete('${esc(e.id)}')" title="刪除此記錄">✕</button>` : '';
+  return `
+    <div class="cl-entry" data-cl-id="${esc(e.id)}">
+      <div class="cl-spine">
+        <div class="cl-dot ${typeClass}">${icon}</div>
+        ${!isLast ? '<div class="cl-line"></div>' : ''}
+      </div>
+      <div class="cl-card">
+        <div class="cl-card-top">
+          <span class="cl-type-badge ${typeClass}">${CL_LABELS[typeClass] || typeClass}</span>
+          ${shaHtml}
+          <span class="cl-time">${dt}</span>
+          ${delBtn}
+        </div>
+        <div class="cl-title">${esc(e.title)}</div>
+        ${e.body  ? `<div class="cl-body">${esc(e.body)}</div>` : ''}
+        ${e.author ? `<div class="cl-author">${esc(e.author)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+let _clEntries = [];
 async function loadChangelog() {
-  if (_clLoaded) return;
-  const loading = document.getElementById('cl-loading');
+  const loading  = document.getElementById('cl-loading');
   const timeline = document.getElementById('cl-timeline');
   const repoLink = document.getElementById('cl-repo-link');
+  if (loading) loading.style.display = '';
+  if (timeline) timeline.style.display = 'none';
   try {
     const { entries, repo } = await api('GET', '/admin/api/changelog');
-    _clLoaded = true;
+    _clEntries = entries || [];
     if (repo && repoLink) {
       repoLink.innerHTML = `<a href="https://github.com/${esc(repo)}" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none">github.com/${esc(repo)}</a>`;
     }
-    if (!entries?.length) {
-      if (loading) loading.textContent = '尚無紀錄';
-      return;
-    }
-    const html = entries.map((e, i, arr) => {
-      const isLast = i === arr.length - 1;
-      const isPush = e.type === 'push';
-      const dotIcon = isPush
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M21 2H3v16h5l4 4 4-4h5V2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>`;
-      const badge  = isPush ? '推送' : '重啟';
-      const typeClass = isPush ? 'push' : 'restart';
-      const dt = new Date(e.ts).toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-      const shaHtml = e.sha
-        ? (isPush && e.url
-            ? `<a class="cl-sha" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.sha)}</a>`
-            : `<span class="cl-sha">${esc(e.sha)}</span>`)
-        : '';
-      const bodyHtml = e.body ? `<div class="cl-body">${esc(e.body)}</div>` : '';
-      const authorHtml = e.author ? `<div class="cl-author">${esc(e.author)}</div>` : '';
-      return `
-        <div class="cl-entry">
-          <div class="cl-spine">
-            <div class="cl-dot ${typeClass}">${dotIcon}</div>
-            ${!isLast ? '<div class="cl-line"></div>' : ''}
-          </div>
-          <div class="cl-card">
-            <div class="cl-card-top">
-              <span class="cl-type-badge ${typeClass}">${badge}</span>
-              ${shaHtml}
-              <span class="cl-time">${dt}</span>
-            </div>
-            <div class="cl-title">${esc(e.title)}</div>
-            ${bodyHtml}${authorHtml}
-          </div>
-        </div>`;
-    }).join('');
-    if (timeline) { timeline.className = 'cl-timeline'; timeline.innerHTML = html; timeline.style.display = ''; }
-    if (loading)  loading.style.display = 'none';
+    renderCLTimeline();
   } catch (err) {
     if (loading) loading.textContent = `載入失敗：${err.message}`;
   }
 }
+
+function renderCLTimeline() {
+  const loading  = document.getElementById('cl-loading');
+  const timeline = document.getElementById('cl-timeline');
+  if (!_clEntries.length) {
+    if (loading) { loading.style.display = ''; loading.textContent = '尚無紀錄'; }
+    return;
+  }
+  const html = _clEntries.map((e, i) => renderCLEntry(e, i === _clEntries.length - 1)).join('');
+  if (timeline) { timeline.className = 'cl-timeline'; timeline.innerHTML = html; timeline.style.display = ''; }
+  if (loading)  loading.style.display = 'none';
+}
+
+async function clDelete(id) {
+  if (!confirm('確定刪除這筆記錄？')) return;
+  try {
+    await api('DELETE', `/admin/api/changelog/${id}`);
+    _clEntries = _clEntries.filter(e => e.id !== id);
+    renderCLTimeline();
+    toast('記錄已刪除', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// Form wiring
+document.getElementById('cl-add-btn')?.addEventListener('click', () => {
+  const form = document.getElementById('cl-form');
+  if (!form) return;
+  // Pre-fill datetime to now (local time)
+  const dtInput = document.getElementById('cl-f-date');
+  if (dtInput && !dtInput.value) {
+    const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    dtInput.value = now.toISOString().slice(0, 16);
+  }
+  form.style.display = '';
+  document.getElementById('cl-f-title')?.focus();
+});
+document.getElementById('cl-cancel-btn')?.addEventListener('click', () => {
+  document.getElementById('cl-form').style.display = 'none';
+});
+document.getElementById('cl-submit-btn')?.addEventListener('click', async () => {
+  const type  = document.getElementById('cl-f-type')?.value;
+  const tsRaw = document.getElementById('cl-f-date')?.value;
+  const title = document.getElementById('cl-f-title')?.value?.trim();
+  const body  = document.getElementById('cl-f-body')?.value?.trim();
+  if (!title) { toast('請輸入標題', 'error'); return; }
+  const btn = document.getElementById('cl-submit-btn');
+  btn.disabled = true;
+  try {
+    const entry = await api('POST', '/admin/api/changelog', { type, ts: tsRaw ? new Date(tsRaw).toISOString() : undefined, title, body });
+    _clEntries.unshift(entry);
+    _clEntries.sort((a, b) => b.ts - a.ts);
+    renderCLTimeline();
+    // Reset form
+    document.getElementById('cl-f-title').value = '';
+    document.getElementById('cl-f-body').value  = '';
+    document.getElementById('cl-f-date').value  = '';
+    document.getElementById('cl-form').style.display = 'none';
+    toast('記錄已新增', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+});
 
 // ===== CSV Export =====
 function exportUsersCSV() {

@@ -496,8 +496,43 @@
     <section id="section-changelog" class="section">
       <div class="section-header">
         <h2>更新紀錄</h2>
-        <span id="cl-repo-link" style="font-size:.8rem;color:var(--muted)"></span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="cl-repo-link" style="font-size:.8rem;color:var(--muted)"></span>
+          <button class="btn-primary" id="cl-add-btn" style="padding:6px 14px;font-size:.82rem">＋ 手動新增</button>
+        </div>
       </div>
+
+      <!-- Manual entry form (hidden by default) -->
+      <div id="cl-form" class="form-card" style="display:none;margin-bottom:20px">
+        <h3 style="margin-bottom:14px;font-size:.95rem">新增手動記錄</h3>
+        <div class="field-row" style="flex-wrap:wrap;gap:10px">
+          <div class="field" style="flex:0 0 140px">
+            <label>類型</label>
+            <select id="cl-f-type">
+              <option value="manual">手動記錄</option>
+              <option value="restart">伺服器重啟</option>
+              <option value="push">推送 / 部署</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1;min-width:180px">
+            <label>日期時間</label>
+            <input type="datetime-local" id="cl-f-date">
+          </div>
+          <div class="field" style="flex:2;min-width:200px">
+            <label>標題</label>
+            <input type="text" id="cl-f-title" placeholder="簡短描述此次更新…" maxlength="200">
+          </div>
+        </div>
+        <div class="field" style="margin-top:4px">
+          <label>詳細說明 <small style="color:var(--muted)">(選填)</small></label>
+          <textarea id="cl-f-body" rows="3" placeholder="更改或修復的內容…" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#0e0e28);color:var(--text);font-size:.88rem;box-sizing:border-box;resize:vertical"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" id="cl-cancel-btn">取消</button>
+          <button class="btn-primary" id="cl-submit-btn">儲存記錄</button>
+        </div>
+      </div>
+
       <div id="cl-loading" style="color:var(--muted);font-size:.88rem;padding:24px 0">載入中…</div>
       <div id="cl-timeline" style="display:none"></div>
     </section>

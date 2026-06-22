@@ -1073,6 +1073,13 @@ jrRejectBtn.addEventListener('click', () => {
   jrShowNext();
 });
 
+document.getElementById('jp-leave-btn')?.addEventListener('click', () => {
+  clearTimeout(_reservedRetryTimer);
+  document.getElementById('join-pending-overlay')?.classList.remove('active');
+  socket.disconnect();
+  window.location.href = window.location.origin;
+});
+
 socket.on('room-reserved', ({ message }) => {
   // Show waiting UI — do NOT redirect; retry joining the same room until host arrives
   const pendingOverlay = document.getElementById('join-pending-overlay');

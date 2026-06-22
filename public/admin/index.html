@@ -112,6 +112,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         操作日誌
       </a>
+      <a class="nav-item" data-section="changelog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        更新紀錄
+      </a>
       <a class="nav-item" data-section="health">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="6" height="6"/><rect x="5" y="5" width="14" height="14" rx="1"/><line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/><line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/><line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/></svg>
         System Health
@@ -486,6 +490,16 @@
           </table>
         </div>
       </div>
+    </section>
+
+    <!-- Changelog -->
+    <section id="section-changelog" class="section">
+      <div class="section-header">
+        <h2>更新紀錄</h2>
+        <span id="cl-repo-link" style="font-size:.8rem;color:var(--muted)"></span>
+      </div>
+      <div id="cl-loading" style="color:var(--muted);font-size:.88rem;padding:24px 0">載入中…</div>
+      <div id="cl-timeline" style="display:none"></div>
     </section>
 
     <!-- System Health -->

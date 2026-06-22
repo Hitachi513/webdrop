@@ -251,7 +251,7 @@ function updateMapMarkers(locs) {
 }
 
 // ===== Navigation =====
-const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', history: '歷史記錄', 'ip-bans': 'IP 封鎖', webhooks: 'Webhooks', 'admin-log': '操作日誌', health: 'System Health', settings: 'Settings' };
+const sections = { overview: 'Overview', rooms: 'Live Rooms', users: 'Users', admins: 'Admins', promos: 'Promo Codes', feedback: 'Feedback', history: '歷史記錄', 'ip-bans': 'IP 封鎖', webhooks: 'Webhooks', 'admin-log': '操作日誌', changelog: '更新紀錄', health: 'System Health', settings: 'Settings' };
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -262,7 +262,8 @@ function switchSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === `section-${id}`));
   document.getElementById('section-title').textContent = sections[id] || id;
   closeSidebar();
-  if (id === 'overview') setTimeout(initMap, 50);
+  if (id === 'overview')   setTimeout(initMap, 50);
+  if (id === 'changelog')  loadChangelog();
 }
 
 function openSidebar() {
@@ -1389,6 +1390,63 @@ function renderAdminLog(list) {
 async function clearAdminLog() {
   if (!confirm('確定清除所有操作日誌？')) return;
   try { await api('DELETE', '/admin/api/admin-log'); toast('日誌已清除', 'success'); } catch (e) { toast(e.message, 'error'); }
+}
+
+// ===== Changelog =====
+let _clLoaded = false;
+async function loadChangelog() {
+  if (_clLoaded) return;
+  const loading = document.getElementById('cl-loading');
+  const timeline = document.getElementById('cl-timeline');
+  const repoLink = document.getElementById('cl-repo-link');
+  try {
+    const { entries, repo } = await api('GET', '/admin/api/changelog');
+    _clLoaded = true;
+    if (repo && repoLink) {
+      repoLink.innerHTML = `<a href="https://github.com/${esc(repo)}" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none">github.com/${esc(repo)}</a>`;
+    }
+    if (!entries?.length) {
+      if (loading) loading.textContent = '尚無紀錄';
+      return;
+    }
+    const html = entries.map((e, i, arr) => {
+      const isLast = i === arr.length - 1;
+      const isPush = e.type === 'push';
+      const dotIcon = isPush
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M21 2H3v16h5l4 4 4-4h5V2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>`;
+      const badge  = isPush ? '推送' : '重啟';
+      const typeClass = isPush ? 'push' : 'restart';
+      const dt = new Date(e.ts).toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const shaHtml = e.sha
+        ? (isPush && e.url
+            ? `<a class="cl-sha" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.sha)}</a>`
+            : `<span class="cl-sha">${esc(e.sha)}</span>`)
+        : '';
+      const bodyHtml = e.body ? `<div class="cl-body">${esc(e.body)}</div>` : '';
+      const authorHtml = e.author ? `<div class="cl-author">${esc(e.author)}</div>` : '';
+      return `
+        <div class="cl-entry">
+          <div class="cl-spine">
+            <div class="cl-dot ${typeClass}">${dotIcon}</div>
+            ${!isLast ? '<div class="cl-line"></div>' : ''}
+          </div>
+          <div class="cl-card">
+            <div class="cl-card-top">
+              <span class="cl-type-badge ${typeClass}">${badge}</span>
+              ${shaHtml}
+              <span class="cl-time">${dt}</span>
+            </div>
+            <div class="cl-title">${esc(e.title)}</div>
+            ${bodyHtml}${authorHtml}
+          </div>
+        </div>`;
+    }).join('');
+    if (timeline) { timeline.className = 'cl-timeline'; timeline.innerHTML = html; timeline.style.display = ''; }
+    if (loading)  loading.style.display = 'none';
+  } catch (err) {
+    if (loading) loading.textContent = `載入失敗：${err.message}`;
+  }
 }
 
 // ===== CSV Export =====

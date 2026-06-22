@@ -1275,3 +1275,75 @@ body.dark ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,.6); }
   transition: color .15s;
 }
 .pw-toggle:hover { color: var(--text); }
+
+/* ===== Changelog Timeline ===== */
+.cl-timeline { display: flex; flex-direction: column; gap: 0; }
+.cl-entry {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 24px;
+}
+.cl-entry:last-child { padding-bottom: 0; }
+.cl-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 32px;
+}
+.cl-dot {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: .75rem; font-weight: 700;
+  z-index: 1;
+}
+.cl-dot.push    { background: rgba(99,102,241,.18); color: #818cf8; border: 2px solid rgba(99,102,241,.35); }
+.cl-dot.restart { background: rgba(245,158,11,.15);  color: #f59e0b; border: 2px solid rgba(245,158,11,.3); }
+.cl-line {
+  flex: 1;
+  width: 2px;
+  background: var(--border);
+  margin-top: 4px;
+}
+.cl-card {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-width: 0;
+}
+.cl-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.cl-type-badge {
+  font-size: .7rem; font-weight: 700; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px;
+}
+.cl-type-badge.push    { background: rgba(99,102,241,.15); color: #818cf8; }
+.cl-type-badge.restart { background: rgba(245,158,11,.12);  color: #f59e0b; }
+.cl-sha {
+  font-family: monospace; font-size: .75rem;
+  color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 1px 7px; border-radius: 5px;
+  text-decoration: none;
+}
+.cl-sha:hover { color: var(--text); }
+.cl-time { font-size: .75rem; color: var(--muted); margin-left: auto; }
+.cl-title { font-size: .9rem; font-weight: 600; color: var(--text); word-break: break-word; }
+.cl-body {
+  font-size: .8rem; color: var(--muted);
+  margin-top: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+.cl-author { font-size: .75rem; color: var(--muted); margin-top: 4px; }

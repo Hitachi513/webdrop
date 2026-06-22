@@ -2,7 +2,7 @@ require('dotenv').config();
 const express  = require('express');
 const http     = require('http');
 const { Server } = require('socket.io');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path     = require('path');
 const fs       = require('fs');
 const os       = require('os');
@@ -86,9 +86,22 @@ async function saveRoomHistory()      { await dbSet('room-history',       roomHi
 let globalIpBans = []; // [{ ip, bannedAt, bannedBy, reason }]
 let webhooks     = []; // [{ id, url, events, enabled, createdAt }]
 let adminLog     = []; // [{ at, admin, action, detail }]  max 500
+let changelog    = []; // [{ id, type:'restart'|'push', ts, sha, title, body }]  max 300
 async function saveGlobalIpBans() { await dbSet('global-ip-bans', globalIpBans); }
 async function saveWebhooks()     { await dbSet('webhooks',       webhooks); }
 async function saveAdminLog()     { await dbSet('admin-log',      adminLog); }
+async function saveChangelog()    { await dbSet('changelog',      changelog); }
+
+// Detect GitHub repo slug (owner/repo) from git remote at startup
+let GITHUB_REPO = (process.env.GITHUB_REPO || '').trim();
+if (!GITHUB_REPO) {
+  try {
+    const remote = execSync('git remote get-url origin', { encoding: 'utf8', timeout: 3000 }).trim();
+    const m = remote.match(/github\.com[:/](.+?)(?:\.git)?$/);
+    if (m) GITHUB_REPO = m[1];
+  } catch {}
+}
+const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim();
 
 function logAdminAction(adminEmail, action, detail = '') {
   adminLog.unshift({ at: Date.now(), admin: adminEmail, action, detail });
@@ -1023,6 +1036,37 @@ app.delete('/admin/api/admin-log', requireAdmin, requireSuperAdmin, (req, res) =
   res.json({ ok: true });
 });
 
+// ===== Changelog =====
+app.get('/admin/api/changelog', requireAdmin, async (req, res) => {
+  let commits = [];
+  if (GITHUB_REPO) {
+    try {
+      const headers = { 'User-Agent': 'webdrop-server' };
+      if (GITHUB_TOKEN) headers['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+      const r = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=100`,
+        { headers, signal: AbortSignal.timeout(8000) }
+      );
+      if (r.ok) {
+        const data = await r.json();
+        commits = data.map(c => ({
+          id:    c.sha,
+          type:  'push',
+          ts:    new Date(c.commit.author.date).getTime(),
+          sha:   c.sha.slice(0, 7),
+          title: c.commit.message.split('\n')[0],
+          body:  c.commit.message.split('\n').slice(2).join('\n').trim() || '',
+          author: c.commit.author.name,
+          url:   c.html_url,
+        }));
+      }
+    } catch {}
+  }
+  // Merge local restart events with GitHub commits, newest first
+  const all = [...changelog, ...commits].sort((a, b) => b.ts - a.ts);
+  res.json({ entries: all, repo: GITHUB_REPO });
+});
+
 // ===== Webhooks =====
 app.get('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => res.json(webhooks));
 app.post('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => {
@@ -1816,6 +1860,16 @@ async function init() {
   const rawAdminLog = await dbGet('admin-log');
   adminLog = Array.isArray(rawAdminLog) ? rawAdminLog : [];
   console.log(`[Init] Loaded ${rawAdminLog ? rawAdminLog.length : 0} admin log entries.`);
+
+  const rawChangelog = await dbGet('changelog');
+  changelog = Array.isArray(rawChangelog) ? rawChangelog : [];
+  // Record this restart
+  let gitSha = '';
+  try { gitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf8', timeout: 3000 }).trim(); } catch {}
+  changelog.unshift({ id: crypto.randomUUID(), type: 'restart', ts: Date.now(), sha: gitSha, title: '伺服器重新啟動', body: gitSha ? `HEAD: ${gitSha}` : '' });
+  if (changelog.length > 300) changelog.length = 300;
+  saveChangelog().catch(() => {});
+  console.log(`[Init] Loaded ${changelog.length} changelog entries. Restart logged (SHA: ${gitSha || 'unknown'}).`);
 
   // Auto-close rooms whose countdown has expired
   setInterval(() => {

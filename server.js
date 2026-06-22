@@ -21,7 +21,9 @@ const io     = new Server(server, {
   cors: { origin: '*' }
 });
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID   = process.env.GOOGLE_CLIENT_ID   || '';
+const FACEBOOK_APP_ID    = process.env.FACEBOOK_APP_ID    || '';
+const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET || '';
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 // ===== Storage (Upstash Redis or local files) =====
@@ -433,7 +435,7 @@ app.get('/qr', async (req, res) => {
 
 // ===== Config endpoint =====
 app.get('/api/config', (req, res) => {
-  res.json({ googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null });
+  res.json({ googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null, facebookAuth: !!FACEBOOK_APP_ID, facebookAppId: FACEBOOK_APP_ID || null });
 });
 
 app.get('/api/speedtest', (req, res) => {
@@ -464,6 +466,40 @@ app.post('/api/auth/google', async (req, res) => {
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
   } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
+});
+
+app.post('/api/auth/facebook', async (req, res) => {
+  if (!FACEBOOK_APP_ID) return res.status(501).json({ error: 'Facebook auth not configured' });
+  const { accessToken, userId } = req.body || {};
+  if (!accessToken || !userId) return res.status(400).json({ error: 'Missing token' });
+  try {
+    // Verify token via Graph API debug_token (requires app secret) or /me fallback
+    let profileId, profileName, profileEmail;
+    if (FACEBOOK_APP_SECRET) {
+      const debugRes = await fetch(`https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${FACEBOOK_APP_ID}|${FACEBOOK_APP_SECRET}`);
+      const debug = await debugRes.json();
+      if (!debug.data?.is_valid || debug.data.app_id !== FACEBOOK_APP_ID || debug.data.user_id !== userId)
+        return res.status(401).json({ error: 'Invalid Facebook token' });
+    }
+    const meRes = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${accessToken}`);
+    const me = await meRes.json();
+    if (me.error || me.id !== userId) return res.status(401).json({ error: 'Invalid Facebook token' });
+    profileId = me.id; profileName = me.name; profileEmail = me.email || null;
+
+    let user = users.find(u => u.facebookId === profileId || (profileEmail && u.email?.toLowerCase() === profileEmail.toLowerCase()));
+    if (!user) {
+      user = { id: crypto.randomUUID(), email: profileEmail || `fb_${profileId}@facebook`, name: profileName || 'Facebook User', googleId: null, facebookId: profileId, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
+      users.push(user);
+      saveUsers().catch(e => console.error('saveUsers error:', e.message));
+      adminNsp.emit('users', getUserList());
+    } else if (!user.facebookId) {
+      user.facebookId = profileId;
+      saveUsers().catch(e => console.error('saveUsers error:', e.message));
+    }
+    if (user.banned) return res.status(403).json({ error: user.banReason || 'suspended' });
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
+  } catch (e) { console.error('Facebook auth error:', e.message); res.status(401).json({ error: 'Facebook auth failed' }); }
 });
 
 app.post('/api/auth/register', async (req, res) => {

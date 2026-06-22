@@ -1758,6 +1758,24 @@ header {
   transition: border-color .18s, background .18s, box-shadow .18s;
 }
 .btn-google:hover { border-color:var(--primary); background:var(--primary-dim); box-shadow:0 0 12px var(--glow-primary); }
+.btn-facebook {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font-size: .88rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: border-color .18s, background .18s, box-shadow .18s;
+}
+.btn-facebook:hover { border-color:#1877F2; background:rgba(24,119,242,.08); box-shadow:0 0 12px rgba(24,119,242,.3); }
 
 .auth-divider {
   width: 100%;

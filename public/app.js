@@ -202,6 +202,7 @@ function setShareUrl(baseUrl) {
 let userToken    = localStorage.getItem('wd-user-token');
 let currentUser  = null;
 let googleConfig = false;
+let facebookConfig = false;
 
 async function authApi(method, path, body) {
   const res = await fetch(path, {
@@ -391,6 +392,26 @@ function initGoogleAuth() {
     { theme: html.getAttribute('data-theme') === 'dark' ? 'filled_black' : 'outline', size: 'large', width: 300, text: 'continue_with' }
   );
 }
+
+// ===== Facebook Auth =====
+function initFacebookAuth() {
+  if (!window.FB || !facebookConfig) return;
+  FB.init({ appId: facebookConfig, cookie: true, xfbml: false, version: 'v19.0' });
+}
+
+document.getElementById('facebook-signin-btn')?.addEventListener('click', () => {
+  if (!window.FB) return;
+  FB.login(async response => {
+    if (response.status !== 'connected') return;
+    try {
+      const { accessToken, userID } = response.authResponse;
+      const data = await authApi('POST', '/api/auth/facebook', { accessToken, userId: userID });
+      onLoginSuccess(data, false);
+    } catch (e) {
+      authError.textContent = e.message;
+    }
+  }, { scope: 'email' });
+});
 
 // ===== Password Show/Hide Toggles =====
 const _pwAutoHideTimers = new WeakMap();
@@ -2538,21 +2559,33 @@ window.addEventListener('load', async () => {
     document.getElementById('drop-label').textContent = 'Tap to select files';
   }
 
-  // Load config (Google auth availability)
+  // Load config (social auth availability)
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
+    let hasSocial = false;
     if (cfg.googleAuth && cfg.googleClientId) {
+      hasSocial = true;
       googleConfig = cfg.googleClientId;
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
+      script.async = true; script.defer = true;
       script.onload = initGoogleAuth;
       document.head.appendChild(script);
     } else {
       document.getElementById('google-btn-wrap').style.display = 'none';
-      document.getElementById('auth-divider').style.display = 'none';
     }
+    if (cfg.facebookAuth && cfg.facebookAppId) {
+      hasSocial = true;
+      facebookConfig = cfg.facebookAppId;
+      const script = document.createElement('script');
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true; script.defer = true;
+      script.onload = initFacebookAuth;
+      document.head.appendChild(script);
+    } else {
+      document.getElementById('facebook-btn-wrap').style.display = 'none';
+    }
+    if (!hasSocial) document.getElementById('auth-divider').style.display = 'none';
   } catch {}
 
   // Restore session

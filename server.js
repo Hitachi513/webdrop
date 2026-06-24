@@ -300,6 +300,7 @@ function geolocateIp(ip) {
           const j = JSON.parse(d);
           if (j.status === 'success') {
             const geo = { country: j.country, countryCode: j.countryCode, regionName: j.regionName, city: j.city, lat: j.lat, lon: j.lon };
+            if (geoCache.size >= 5000) geoCache.delete(geoCache.keys().next().value);
             geoCache.set(clean, geo);
             return resolve(geo);
           }
@@ -387,7 +388,7 @@ function getCookie(req, name) {
   const m = raw.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
   return m ? decodeURIComponent(m[1]) : null;
 }
-const COOKIE_SECURE = process.env.RENDER ? '; Secure' : '';
+const COOKIE_SECURE = (process.env.RENDER || process.env.NODE_ENV === 'production') ? '; Secure' : '';
 function setAuthCookie(res, token, name = 'wd-token', maxAge = 30 * 24 * 3600) {
   res.setHeader('Set-Cookie', `${name}=${encodeURIComponent(token)}; HttpOnly${COOKIE_SECURE}; SameSite=Strict; Path=/; Max-Age=${maxAge}`);
 }
@@ -487,6 +488,7 @@ app.post('/api/auth/google', async (req, res) => {
       user.googleId = p.sub;
       saveUsers().catch(e => console.error("saveUsers error:", e.message));
     }
+    if (user.banned) return res.status(403).json({ error: user.banReason || 'Account suspended' });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     setAuthCookie(res, token);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
@@ -519,6 +521,10 @@ app.post('/api/auth/phone/verify', async (req, res) => {
   const { phone, otp } = req.body || {};
   if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
   const entry = _otpStore.get(phone);
+  if (entry) {
+    entry.attempts = (entry.attempts || 0) + 1;
+    if (entry.attempts > 5) return res.status(429).json({ error: 'Too many attempts. Request a new OTP.' });
+  }
   if (!entry || Date.now() > entry.expiresAt) return res.status(401).json({ error: 'OTP expired or not found' });
   if (entry.otp !== String(otp).trim()) return res.status(401).json({ error: 'Incorrect OTP' });
   _otpStore.delete(phone);
@@ -1191,7 +1197,7 @@ app.post('/admin/api/changelog', requireAdmin, requireSuperAdmin, (req, res) => 
   changelog.unshift(entry);
   if (changelog.length > 300) changelog.length = 300;
   saveChangelog().catch(() => {});
-  logAdmin(req.adminUser.email, 'changelog-add', entry.title);
+  logAdminAction(req.adminUser.email, 'changelog-add', entry.title);
   res.json(entry);
 });
 
@@ -1374,6 +1380,7 @@ io.on('connection', (socket) => {
     if (connUser) {
       connUser.lastSeenAt = new Date().toISOString();
       connUser.lastIp     = clientIp || null;
+      saveUsers().catch(e => console.error('saveUsers error:', e.message));
     }
   }
 

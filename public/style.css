@@ -118,8 +118,10 @@ header {
   border: 1px solid rgba(0,212,255,0.2);
   border-radius: 12px;
   padding: 5px 6px 5px 12px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
   margin-left: auto;
+  overflow: hidden;
 }
 :root[data-theme="light"] .room-pill {
   background: rgba(0,149,204,0.07);
@@ -143,6 +145,9 @@ header {
   letter-spacing: 2.5px;
   color: var(--primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
 }
 
 .header-actions {
@@ -314,7 +319,7 @@ header {
 
 /* ---- Right Panel: Chat ---- */
 #panel-chat {
-  width: 380px;
+  width: clamp(280px, 32vw, 400px);
   flex-shrink: 0;
   background: var(--bg-panel-r);
 }
@@ -732,7 +737,7 @@ header {
 /* ── Admin Panel FAB ── */
 .admin-panel-fab {
   position: fixed;
-  bottom: calc(56px + 16px);
+  bottom: calc(var(--tab-h) + 16px);
   right: 14px;
   width: 48px; height: 48px;
   border-radius: 50%;
@@ -993,7 +998,7 @@ header {
    =========================== */
 .feedback-fab {
   position: fixed;
-  bottom: calc(56px + 14px);
+  bottom: calc(var(--tab-h) + 14px);
   left: 14px;
   width: 44px;
   height: 44px;
@@ -1170,7 +1175,7 @@ header {
 #transfer-progress-panel {
   display: none;
   position: fixed;
-  top: calc(56px + 10px);
+  top: calc(var(--header-h) + 10px);
   left: 50%;
   transform: translateX(-50%);
   width: min(calc(100vw - 32px), 380px);
@@ -1637,6 +1642,8 @@ header {
   gap: 14px;
   width: 100%;
   max-width: 310px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   box-shadow: 0 24px 64px var(--shadow-color), 0 0 0 1px var(--border);
   transform: translateY(12px) scale(.97);
   transition: transform .22s;
@@ -1884,6 +1891,7 @@ header {
 .btn-guest:hover {
   border-color: var(--primary);
   color: var(--primary);
+  background: var(--primary-dim);
   background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
@@ -3247,3 +3255,40 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   30% { background: rgba(0, 212, 255, 0.15); }
 }
 .msg-flash { animation: msgFlash 1s ease; border-radius: 8px; }
+
+/* ===== Keyboard Focus (accessibility) ===== */
+:is(
+  .btn-icon,
+  .btn-primary,
+  .btn-ghost,
+  .btn-secondary,
+  .btn-signin,
+  .btn-send,
+  .btn-share-room,
+  .btn-google,
+  .btn-phone,
+  .btn-guest,
+  .tab-btn,
+  .ap-tile,
+  .dropdown-item,
+  .lang-opt,
+  .lp-enter
+):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* ===== Performance hints for frequently animated elements ===== */
+.ls-ring,
+.lp-enter,
+.center-icon,
+.modal-box,
+.members-panel,
+.speedtest-card,
+.user-dropdown { will-change: transform; }
+
+/* ===== Extra small screen: hide conn-type to save header space ===== */
+@media (max-width: 400px) {
+  #conn-type-pill { display: none !important; }
+}

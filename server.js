@@ -25,6 +25,9 @@ const GOOGLE_CLIENT_ID    = process.env.GOOGLE_CLIENT_ID    || '';
 const TWILIO_ACCOUNT_SID  = process.env.TWILIO_ACCOUNT_SID  || '';
 const TWILIO_AUTH_TOKEN   = process.env.TWILIO_AUTH_TOKEN   || '';
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '';
+const TURNSTILE_SECRET    = (process.env.TURNSTILE_SECRET    || '').trim();
+const TURNSTILE_SITE_KEY  = (process.env.TURNSTILE_SITE_KEY  || '').trim();
+const USE_CAPTCHA = !!(TURNSTILE_SECRET && TURNSTILE_SITE_KEY);
 const googleClient  = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 const twilioClient  = (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN)
   ? require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
@@ -33,6 +36,46 @@ const twilioClient  = (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN)
 const _otpStore   = new Map();
 // rate-limit: phone → { count, windowStart }
 const _otpRateMap = new Map();
+
+// ===== Bot / IP Risk Tracking =====
+const _ipRisk = new Map(); // ip → { score, windowStart, conns, verified, verifiedAt }
+const CAPTCHA_THRESHOLD    = 20;
+const CAPTCHA_VERIFIED_TTL = 60 * 60 * 1000; // 1 hour
+const BOT_UA_RE = /HeadlessChrome|PhantomJS|[Ss]elenium|webdriver|python-requests|python-urllib|Go-http-client\/|curl\/[\d]|wget\//;
+
+function _getIpRisk(ip) {
+  const now = Date.now();
+  let d = _ipRisk.get(ip);
+  if (!d) { d = { score: 0, windowStart: now, conns: 0, verified: false, verifiedAt: 0 }; _ipRisk.set(ip, d); }
+  // Decay: reset window every 10 min, halve score
+  if (now - d.windowStart > 600000) { d.score = Math.max(0, Math.floor(d.score / 2)); d.conns = 0; d.windowStart = now; }
+  return d;
+}
+function addIpRisk(ip, amount) {
+  if (!ip) return;
+  const d = _getIpRisk(ip);
+  if (d.verified && Date.now() - d.verifiedAt < CAPTCHA_VERIFIED_TTL) return;
+  d.score = Math.min(d.score + amount, 100);
+}
+function isIpVerified(ip) {
+  const d = _ipRisk.get(ip);
+  return !!(d?.verified && Date.now() - d.verifiedAt < CAPTCHA_VERIFIED_TTL);
+}
+function markIpVerified(ip) {
+  const d = _getIpRisk(ip);
+  d.verified = true; d.verifiedAt = Date.now(); d.score = 0; d.conns = 0;
+}
+function ipRiskScore(ip) { return _ipRisk.get(ip)?.score || 0; }
+function shouldChallenge(ip) {
+  if (!USE_CAPTCHA) return false;
+  if (isIpVerified(ip)) return false;
+  return ipRiskScore(ip) >= CAPTCHA_THRESHOLD;
+}
+// Prune stale entries every 2 hours
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  for (const [ip, d] of _ipRisk) { if (d.windowStart < cutoff && !d.verified) _ipRisk.delete(ip); }
+}, 2 * 60 * 60 * 1000);
 
 // ===== Storage (Upstash Redis or local files) =====
 const DATA_DIR      = path.join(__dirname, 'data');
@@ -460,7 +503,34 @@ app.get('/qr', async (req, res) => {
 
 // ===== Config endpoint =====
 app.get('/api/config', (req, res) => {
-  res.json({ googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null, phoneAuth: !!twilioClient });
+  res.json({
+    googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null,
+    phoneAuth: !!twilioClient,
+    captcha: USE_CAPTCHA, turnstileSiteKey: TURNSTILE_SITE_KEY || null
+  });
+});
+
+// ===== Captcha Verify endpoint =====
+app.post('/api/captcha/verify', async (req, res) => {
+  if (!USE_CAPTCHA) return res.json({ ok: true });
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'Token required' });
+  const ip = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket?.remoteAddress || '';
+  try {
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: TURNSTILE_SECRET, response: token, remoteip: ip }),
+      signal: AbortSignal.timeout(10000)
+    });
+    const j = await r.json();
+    if (j.success) { markIpVerified(ip); return res.json({ ok: true }); }
+    addIpRisk(ip, 10);
+    res.status(403).json({ error: 'Captcha verification failed' });
+  } catch (e) {
+    console.error('[Turnstile] verify error:', e.message);
+    res.status(500).json({ error: 'Verification service unavailable' });
+  }
 });
 
 app.get('/api/speedtest', (req, res) => {
@@ -508,6 +578,8 @@ app.post('/api/auth/phone/send', async (req, res) => {
   if (rl.count >= 3) return res.status(429).json({ error: 'Too many OTP requests. Try again in 10 minutes.' });
   rl.count++; _otpRateMap.set(phone, rl);
 
+  const _otpIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket?.remoteAddress || '';
+  addIpRisk(_otpIp, 3);
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   _otpStore.set(phone, { otp, expiresAt: now + 5 * 60 * 1000 });
   try {
@@ -579,10 +651,11 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    const _loginIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket?.remoteAddress || '';
     const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user || !user.passwordHash) { addIpRisk(_loginIp, 8); return res.status(401).json({ error: 'Invalid credentials' }); }
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!valid) { addIpRisk(_loginIp, 8); return res.status(401).json({ error: 'Invalid credentials' }); }
     if (user.banned) return res.status(403).json({ error: `Account suspended: ${user.banReason || 'Contact support'}` });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     setAuthCookie(res, token);
@@ -1359,6 +1432,20 @@ io.use((socket, next) => {
       }
     } catch {}
   }
+  // Bot/risk detection
+  if (USE_CAPTCHA) {
+    const ip = (socket.handshake.headers['x-forwarded-for'] || '').split(',')[0].trim() || socket.handshake.address;
+    if (!isIpVerified(ip)) {
+      const ua = socket.handshake.headers['user-agent'] || '';
+      if (!ua) { addIpRisk(ip, 10); }
+      else if (BOT_UA_RE.test(ua)) { addIpRisk(ip, 30); }
+      if (socket.handshake.auth?.webdriver) { addIpRisk(ip, 50); }
+      // Track connection frequency
+      const d = _getIpRisk(ip);
+      d.conns++;
+      if (d.conns > 5) addIpRisk(ip, 2);
+    }
+  }
   next();
 });
 
@@ -1384,7 +1471,21 @@ io.on('connection', (socket) => {
     }
   }
 
+  // Emit captcha challenge if IP is suspicious
+  socket.captchaRequired = USE_CAPTCHA && shouldChallenge(clientIp);
+  if (socket.captchaRequired) {
+    socket.emit('require-captcha', { siteKey: TURNSTILE_SITE_KEY });
+  }
+
+  socket.on('captcha-cleared', () => {
+    if (isIpVerified(clientIp)) {
+      socket.captchaRequired = false;
+      socket.emit('captcha-ok');
+    }
+  });
+
   socket.on('join-room', ({ roomId, name, avatar, password, countdownMinutes }) => {
+    if (socket.captchaRequired && !isIpVerified(clientIp)) { socket.emit('captcha-needed'); return; }
     // Client-sent avatar is only used for guest users; logged-in users use socket.userAvatar
     if (!socket.userAvatar && avatar) socket.userAvatar = String(avatar).slice(0, 200000) || null;
     if (socket.currentRoom) {
@@ -1744,6 +1845,7 @@ io.on('connection', (socket) => {
   socket.on('ice-candidate', ({ to, candidate }) => io.to(to).emit('ice-candidate', { from: socket.id, candidate }));
 
   socket.on('relay-msg', ({ to, text, msgId, replyTo }) => {
+    if (socket.captchaRequired && !isIpVerified(clientIp)) { socket.emit('captcha-needed'); return; }
     if (!settings.allowMessageRelay) { socket.emit('relay-error', { error: 'Message relay is disabled' }); return; }
     const rsMsg = socket.currentRoom ? roomSettings.get(socket.currentRoom) : null;
     if (rsMsg && !rsMsg.allowChat) { socket.emit('relay-error', { error: '此房間已停用聊天功能' }); return; }
@@ -1760,6 +1862,7 @@ io.on('connection', (socket) => {
     io.to(to).emit('relay-read-receipt', { from: socket.id, msgIds });
   });
   socket.on('relay-file-start', ({ to, meta }) => {
+    if (socket.captchaRequired && !isIpVerified(clientIp)) { socket.emit('captcha-needed'); return; }
     if (!settings.allowFileRelay) { socket.emit('relay-error', { error: 'File relay is disabled' }); return; }
     const rsFile = socket.currentRoom ? roomSettings.get(socket.currentRoom) : null;
     if (rsFile && !rsFile.allowFiles) { socket.emit('relay-error', { error: '此房間已停用檔案傳輸' }); return; }

@@ -1959,6 +1959,21 @@ header {
 /* ===========================
    Room Closed Modal
    =========================== */
+/* ===== Captcha Modal ===== */
+.captcha-box { max-width:360px; text-align:center; gap:14px; align-items:center; }
+.captcha-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(var(--primary-rgb,.0,.212,.1),.08);
+  border: 1.5px solid rgba(0,212,255,.2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary);
+}
+.captcha-icon svg { width:28px; height:28px; }
+.captcha-desc { font-size:.83rem; color:var(--text-muted); line-height:1.55; }
+.captcha-status { font-size:.78rem; color:var(--text-muted); min-height:1.2em; }
+#turnstile-container { display:flex; justify-content:center; min-height:65px; }
+
 .room-closed-box { max-width:300px; text-align:center; gap:14px; }
 .room-closed-icon {
   width: 64px; height: 64px;

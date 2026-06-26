@@ -1014,7 +1014,7 @@ function addFileBubble(filename, filesize, isMine, peerName, blob) {
 
 // ===== Socket.io =====
 let roomClosedByAdmin = false;
-const socket = io({ auth: { userToken: userToken || null } });
+const socket = io({ auth: { userToken: userToken || null, webdriver: !!navigator.webdriver } });
 
 let _roomPassword = null; // password for current room (set when joining password-protected room)
 
@@ -1044,6 +1044,77 @@ socket.on('connect', () => {
 
 socket.on('disconnect', () => {
   if (_hasConnectedOnce) setNoDevicesHint('disconnected');
+});
+
+// ===== Captcha =====
+let _captchaSiteKey = null;
+let _turnstileWidgetId = null;
+
+function _loadTurnstile(siteKey, cb) {
+  if (window.turnstile) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+  s.async = true; s.defer = true;
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+
+function showCaptchaModal(siteKey) {
+  _captchaSiteKey = siteKey;
+  document.getElementById('captcha-modal').classList.add('active');
+  document.getElementById('captcha-status').textContent = '';
+  const container = document.getElementById('turnstile-container');
+
+  _loadTurnstile(siteKey, () => {
+    if (_turnstileWidgetId !== null) {
+      try { window.turnstile.reset(_turnstileWidgetId); } catch {}
+      return;
+    }
+    _turnstileWidgetId = window.turnstile.render(container, {
+      sitekey: siteKey,
+      theme: document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
+      callback: async (token) => {
+        const statusEl = document.getElementById('captcha-status');
+        statusEl.textContent = '驗證中…';
+        try {
+          const r = await fetch('/api/captcha/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+          });
+          const j = await r.json();
+          if (j.ok) {
+            statusEl.textContent = '';
+            document.getElementById('captcha-modal').classList.remove('active');
+            socket.emit('captcha-cleared');
+            toast('驗證成功，歡迎使用 WebDrop！', 'success');
+          } else {
+            statusEl.textContent = '驗證失敗，請重試。';
+            window.turnstile.reset(_turnstileWidgetId);
+          }
+        } catch {
+          statusEl.textContent = '驗證服務暫時無法使用，請稍後再試。';
+          window.turnstile.reset(_turnstileWidgetId);
+        }
+      },
+      'error-callback': () => {
+        document.getElementById('captcha-status').textContent = '驗證載入失敗，請重新整理頁面。';
+      }
+    });
+  });
+}
+
+socket.on('require-captcha', ({ siteKey }) => {
+  showCaptchaModal(siteKey);
+});
+
+socket.on('captcha-ok', () => {
+  rejoinRoom();
+});
+
+socket.on('captcha-needed', () => {
+  if (_captchaSiteKey) showCaptchaModal(_captchaSiteKey);
+  else toast('請先完成安全驗證', 'error');
 });
 
 let _reservedRetryTimer = null;

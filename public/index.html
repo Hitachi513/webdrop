@@ -791,6 +791,23 @@
   </div>
 </div>
 
+<!-- ===== Captcha Modal ===== -->
+<div id="captcha-modal" class="modal">
+  <div class="modal-box captcha-box">
+    <div class="captcha-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0110 0v4"/>
+        <circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <h3 class="modal-title">安全驗證</h3>
+    <p class="captcha-desc">我們偵測到異常活動，請完成驗證以繼續使用 WebDrop。</p>
+    <div id="turnstile-container"></div>
+    <p id="captcha-status" class="captcha-status"></p>
+  </div>
+</div>
+
 <div id="notifications"></div>
 
 <!-- ===== Landing Page ===== -->

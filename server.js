@@ -1,15 +1,16 @@
 require('dotenv').config();
-const express  = require('express');
-const http     = require('http');
+const express    = require('express');
+const http       = require('http');
 const { Server } = require('socket.io');
 const { spawn, execSync } = require('child_process');
-const path     = require('path');
-const fs       = require('fs');
-const os       = require('os');
-const crypto   = require('crypto');
-const QRCode   = require('qrcode');
-const bcrypt   = require('bcryptjs');
-const jwt      = require('jsonwebtoken');
+const path       = require('path');
+const fs         = require('fs');
+const os         = require('os');
+const crypto     = require('crypto');
+const QRCode     = require('qrcode');
+const bcrypt     = require('bcryptjs');
+const jwt        = require('jsonwebtoken');
+const compression = require('compression');
 const { OAuth2Client } = require('google-auth-library');
 
 const app    = express();
@@ -488,8 +489,18 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
+app.use(compression({ level: 6, threshold: 1024 }));
+
+const staticOpts = {
+  maxAge: '7d',
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+};
+app.use(express.static(path.join(__dirname, 'public'), staticOpts));
+app.use('/admin', express.static(path.join(__dirname, 'public', 'admin'), staticOpts));
 
 // ===== QR endpoint =====
 app.get('/qr', async (req, res) => {

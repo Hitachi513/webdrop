@@ -3054,30 +3054,49 @@ if (location.search.includes('share=1')) {
   if (hintBtn) hintBtn.style.display = '';
 
   // Install modal logic
-  const modal           = document.getElementById('install-modal');
-  const modalClose      = document.getElementById('install-modal-close');
-  const modalAndroid    = document.getElementById('install-modal-android');
-  const modalIos        = document.getElementById('install-modal-ios');
-  const modalMacSafari  = document.getElementById('install-modal-mac-safari');
-  const modalOther      = document.getElementById('install-modal-other');
-  const modalInstBtn    = document.getElementById('install-modal-btn');
+  const modal              = document.getElementById('install-modal');
+  const modalClose         = document.getElementById('install-modal-close');
+  const modalAndroid       = document.getElementById('install-modal-android');
+  const modalIos           = document.getElementById('install-modal-ios');
+  const modalIosOther      = document.getElementById('install-modal-ios-other');
+  const modalMacSafari     = document.getElementById('install-modal-mac-safari');
+  const modalFirefox       = document.getElementById('install-modal-firefox');
+  const modalSamsung       = document.getElementById('install-modal-samsung');
+  const modalOpera         = document.getElementById('install-modal-opera');
+  const modalOther         = document.getElementById('install-modal-other');
+  const modalInstBtn       = document.getElementById('install-modal-btn');
+  const allModalPanels     = [modalAndroid, modalIos, modalIosOther, modalMacSafari,
+                               modalFirefox, modalSamsung, modalOpera, modalOther];
 
-  const isIos      = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isSafari   = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const isMac      = /macintosh/i.test(navigator.userAgent);
-  const isMacSafari = isMac && isSafari;
+  const ua = navigator.userAgent;
+  const isIos        = /iphone|ipad|ipod/i.test(ua);
+  const isMac        = /macintosh/i.test(ua);
+  const isSafari     = /^((?!chrome|android).)*safari/i.test(ua);
+  const isChromeIos  = /CriOS\//i.test(ua);
+  const isFirefox    = /Firefox\//i.test(ua);
+  const isSamsung    = /SamsungBrowser\//i.test(ua);
+  const isOpera      = /OPR\/|Opera\//i.test(ua);
+  const isIosSafari  = isIos && isSafari && !isChromeIos;
+  const isMacSafari  = isMac && isSafari && !isIos;
   let deferredPrompt = null;
 
   function openModal() {
-    if (isIos && isSafari)   { modalIos.style.display = 'block'; }
-    else if (isMacSafari)    { modalMacSafari.style.display = 'block'; }
-    else if (deferredPrompt) { modalAndroid.style.display = 'block'; }
-    else                     { modalOther.style.display = 'block'; }
+    allModalPanels.forEach(el => { if (el) el.style.display = 'none'; });
+    let panel;
+    if (isIosSafari)         panel = modalIos;
+    else if (isIos)          panel = modalIosOther;
+    else if (isMacSafari)    panel = modalMacSafari;
+    else if (isFirefox)      panel = modalFirefox;
+    else if (isSamsung && !deferredPrompt) panel = modalSamsung;
+    else if (isOpera  && !deferredPrompt) panel = modalOpera;
+    else if (deferredPrompt) panel = modalAndroid;
+    else                     panel = modalOther;
+    if (panel) panel.style.display = 'block';
     modal.style.display = 'flex';
   }
   function closeModal() {
     modal.style.display = 'none';
-    [modalIos, modalMacSafari, modalAndroid, modalOther].forEach(el => el.style.display = 'none');
+    allModalPanels.forEach(el => { if (el) el.style.display = 'none'; });
   }
 
   hintBtn?.addEventListener('click', openModal);
@@ -3107,13 +3126,15 @@ if (location.search.includes('share=1')) {
   dismissBtn.addEventListener('click', dismiss);
   neverBtn.addEventListener('click', () => { dismiss(); localStorage.setItem('wd-install-dismissed', '1'); });
 
-  if (isIos && isSafari) {
+  if (isIosSafari) {
     subEl.textContent = '加入主畫面以使用系統分享功能';
     iosSteps.style.display = 'flex';
     setTimeout(showBanner, 3000);
   } else if (isMacSafari) {
     subEl.textContent = '加入 Dock 以使用系統分享功能';
     setTimeout(showBanner, 3000);
+  } else if (isFirefox || isChromeIos) {
+    // Firefox / Chrome iOS：不支援，略過 banner
   } else {
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();

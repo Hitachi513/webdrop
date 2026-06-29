@@ -3394,3 +3394,12 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
 .install-modal-box { max-width: 340px; }
 .install-modal-sub { font-size: .82rem; color: rgba(255,255,255,.5); margin: 6px 0 0; }
 .ios-steps-modal { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.install-modal-note { color: rgba(255,255,255,.35); font-size: .72rem; margin-top: 10px; }
+.install-browser-tip {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: rgba(255,255,255,.06); border-radius: 10px;
+  padding: 12px 14px; margin-top: 14px;
+}
+.install-browser-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.3; }
+.install-browser-tip p { font-size: .82rem; color: rgba(255,255,255,.6); line-height: 1.55; margin: 0; }
+.install-browser-tip strong { color: rgba(255,255,255,.9); }

@@ -416,9 +416,12 @@
       <button class="modal-close" id="install-modal-close">✕</button>
       <h3>安裝 WebDrop App</h3>
       <p class="install-modal-sub">安裝後可從相簿、檔案等任何 App 直接分享給附近裝置</p>
+      <!-- Chrome / Edge / Brave / Opera / Samsung: one-tap install -->
       <div id="install-modal-android" style="display:none">
         <button id="install-modal-btn" class="btn-primary" style="width:100%;margin-top:12px">立即安裝</button>
       </div>
+
+      <!-- iOS Safari -->
       <div id="install-modal-ios" style="display:none">
         <div class="ios-steps-modal">
           <div class="ios-step"><span class="ios-step-num">1</span><span>在 Safari 底部點選 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:middle"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> 分享</span></div>
@@ -426,16 +429,57 @@
           <div class="ios-step"><span class="ios-step-num">3</span><span>點「新增」完成安裝</span></div>
         </div>
       </div>
+
+      <!-- Mac Safari -->
       <div id="install-modal-mac-safari" style="display:none">
         <div class="ios-steps-modal">
           <div class="ios-step"><span class="ios-step-num">1</span><span>點選選單列「檔案」</span></div>
           <div class="ios-step"><span class="ios-step-num">2</span><span>選擇「加入 Dock⋯」</span></div>
           <div class="ios-step"><span class="ios-step-num">3</span><span>點「加入」完成安裝</span></div>
         </div>
-        <p style="color:rgba(255,255,255,.35);font-size:.72rem;margin-top:10px">需要 macOS Sonoma（14）以上版本</p>
+        <p class="install-modal-note">需要 macOS Sonoma（14）以上版本</p>
       </div>
+
+      <!-- iOS Chrome / Firefox iOS：引導改用 Safari -->
+      <div id="install-modal-ios-other" style="display:none">
+        <div class="install-browser-tip">
+          <span class="install-browser-icon">⚠️</span>
+          <p>iOS 僅支援透過 <strong>Safari</strong> 安裝。<br>請複製網址後在 Safari 開啟。</p>
+        </div>
+      </div>
+
+      <!-- Firefox Desktop：不支援 -->
+      <div id="install-modal-firefox" style="display:none">
+        <div class="install-browser-tip">
+          <span class="install-browser-icon">🦊</span>
+          <p>Firefox 目前不支援 PWA 安裝。<br>請改用 <strong>Chrome</strong>、<strong>Edge</strong> 或 <strong>Safari</strong> 開啟此頁面。</p>
+        </div>
+      </div>
+
+      <!-- Samsung Internet -->
+      <div id="install-modal-samsung" style="display:none">
+        <div class="ios-steps-modal">
+          <div class="ios-step"><span class="ios-step-num">1</span><span>點選右下角選單（三條線）</span></div>
+          <div class="ios-step"><span class="ios-step-num">2</span><span>選擇「新增頁面至」→「主畫面」</span></div>
+          <div class="ios-step"><span class="ios-step-num">3</span><span>點「新增」完成安裝</span></div>
+        </div>
+      </div>
+
+      <!-- Opera Mobile -->
+      <div id="install-modal-opera" style="display:none">
+        <div class="ios-steps-modal">
+          <div class="ios-step"><span class="ios-step-num">1</span><span>點選右下角「⋯」選單</span></div>
+          <div class="ios-step"><span class="ios-step-num">2</span><span>選擇「首頁」→「加入首頁」</span></div>
+          <div class="ios-step"><span class="ios-step-num">3</span><span>點「新增」完成安裝</span></div>
+        </div>
+      </div>
+
+      <!-- 其他：通用提示 -->
       <div id="install-modal-other" style="display:none">
-        <p style="color:rgba(255,255,255,.5);font-size:.82rem;margin-top:12px">請使用 Chrome、Edge 或 Safari 開啟此頁面以安裝。</p>
+        <div class="install-browser-tip">
+          <span class="install-browser-icon">💡</span>
+          <p>建議使用 <strong>Chrome</strong>、<strong>Edge</strong> 或 <strong>Safari</strong> 開啟此頁面以安裝。</p>
+        </div>
       </div>
     </div>
   </div>

@@ -16,10 +16,17 @@ const { OAuth2Client } = require('google-auth-library');
 const app    = express();
 app.set('trust proxy', 1);
 const server = http.createServer(app);
+
+// Cloudflare upstream keepalive is 75s — match it to avoid connection resets
+server.keepAliveTimeout = 75000;
+server.headersTimeout   = 76000;
+
 const io     = new Server(server, {
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  cors: { origin: '*' }
+  pingTimeout: 30000,
+  pingInterval: 20000,
+  maxHttpBufferSize: 10 * 1024 * 1024,
+  cors: { origin: '*' },
+  perMessageDeflate: { threshold: 1024 }
 });
 
 const GOOGLE_CLIENT_ID    = process.env.GOOGLE_CLIENT_ID    || '';
@@ -489,7 +496,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(compression({ level: 6, threshold: 1024 }));
+app.use(compression({ level: 4, threshold: 1024 }));
 
 const staticOpts = {
   maxAge: '7d',
@@ -517,12 +524,15 @@ app.get('/qr', async (req, res) => {
 });
 
 // ===== Config endpoint =====
+const _configPayload = JSON.stringify({
+  googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null,
+  phoneAuth: !!twilioClient,
+  captcha: USE_CAPTCHA, turnstileSiteKey: TURNSTILE_SITE_KEY || null
+});
 app.get('/api/config', (req, res) => {
-  res.json({
-    googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null,
-    phoneAuth: !!twilioClient,
-    captcha: USE_CAPTCHA, turnstileSiteKey: TURNSTILE_SITE_KEY || null
-  });
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.end(_configPayload);
 });
 
 // ===== Captcha Verify endpoint =====
@@ -2152,6 +2162,14 @@ async function init() {
     console.log(`WebDrop running at http://localhost:${PORT}`);
     console.log(`Admin panel   at http://localhost:${PORT}/admin`);
     startTunnel(PORT);
+
+    // Self-ping every 10 min to prevent Render cold starts
+    const selfUrl = (process.env.RENDER_EXTERNAL_URL || '').trim();
+    if (selfUrl) {
+      setInterval(() => {
+        fetch(`${selfUrl}/api/config`).catch(() => {});
+      }, 10 * 60 * 1000);
+    }
   });
 }
 

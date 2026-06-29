@@ -502,6 +502,10 @@ const staticOpts = {
 app.use(express.static(path.join(__dirname, 'public'), staticOpts));
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin'), staticOpts));
 
+// ===== Share Target fallback (SW handles this normally) =====
+app.post('/share-target', (req, res) => res.redirect(303, '/'));
+app.get('/share-target', (req, res) => res.redirect(302, '/'));
+
 // ===== QR endpoint =====
 app.get('/qr', async (req, res) => {
   try {

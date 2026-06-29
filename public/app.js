@@ -1910,6 +1910,10 @@ function autoSelect(peerId) {
   const peer = peers.get(peerId);
   if (peer?.element) peer.element.classList.add('selected');
   updateDropHint();
+  if (pendingSharedFiles.length) {
+    const files = pendingSharedFiles.splice(0);
+    setTimeout(() => handleFiles(files), 150);
+  }
 }
 
 function setupDC(dc, peerId) {
@@ -2997,6 +3001,47 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
+}
+
+// ===== Web Share Target =====
+let pendingSharedFiles = [];
+
+async function loadShareTargetFiles() {
+  try {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('webdrop-share-v1', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('files', { autoIncrement: true });
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror = reject;
+    });
+    const files = await new Promise((resolve, reject) => {
+      const tx = db.transaction('files', 'readwrite');
+      const store = tx.objectStore('files');
+      const all = store.getAll();
+      all.onsuccess = () => { store.clear(); resolve(all.result); };
+      all.onerror = reject;
+    });
+    db.close();
+    if (!files.length) return;
+    pendingSharedFiles = files;
+    toast(`${files.length} 個檔案已準備好 — 點選裝置即可傳送`, 'info', 7000);
+    // If a peer is already selected, send immediately
+    if (resolveTargets()?.length) {
+      const toSend = pendingSharedFiles.splice(0);
+      handleFiles(toSend);
+    }
+  } catch (e) {}
+}
+
+if (navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'share-files-ready') loadShareTargetFiles();
+  });
+}
+
+if (location.search.includes('share=1')) {
+  history.replaceState(null, '', location.pathname + location.hash);
+  loadShareTargetFiles();
 }
 
 // ===== Keyboard Shortcuts =====

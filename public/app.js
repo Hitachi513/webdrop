@@ -3048,12 +3048,14 @@ if (location.search.includes('share=1')) {
 (function () {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (isStandalone) return;
+  if (localStorage.getItem('wd-install-dismissed')) return;
 
   const banner     = document.getElementById('install-banner');
   const subEl      = document.getElementById('install-banner-sub');
   const installBtn = document.getElementById('install-btn');
   const iosSteps   = document.getElementById('install-ios-steps');
   const dismissBtn = document.getElementById('install-dismiss');
+  const neverBtn   = document.getElementById('install-never');
 
   let deferredPrompt = null;
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -3068,6 +3070,7 @@ if (location.search.includes('share=1')) {
   }
 
   dismissBtn.addEventListener('click', dismiss);
+  neverBtn.addEventListener('click', () => { dismiss(); localStorage.setItem('wd-install-dismissed', '1'); });
 
   if (isIos && isSafari) {
     // iOS: show manual steps

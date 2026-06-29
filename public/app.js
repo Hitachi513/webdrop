@@ -3048,7 +3048,6 @@ if (location.search.includes('share=1')) {
 (function () {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (isStandalone) return;
-  if (localStorage.getItem('wd-install-dismissed')) return;
 
   const banner     = document.getElementById('install-banner');
   const subEl      = document.getElementById('install-banner-sub');
@@ -3066,7 +3065,6 @@ if (location.search.includes('share=1')) {
 
   function dismiss() {
     banner.style.display = 'none';
-    localStorage.setItem('wd-install-dismissed', '1');
   }
 
   dismissBtn.addEventListener('click', dismiss);

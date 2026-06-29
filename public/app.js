@@ -3063,10 +3063,11 @@ if (location.search.includes('share=1')) {
   const modalFirefox       = document.getElementById('install-modal-firefox');
   const modalSamsung       = document.getElementById('install-modal-samsung');
   const modalOpera         = document.getElementById('install-modal-opera');
+  const modalBrave         = document.getElementById('install-modal-brave');
   const modalOther         = document.getElementById('install-modal-other');
   const modalInstBtn       = document.getElementById('install-modal-btn');
   const allModalPanels     = [modalAndroid, modalIos, modalIosOther, modalMacSafari,
-                               modalFirefox, modalSamsung, modalOpera, modalOther];
+                               modalFirefox, modalSamsung, modalOpera, modalBrave, modalOther];
 
   const ua = navigator.userAgent;
   const isIos        = /iphone|ipad|ipod/i.test(ua);
@@ -3078,19 +3079,21 @@ if (location.search.includes('share=1')) {
   const isOpera      = /OPR\/|Opera\//i.test(ua);
   const isIosSafari  = isIos && isSafari && !isChromeIos;
   const isMacSafari  = isMac && isSafari && !isIos;
+  const isBrave      = !!navigator.brave;
   let deferredPrompt = null;
 
   function openModal() {
     allModalPanels.forEach(el => { if (el) el.style.display = 'none'; });
     let panel;
-    if (isIosSafari)         panel = modalIos;
-    else if (isIos)          panel = modalIosOther;
-    else if (isMacSafari)    panel = modalMacSafari;
-    else if (isFirefox)      panel = modalFirefox;
+    if (isIosSafari)                       panel = modalIos;
+    else if (isIos)                        panel = modalIosOther;
+    else if (isMacSafari)                  panel = modalMacSafari;
+    else if (isFirefox)                    panel = modalFirefox;
     else if (isSamsung && !deferredPrompt) panel = modalSamsung;
-    else if (isOpera  && !deferredPrompt) panel = modalOpera;
-    else if (deferredPrompt) panel = modalAndroid;
-    else                     panel = modalOther;
+    else if (isOpera   && !deferredPrompt) panel = modalOpera;
+    else if (isBrave   && !deferredPrompt) panel = modalBrave;
+    else if (deferredPrompt)               panel = modalAndroid;
+    else                                   panel = modalOther;
     if (panel) panel.style.display = 'block';
     modal.style.display = 'flex';
   }

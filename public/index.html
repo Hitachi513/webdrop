@@ -407,6 +407,32 @@
     </div>
   </div>
 
+  <!-- PWA Install Banner -->
+  <div id="install-banner" style="display:none">
+    <div class="install-banner-inner">
+      <div class="install-banner-icon">
+        <svg viewBox="0 0 36 36" fill="none" width="32" height="32">
+          <circle cx="18" cy="18" r="16" stroke="url(#logoGrad)" stroke-width="2"/>
+          <path d="M18 10L18 26M12 16L18 10L24 16" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 22h12" stroke="url(#logoGrad)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="install-banner-text">
+        <strong>安裝 WebDrop</strong>
+        <span id="install-banner-sub"></span>
+      </div>
+      <div class="install-banner-actions">
+        <button id="install-btn" class="btn-primary install-action-btn" style="display:none">安裝</button>
+        <button id="install-dismiss" class="install-dismiss-btn">✕</button>
+      </div>
+    </div>
+    <div id="install-ios-steps" style="display:none">
+      <div class="ios-step"><span class="ios-step-num">1</span><span>在 Safari 底部點選 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:middle"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> 分享</span></div>
+      <div class="ios-step"><span class="ios-step-num">2</span><span>選擇「加入主畫面」</span></div>
+      <div class="ios-step"><span class="ios-step-num">3</span><span>點「新增」完成安裝</span></div>
+    </div>
+  </div>
+
   <!-- Feedback FAB -->
   <button id="feedback-fab" class="feedback-fab" title="意見回饋">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>

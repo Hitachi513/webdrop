@@ -3044,6 +3044,58 @@ if (location.search.includes('share=1')) {
   loadShareTargetFiles();
 }
 
+// ===== PWA Install Banner =====
+(function () {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (isStandalone) return;
+  if (localStorage.getItem('wd-install-dismissed')) return;
+
+  const banner     = document.getElementById('install-banner');
+  const subEl      = document.getElementById('install-banner-sub');
+  const installBtn = document.getElementById('install-btn');
+  const iosSteps   = document.getElementById('install-ios-steps');
+  const dismissBtn = document.getElementById('install-dismiss');
+
+  let deferredPrompt = null;
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+  function showBanner() {
+    banner.style.display = 'block';
+  }
+
+  function dismiss() {
+    banner.style.display = 'none';
+    localStorage.setItem('wd-install-dismissed', '1');
+  }
+
+  dismissBtn.addEventListener('click', dismiss);
+
+  if (isIos && isSafari) {
+    // iOS: show manual steps
+    subEl.textContent = '加入主畫面以使用系統分享功能';
+    iosSteps.style.display = 'flex';
+    setTimeout(showBanner, 3000);
+  } else {
+    // Android / Desktop: intercept beforeinstallprompt
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      subEl.textContent = '安裝後可從任何 App 直接分享檔案';
+      installBtn.style.display = 'block';
+      setTimeout(showBanner, 2000);
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      if (outcome === 'accepted') dismiss();
+    });
+  }
+})();
+
 // ===== Keyboard Shortcuts =====
 document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName;

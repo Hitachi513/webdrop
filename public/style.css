@@ -3391,3 +3391,6 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   text-underline-offset: 2px;
 }
 .install-never-btn:hover { color: rgba(255,255,255,.65); }
+.install-modal-box { max-width: 340px; }
+.install-modal-sub { font-size: .82rem; color: rgba(255,255,255,.5); margin: 6px 0 0; }
+.ios-steps-modal { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }

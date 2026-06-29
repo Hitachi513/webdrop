@@ -3044,10 +3044,50 @@ if (location.search.includes('share=1')) {
   loadShareTargetFiles();
 }
 
-// ===== PWA Install Banner =====
+// ===== PWA Install Banner + Modal =====
 (function () {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (isStandalone) return;
+
+  // Always show the install hint button in header
+  const hintBtn = document.getElementById('install-hint-btn');
+  if (hintBtn) hintBtn.style.display = '';
+
+  // Install modal logic
+  const modal        = document.getElementById('install-modal');
+  const modalClose   = document.getElementById('install-modal-close');
+  const modalAndroid = document.getElementById('install-modal-android');
+  const modalIos     = document.getElementById('install-modal-ios');
+  const modalOther   = document.getElementById('install-modal-other');
+  const modalInstBtn = document.getElementById('install-modal-btn');
+
+  const isIos    = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  let deferredPrompt = null;
+
+  function openModal() {
+    if (isIos && isSafari)   { modalIos.style.display = 'block'; }
+    else if (deferredPrompt) { modalAndroid.style.display = 'block'; }
+    else                     { modalOther.style.display = 'block'; }
+    modal.style.display = 'flex';
+  }
+  function closeModal() {
+    modal.style.display = 'none';
+    modalIos.style.display = modalAndroid.style.display = modalOther.style.display = 'none';
+  }
+
+  hintBtn?.addEventListener('click', openModal);
+  modalClose?.addEventListener('click', closeModal);
+  modal?.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+  modalInstBtn?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (outcome === 'accepted') closeModal();
+  });
+
   if (localStorage.getItem('wd-install-dismissed')) return;
 
   const banner     = document.getElementById('install-banner');
@@ -3057,28 +3097,17 @@ if (location.search.includes('share=1')) {
   const dismissBtn = document.getElementById('install-dismiss');
   const neverBtn   = document.getElementById('install-never');
 
-  let deferredPrompt = null;
-  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-  function showBanner() {
-    banner.style.display = 'block';
-  }
-
-  function dismiss() {
-    banner.style.display = 'none';
-  }
+  function showBanner() { banner.style.display = 'block'; }
+  function dismiss()    { banner.style.display = 'none'; }
 
   dismissBtn.addEventListener('click', dismiss);
   neverBtn.addEventListener('click', () => { dismiss(); localStorage.setItem('wd-install-dismissed', '1'); });
 
   if (isIos && isSafari) {
-    // iOS: show manual steps
     subEl.textContent = '加入主畫面以使用系統分享功能';
     iosSteps.style.display = 'flex';
     setTimeout(showBanner, 3000);
   } else {
-    // Android / Desktop: intercept beforeinstallprompt
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();
       deferredPrompt = e;

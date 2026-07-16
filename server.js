@@ -12,6 +12,7 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const compression = require('compression');
 const { OAuth2Client } = require('google-auth-library');
+const firebaseAdmin  = require('firebase-admin');
 
 const app    = express();
 app.set('trust proxy', 1);
@@ -39,6 +40,27 @@ const USE_CAPTCHA = !!(TURNSTILE_SECRET && TURNSTILE_SITE_KEY);
 const googleClient  = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 const twilioClient  = (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN)
   ? require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
+
+// Firebase Phone Auth (optional — set FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
+const FIREBASE_PROJECT_ID    = process.env.FIREBASE_PROJECT_ID    || '';
+const FIREBASE_CLIENT_EMAIL  = process.env.FIREBASE_CLIENT_EMAIL  || '';
+const FIREBASE_PRIVATE_KEY   = (process.env.FIREBASE_PRIVATE_KEY  || '').replace(/\\n/g, '\n');
+const FIREBASE_API_KEY       = process.env.FIREBASE_API_KEY        || '';
+const FIREBASE_APP_ID        = process.env.FIREBASE_APP_ID         || '';
+let firebaseApp = null;
+if (FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY) {
+  try {
+    firebaseApp = firebaseAdmin.initializeApp({
+      credential: firebaseAdmin.credential.cert({
+        projectId:   FIREBASE_PROJECT_ID,
+        clientEmail: FIREBASE_CLIENT_EMAIL,
+        privateKey:  FIREBASE_PRIVATE_KEY,
+      }),
+    });
+    console.log('[Firebase] Admin SDK initialized');
+  } catch (e) { console.error('[Firebase] init error:', e.message); }
+}
+const USE_FIREBASE_PHONE = !!(firebaseApp && FIREBASE_API_KEY && FIREBASE_APP_ID);
 
 // phone OTP store: phone → { otp, expiresAt }
 const _otpStore   = new Map();
@@ -542,7 +564,13 @@ app.get('/qr', async (req, res) => {
 // ===== Config endpoint =====
 const _configPayload = JSON.stringify({
   googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null,
-  phoneAuth: !!twilioClient,
+  phoneAuth: !!(twilioClient || USE_FIREBASE_PHONE),
+  phoneAuthMode: twilioClient ? 'twilio' : USE_FIREBASE_PHONE ? 'firebase' : null,
+  firebaseConfig: USE_FIREBASE_PHONE ? {
+    apiKey:    FIREBASE_API_KEY,
+    projectId: FIREBASE_PROJECT_ID,
+    appId:     FIREBASE_APP_ID,
+  } : null,
   captcha: USE_CAPTCHA, turnstileSiteKey: TURNSTILE_SITE_KEY || null
 });
 app.get('/api/config', (req, res) => {
@@ -653,6 +681,30 @@ app.post('/api/auth/phone/verify', async (req, res) => {
   const token = jwt.sign({ id: user.id, email: user.email || user.phone, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
   setAuthCookie(res, token);
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
+});
+
+// ===== Firebase Phone Auth =====
+app.post('/api/auth/firebase-phone', async (req, res) => {
+  if (!firebaseApp) return res.status(501).json({ error: 'Firebase phone auth not configured' });
+  const { idToken } = req.body || {};
+  if (!idToken || typeof idToken !== 'string') return res.status(400).json({ error: 'idToken required' });
+  try {
+    const decoded = await firebaseAdmin.auth(firebaseApp).verifyIdToken(idToken);
+    const phone = decoded.phone_number;
+    if (!phone) return res.status(400).json({ error: 'No phone number in token' });
+
+    let user = users.find(u => u.phone === phone);
+    if (!user) {
+      user = { id: crypto.randomUUID(), email: null, phone, name: `User${phone.slice(-4)}`, googleId: null, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
+      users.push(user);
+      saveUsers().catch(e => console.error('saveUsers error:', e.message));
+      adminNsp.emit('users', getUserList());
+    }
+    if (user.banned) return res.status(403).json({ error: user.banReason || 'Account suspended' });
+    const token = jwt.sign({ id: user.id, email: user.email || user.phone, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
+    setAuthCookie(res, token);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
+  } catch (e) { console.error('Firebase phone auth error:', e.message); res.status(401).json({ error: 'Invalid or expired token' }); }
 });
 
 app.post('/api/auth/register', async (req, res) => {

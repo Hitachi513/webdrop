@@ -394,18 +394,20 @@ function initGoogleAuth() {
 
 // ===== Phone OTP Auth =====
 (function () {
-  const trigger     = document.getElementById('phone-login-trigger');
-  const form        = document.getElementById('phone-login-form');
-  const step1       = document.getElementById('phone-step-1');
-  const step2       = document.getElementById('phone-step-2');
-  const phoneInput  = document.getElementById('phone-number-input');
-  const otpInput    = document.getElementById('phone-otp-input');
-  const sendBtn     = document.getElementById('phone-send-btn');
-  const verifyBtn   = document.getElementById('phone-verify-btn');
-  const backBtn     = document.getElementById('phone-back-btn');
-  const hint        = document.getElementById('phone-sent-hint');
-  const errEl       = document.getElementById('phone-error');
+  const trigger    = document.getElementById('phone-login-trigger');
+  const form       = document.getElementById('phone-login-form');
+  const step1      = document.getElementById('phone-step-1');
+  const step2      = document.getElementById('phone-step-2');
+  const phoneInput = document.getElementById('phone-number-input');
+  const otpInput   = document.getElementById('phone-otp-input');
+  const sendBtn    = document.getElementById('phone-send-btn');
+  const verifyBtn  = document.getElementById('phone-verify-btn');
+  const backBtn    = document.getElementById('phone-back-btn');
+  const hint       = document.getElementById('phone-sent-hint');
+  const errEl      = document.getElementById('phone-error');
   if (!trigger) return;
+
+  let _fbConfirmation = null; // Firebase ConfirmationResult
 
   trigger.addEventListener('click', () => {
     const open = form.style.display !== 'none';
@@ -418,12 +420,32 @@ function initGoogleAuth() {
     const phone = phoneInput.value.trim();
     sendBtn.disabled = true;
     try {
-      await authApi('POST', '/api/auth/phone/send', { phone });
+      if (window._fbAuth) {
+        // Firebase Phone Auth flow
+        if (!window.RecaptchaVerifier) {
+          const { RecaptchaVerifier } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+          if (!document.getElementById('fb-recaptcha')) {
+            const div = document.createElement('div');
+            div.id = 'fb-recaptcha';
+            document.body.appendChild(div);
+          }
+          window._fbRecaptcha = new RecaptchaVerifier(window._fbAuth, 'fb-recaptcha', { size: 'invisible' });
+          window.RecaptchaVerifier = RecaptchaVerifier;
+        }
+        const { signInWithPhoneNumber } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+        _fbConfirmation = await signInWithPhoneNumber(window._fbAuth, phone, window._fbRecaptcha);
+      } else {
+        // Twilio flow
+        await authApi('POST', '/api/auth/phone/send', { phone });
+      }
       hint.textContent = i18n.t('otp-sent-to').replace('{phone}', phone);
       step1.style.display = 'none';
       step2.style.display = '';
       otpInput.focus();
-    } catch (e) { errEl.textContent = e.message; }
+    } catch (e) {
+      errEl.textContent = e.message || e.code || 'Failed to send code';
+      if (window._fbRecaptcha) { window._fbRecaptcha.clear(); window._fbRecaptcha = null; window.RecaptchaVerifier = null; }
+    }
     sendBtn.disabled = false;
   });
 
@@ -433,9 +455,17 @@ function initGoogleAuth() {
     const otp   = otpInput.value.trim();
     verifyBtn.disabled = true;
     try {
-      const data = await authApi('POST', '/api/auth/phone/verify', { phone, otp });
+      let data;
+      if (_fbConfirmation) {
+        // Firebase: confirm OTP → get idToken → send to our backend
+        const credential = await _fbConfirmation.confirm(otp);
+        const idToken = await credential.user.getIdToken();
+        data = await authApi('POST', '/api/auth/firebase-phone', { idToken });
+      } else {
+        data = await authApi('POST', '/api/auth/phone/verify', { phone, otp });
+      }
       onLoginSuccess(data, false);
-    } catch (e) { errEl.textContent = e.message; }
+    } catch (e) { errEl.textContent = e.message || e.code || 'Verification failed'; }
     verifyBtn.disabled = false;
   });
 
@@ -444,6 +474,7 @@ function initGoogleAuth() {
     step1.style.display = '';
     otpInput.value = '';
     errEl.textContent = '';
+    _fbConfirmation = null;
     phoneInput.focus();
   });
 
@@ -2689,6 +2720,15 @@ window.addEventListener('load', async () => {
     }
     if (cfg.phoneAuth) {
       hasSocial = true;
+      if (cfg.phoneAuthMode === 'firebase' && cfg.firebaseConfig) {
+        // Lazy-init Firebase Auth so we can use signInWithPhoneNumber
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js').then(({ initializeApp }) => {
+          import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js').then(({ getAuth }) => {
+            const fbApp = initializeApp(cfg.firebaseConfig, 'webdrop-phone');
+            window._fbAuth = getAuth(fbApp);
+          });
+        });
+      }
     } else {
       document.getElementById('phone-btn-wrap').style.display = 'none';
     }

@@ -389,30 +389,41 @@ function _buildCountryList(q) {
   _phoneCountryList.innerHTML = '';
   DIAL_COUNTRIES.filter(c => !s || c.name.includes(s) || c.en.toLowerCase().includes(s) || c.code.includes(s)).forEach(c => {
     const li = document.createElement('li');
-    li.className = 'phone-country-item';
-    li.innerHTML = `<span class="pci-flag">${c.flag}</span><span class="pci-name">${c.name} <small>${c.en}</small></span><span class="pci-code">${c.code}</span>`;
+    li.className = 'phone-country-item' + (c.code === _selectedDialCode && c.flag === document.getElementById('phone-flag').textContent ? ' selected' : '');
+    li.innerHTML = `<span class="pci-flag">${c.flag}</span><span class="pci-name">${c.name}<small>${c.en}</small></span><span class="pci-code">${c.code}</span>`;
     li.addEventListener('click', () => {
       _selectedDialCode = c.code;
       document.getElementById('phone-flag').textContent = c.flag;
       document.getElementById('phone-dialing-code').textContent = c.code;
-      _phoneCountryDrop.style.display = 'none';
+      _closeCountryDrop();
       _phoneLocalInput.focus();
     });
     _phoneCountryList.appendChild(li);
   });
 }
 
+function _openCountryDrop() {
+  _phoneCountryDrop.style.display = '';
+  _phoneCountryBtn.setAttribute('aria-expanded', 'true');
+  _phoneCountrySearch.value = '';
+  _buildCountryList('');
+  setTimeout(() => _phoneCountrySearch.focus(), 30);
+}
+
+function _closeCountryDrop() {
+  _phoneCountryDrop.style.display = 'none';
+  _phoneCountryBtn.setAttribute('aria-expanded', 'false');
+}
+
 _phoneCountryBtn.addEventListener('click', () => {
-  const open = _phoneCountryDrop.style.display !== 'none';
-  _phoneCountryDrop.style.display = open ? 'none' : '';
-  if (!open) { _phoneCountrySearch.value = ''; _buildCountryList(''); setTimeout(() => _phoneCountrySearch.focus(), 30); }
+  _phoneCountryDrop.style.display !== 'none' ? _closeCountryDrop() : _openCountryDrop();
 });
 
 _phoneCountrySearch.addEventListener('input', () => _buildCountryList(_phoneCountrySearch.value));
 
 document.addEventListener('click', e => {
   if (_phoneCountryDrop.style.display !== 'none' && !_phoneFieldCont.contains(e.target)) {
-    _phoneCountryDrop.style.display = 'none';
+    _closeCountryDrop();
   }
 });
 
@@ -460,7 +471,7 @@ function _resetToEmail() {
   trigger.querySelector('span').textContent = i18n.t('continue-phone') || 'Continue with Phone';
   _emailField.style.display = '';
   _phoneFieldCont.style.display = 'none';
-  _phoneCountryDrop.style.display = 'none';
+  _closeCountryDrop();
   _phoneLocalInput.value = '';
   _emailInput.value = '';
   _pwField.style.display = '';

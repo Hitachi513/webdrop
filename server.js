@@ -44,6 +44,16 @@ const twilioClient  = (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN)
 const _otpStore   = new Map();
 // rate-limit: phone → { count, windowStart }
 const _otpRateMap = new Map();
+// admin login rate-limit: ip → { count, windowStart }
+const _adminLoginMap = new Map();
+function checkAdminRateLimit(ip) {
+  const now = Date.now();
+  let d = _adminLoginMap.get(ip);
+  if (!d || now - d.windowStart > 10 * 60 * 1000) { d = { count: 0, windowStart: now }; _adminLoginMap.set(ip, d); }
+  if (d.count >= 10) return false;
+  d.count++;
+  return true;
+}
 
 // ===== Bot / IP Risk Tracking =====
 const _ipRisk = new Map(); // ip → { score, windowStart, conns, verified, verifiedAt }
@@ -487,6 +497,12 @@ function requireUser(req, res, next) {
 app.use(express.json());
 
 app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
+
+app.use((req, res, next) => {
   if (settings.maintenanceMode
     && !req.path.startsWith('/admin')
     && !req.path.startsWith('/socket.io')
@@ -834,7 +850,9 @@ app.put('/api/auth/room', requireUser, (req, res) => {
 app.post('/admin/api/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') return res.status(400).json({ error: 'Email and password required' });
+    const loginIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket?.remoteAddress || '';
+    if (!checkAdminRateLimit(loginIp)) return res.status(429).json({ error: 'Too many attempts. Try again in 10 minutes.' });
     const admin = admins.find(a => a.email.toLowerCase() === email.toLowerCase());
     if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
     const valid = await bcrypt.compare(password, admin.passwordHash);

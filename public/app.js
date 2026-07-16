@@ -339,7 +339,9 @@ const _phoneBackBtn = document.getElementById('phone-back-btn');
 
 function _toPhoneStep1() {
   phoneMode = 'step1';
-  document.getElementById('phone-login-trigger').classList.add('active');
+  const trigger = document.getElementById('phone-login-trigger');
+  trigger.classList.add('active');
+  trigger.querySelector('span').textContent = '使用電子信箱';
   _emailInput.type = 'tel'; _emailInput.placeholder = '+886 912 345 678';
   _emailInput.autocomplete = 'tel'; _emailInput.readOnly = false; _emailInput.value = '';
   _pwField.style.display = 'none';
@@ -370,7 +372,10 @@ function _toPhoneStep2(phone) {
 
 function _resetToEmail() {
   phoneMode = false; _fbConfirmation = null;
-  document.getElementById('phone-login-trigger').classList.remove('active');
+  const trigger = document.getElementById('phone-login-trigger');
+  trigger.classList.remove('active');
+  trigger.querySelector('span').dataset.i18n = 'continue-phone';
+  trigger.querySelector('span').textContent = i18n.t('continue-phone') || 'Continue with Phone';
   _emailInput.type = 'email'; _emailInput.placeholder = 'Email address';
   _emailInput.autocomplete = 'email'; _emailInput.readOnly = false; _emailInput.value = '';
   _pwField.style.display = '';

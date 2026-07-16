@@ -2762,7 +2762,7 @@ function refreshMembersPanel() {
   peers.forEach((peer, peerId) => {
     const row = document.createElement('div');
     row.className = 'member-row';
-    const avatarHtml = peer.avatar ? `<img src="${peer.avatar}" alt="">` : (peer.name || '?')[0].toUpperCase();
+    const avatarHtml = peer.avatar ? `<img src="${esc(peer.avatar)}" alt="">` : (peer.name || '?')[0].toUpperCase();
     const ROLE_BADGE_MAP = { 'super-admin': '⚡ Super Admin', admin: '👑 Admin', business: '💼 Business', vip: '💎 VIP' };
     const roleBadge = peer.role
       ? `<span class="member-role-badge member-role-${peer.role}">${ROLE_BADGE_MAP[peer.role] || peer.role}</span>` : '';

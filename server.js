@@ -717,7 +717,7 @@ app.put('/api/auth/profile', requireUser, (req, res) => {
       user.avatar = null;
     } else {
       const av = String(req.body.avatar);
-      if (av.startsWith('data:image/') && av.length <= 200000) user.avatar = av;
+      if (/^data:image\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/=\s]+$/.test(av) && av.length <= 200000) user.avatar = av;
     }
   }
   saveUsers().catch(e => console.error("saveUsers error:", e.message));

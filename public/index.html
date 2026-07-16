@@ -733,6 +733,22 @@
     </div>
     <div id="auth-divider" class="auth-divider"><span>or</span></div>
     <p id="phone-sent-hint" style="display:none;font-size:.82rem;color:var(--text-muted);text-align:center;margin:0 0 6px"></p>
+    <div id="phone-field-container" style="position:relative;display:none">
+      <div class="auth-field phone-field-wrap" id="phone-input-wrap">
+        <button type="button" id="phone-country-btn" class="phone-country-btn">
+          <span id="phone-flag">🇹🇼</span>
+          <span id="phone-dialing-code">+886</span>
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <input type="tel" id="phone-local-input" placeholder="912 345 678" inputmode="numeric" autocomplete="tel-national">
+      </div>
+      <div id="phone-country-dropdown" class="phone-country-dropdown" style="display:none">
+        <div class="phone-country-search-wrap">
+          <input type="text" id="phone-country-search" placeholder="搜尋國家 / Search country..." autocomplete="off" spellcheck="false">
+        </div>
+        <ul id="phone-country-list"></ul>
+      </div>
+    </div>
     <div class="auth-tabs">
       <button class="auth-tab active" data-auth-tab="login" data-i18n="sign-in-tab">Sign In</button>
       <button class="auth-tab" data-auth-tab="register" data-i18n="register-tab">Register</button>

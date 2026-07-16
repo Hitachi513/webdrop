@@ -330,12 +330,91 @@ let authMode  = 'login';
 let phoneMode = false; // false | 'step1' | 'step2'
 let _fbConfirmation = null;
 
-const _emailInput   = document.getElementById('auth-email');
-const _pwField      = document.querySelector('.auth-field.pw-field');
-const _pwInput      = document.getElementById('auth-password');
-const _authTabs     = document.querySelector('.auth-tabs');
-const _phoneHint    = document.getElementById('phone-sent-hint');
-const _phoneBackBtn = document.getElementById('phone-back-btn');
+const _emailInput        = document.getElementById('auth-email');
+const _emailField        = _emailInput.parentElement;
+const _pwField           = document.querySelector('.auth-field.pw-field');
+const _pwInput           = document.getElementById('auth-password');
+const _authTabs          = document.querySelector('.auth-tabs');
+const _phoneHint         = document.getElementById('phone-sent-hint');
+const _phoneBackBtn      = document.getElementById('phone-back-btn');
+const _phoneFieldCont    = document.getElementById('phone-field-container');
+const _phoneLocalInput   = document.getElementById('phone-local-input');
+const _phoneCountryBtn   = document.getElementById('phone-country-btn');
+const _phoneCountryDrop  = document.getElementById('phone-country-dropdown');
+const _phoneCountrySearch= document.getElementById('phone-country-search');
+const _phoneCountryList  = document.getElementById('phone-country-list');
+
+const DIAL_COUNTRIES = [
+  { flag:'🇹🇼', name:'台灣', en:'Taiwan', code:'+886' },
+  { flag:'🇨🇳', name:'中國', en:'China', code:'+86' },
+  { flag:'🇭🇰', name:'香港', en:'Hong Kong', code:'+852' },
+  { flag:'🇲🇴', name:'澳門', en:'Macao', code:'+853' },
+  { flag:'🇸🇬', name:'新加坡', en:'Singapore', code:'+65' },
+  { flag:'🇲🇾', name:'馬來西亞', en:'Malaysia', code:'+60' },
+  { flag:'🇯🇵', name:'日本', en:'Japan', code:'+81' },
+  { flag:'🇰🇷', name:'韓國', en:'Korea', code:'+82' },
+  { flag:'🇹🇭', name:'泰國', en:'Thailand', code:'+66' },
+  { flag:'🇻🇳', name:'越南', en:'Vietnam', code:'+84' },
+  { flag:'🇮🇩', name:'印尼', en:'Indonesia', code:'+62' },
+  { flag:'🇵🇭', name:'菲律賓', en:'Philippines', code:'+63' },
+  { flag:'🇮🇳', name:'印度', en:'India', code:'+91' },
+  { flag:'🇵🇰', name:'巴基斯坦', en:'Pakistan', code:'+92' },
+  { flag:'🇦🇺', name:'澳洲', en:'Australia', code:'+61' },
+  { flag:'🇳🇿', name:'紐西蘭', en:'New Zealand', code:'+64' },
+  { flag:'🇺🇸', name:'美國', en:'United States', code:'+1' },
+  { flag:'🇨🇦', name:'加拿大', en:'Canada', code:'+1' },
+  { flag:'🇬🇧', name:'英國', en:'United Kingdom', code:'+44' },
+  { flag:'🇩🇪', name:'德國', en:'Germany', code:'+49' },
+  { flag:'🇫🇷', name:'法國', en:'France', code:'+33' },
+  { flag:'🇮🇹', name:'義大利', en:'Italy', code:'+39' },
+  { flag:'🇪🇸', name:'西班牙', en:'Spain', code:'+34' },
+  { flag:'🇳🇱', name:'荷蘭', en:'Netherlands', code:'+31' },
+  { flag:'🇧🇷', name:'巴西', en:'Brazil', code:'+55' },
+  { flag:'🇲🇽', name:'墨西哥', en:'Mexico', code:'+52' },
+  { flag:'🇷🇺', name:'俄羅斯', en:'Russia', code:'+7' },
+  { flag:'🇹🇷', name:'土耳其', en:'Turkey', code:'+90' },
+  { flag:'🇮🇱', name:'以色列', en:'Israel', code:'+972' },
+  { flag:'🇸🇦', name:'沙烏地阿拉伯', en:'Saudi Arabia', code:'+966' },
+  { flag:'🇦🇪', name:'阿聯酋', en:'UAE', code:'+971' },
+  { flag:'🇿🇦', name:'南非', en:'South Africa', code:'+27' },
+  { flag:'🇳🇬', name:'奈及利亞', en:'Nigeria', code:'+234' },
+  { flag:'🇺🇦', name:'烏克蘭', en:'Ukraine', code:'+380' },
+  { flag:'🇵🇹', name:'葡萄牙', en:'Portugal', code:'+351' },
+];
+let _selectedDialCode = '+886';
+let _fullPhoneNumber  = '';
+
+function _buildCountryList(q) {
+  const s = (q || '').toLowerCase();
+  _phoneCountryList.innerHTML = '';
+  DIAL_COUNTRIES.filter(c => !s || c.name.includes(s) || c.en.toLowerCase().includes(s) || c.code.includes(s)).forEach(c => {
+    const li = document.createElement('li');
+    li.className = 'phone-country-item';
+    li.innerHTML = `<span class="pci-flag">${c.flag}</span><span class="pci-name">${c.name} <small>${c.en}</small></span><span class="pci-code">${c.code}</span>`;
+    li.addEventListener('click', () => {
+      _selectedDialCode = c.code;
+      document.getElementById('phone-flag').textContent = c.flag;
+      document.getElementById('phone-dialing-code').textContent = c.code;
+      _phoneCountryDrop.style.display = 'none';
+      _phoneLocalInput.focus();
+    });
+    _phoneCountryList.appendChild(li);
+  });
+}
+
+_phoneCountryBtn.addEventListener('click', () => {
+  const open = _phoneCountryDrop.style.display !== 'none';
+  _phoneCountryDrop.style.display = open ? 'none' : '';
+  if (!open) { _phoneCountrySearch.value = ''; _buildCountryList(''); setTimeout(() => _phoneCountrySearch.focus(), 30); }
+});
+
+_phoneCountrySearch.addEventListener('input', () => _buildCountryList(_phoneCountrySearch.value));
+
+document.addEventListener('click', e => {
+  if (_phoneCountryDrop.style.display !== 'none' && !_phoneFieldCont.contains(e.target)) {
+    _phoneCountryDrop.style.display = 'none';
+  }
+});
 
 function _toPhoneStep1() {
   phoneMode = 'step1';
@@ -343,22 +422,23 @@ function _toPhoneStep1() {
   trigger.classList.add('active');
   trigger.querySelector('svg').outerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>';
   trigger.querySelector('span').textContent = '使用電子信箱';
-  _emailInput.type = 'tel'; _emailInput.placeholder = '+886 912 345 678';
-  _emailInput.autocomplete = 'tel'; _emailInput.readOnly = false; _emailInput.value = '';
+  _emailField.style.display = 'none';
+  _phoneFieldCont.style.display = '';
   _pwField.style.display = 'none';
   _authTabs.style.display = 'none';
   _phoneHint.style.display = 'none';
   _phoneBackBtn.style.display = 'none';
   authSubmit.textContent = i18n.t('send-otp') || 'Send Code';
   authError.textContent = '';
-  setTimeout(() => _emailInput.focus(), 50);
+  _buildCountryList('');
+  setTimeout(() => _phoneLocalInput.focus(), 50);
 }
 
 function _toPhoneStep2(phone) {
   phoneMode = 'step2';
   _phoneHint.textContent = i18n.t('otp-sent-to').replace('{phone}', phone);
   _phoneHint.style.display = '';
-  _emailInput.readOnly = true;
+  _phoneFieldCont.style.display = 'none';
   _pwField.style.display = '';
   _pwInput.type = 'text'; _pwInput.placeholder = '000000'; _pwInput.maxLength = 6;
   _pwInput.pattern = '[0-9]*'; _pwInput.inputMode = 'numeric'; _pwInput.autocomplete = 'one-time-code';
@@ -378,8 +458,11 @@ function _resetToEmail() {
   trigger.querySelector('svg').outerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.28h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.98a16 16 0 0 0 6 6l.97-.97a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
   trigger.querySelector('span').dataset.i18n = 'continue-phone';
   trigger.querySelector('span').textContent = i18n.t('continue-phone') || 'Continue with Phone';
-  _emailInput.type = 'email'; _emailInput.placeholder = 'Email address';
-  _emailInput.autocomplete = 'email'; _emailInput.readOnly = false; _emailInput.value = '';
+  _emailField.style.display = '';
+  _phoneFieldCont.style.display = 'none';
+  _phoneCountryDrop.style.display = 'none';
+  _phoneLocalInput.value = '';
+  _emailInput.value = '';
   _pwField.style.display = '';
   _pwInput.type = 'password'; _pwInput.placeholder = 'Password';
   _pwInput.maxLength = 524288; _pwInput.pattern = ''; _pwInput.inputMode = '';
@@ -417,8 +500,10 @@ authSubmit.addEventListener('click', async () => {
 
   try {
     if (phoneMode === 'step1') {
-      const phone = _emailInput.value.trim();
-      if (!phone) { authError.textContent = 'Phone number required'; return; }
+      const localNum = _phoneLocalInput.value.trim().replace(/^0/, '').replace(/[\s\-]/g, '');
+      if (!localNum) { authError.textContent = 'Phone number required'; return; }
+      const phone = _selectedDialCode + localNum;
+      _fullPhoneNumber = phone;
       if (window._fbAuth) {
         if (!window._fbRecaptcha) {
           const { RecaptchaVerifier } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
@@ -442,7 +527,7 @@ authSubmit.addEventListener('click', async () => {
         const cred = await _fbConfirmation.confirm(otp);
         data = await authApi('POST', '/api/auth/firebase-phone', { idToken: await cred.user.getIdToken() });
       } else {
-        data = await authApi('POST', '/api/auth/phone/verify', { phone: _emailInput.value.trim(), otp });
+        data = await authApi('POST', '/api/auth/phone/verify', { phone: _fullPhoneNumber, otp });
       }
       onLoginSuccess(data, false);
       return;

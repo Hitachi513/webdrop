@@ -322,121 +322,42 @@ function userLogout() {
 }
 
 // ===== Auth Modal =====
-const authModal  = document.getElementById('auth-modal');
-const authTitle  = document.getElementById('auth-title');
-const authError  = document.getElementById('auth-error');
-const authSubmit = document.getElementById('auth-submit-btn');
+const authModal    = document.getElementById('auth-modal');
+const authTitle    = document.getElementById('auth-title');
+const authError    = document.getElementById('auth-error');
+const authSubmit   = document.getElementById('auth-submit-btn');
 let authMode = 'login';
-let _pendingEmail = '';
-let _fbConfirmation = null;
 
-function _detectIdentifier(val) {
-  if (/^\+?[\d\s\-\(\)]{6,}$/.test(val)) return 'phone';
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'email';
-  return null;
-}
-function _showAuthStep(step) {
-  document.getElementById('auth-step1').style.display      = step === 1 ? '' : 'none';
-  document.getElementById('auth-phone-step').style.display = step === 'phone' ? '' : 'none';
-  document.getElementById('auth-email-step').style.display = step === 'email' ? '' : 'none';
-}
-
-// Step 1 — "繼續" button
-document.getElementById('auth-next-btn').addEventListener('click', async () => {
-  const val   = document.getElementById('auth-identifier').value.trim();
-  const errEl = document.getElementById('auth-identifier-error');
-  errEl.textContent = '';
-  const type = _detectIdentifier(val);
-  if (!type) { errEl.textContent = '請輸入有效的手機號碼（+886…）或 Email'; return; }
-
-  if (type === 'phone') {
-    const btn = document.getElementById('auth-next-btn');
-    btn.disabled = true; btn.textContent = '...';
-    try {
-      if (window._fbAuth) {
-        if (!window._fbRecaptcha) {
-          const { RecaptchaVerifier } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-          if (!document.getElementById('fb-recaptcha')) { const d = document.createElement('div'); d.id = 'fb-recaptcha'; document.body.appendChild(d); }
-          window._fbRecaptcha = new RecaptchaVerifier(window._fbAuth, 'fb-recaptcha', { size: 'invisible' });
-        }
-        const { signInWithPhoneNumber } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-        _fbConfirmation = await signInWithPhoneNumber(window._fbAuth, val, window._fbRecaptcha);
-      } else {
-        await authApi('POST', '/api/auth/phone/send', { phone: val });
-      }
-      document.getElementById('auth-phone-hint').textContent = i18n.t('otp-sent-to').replace('{phone}', val);
-      _showAuthStep('phone');
-      setTimeout(() => document.getElementById('auth-otp-input')?.focus(), 50);
-    } catch (e) {
-      errEl.textContent = e.message || e.code || 'Failed to send code';
-      if (window._fbRecaptcha) { window._fbRecaptcha.clear(); window._fbRecaptcha = null; }
-    }
-    btn.disabled = false; btn.textContent = '繼續';
-  } else {
-    _pendingEmail = val;
-    _showAuthStep('email');
-    setTimeout(() => document.getElementById('auth-password')?.focus(), 50);
-  }
-});
-document.getElementById('auth-identifier').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-next-btn').click(); });
-
-// Step 2a — OTP verify
-document.getElementById('auth-otp-verify-btn').addEventListener('click', async () => {
-  const otp   = document.getElementById('auth-otp-input').value.trim();
-  const errEl = document.getElementById('auth-phone-error');
-  const btn   = document.getElementById('auth-otp-verify-btn');
-  errEl.textContent = ''; btn.disabled = true;
-  try {
-    let data;
-    if (_fbConfirmation) {
-      const cred    = await _fbConfirmation.confirm(otp);
-      const idToken = await cred.user.getIdToken();
-      data = await authApi('POST', '/api/auth/firebase-phone', { idToken });
-    } else {
-      data = await authApi('POST', '/api/auth/phone/verify', { phone: document.getElementById('auth-identifier').value.trim(), otp });
-    }
-    onLoginSuccess(data, false);
-  } catch (e) { errEl.textContent = e.message || e.code || 'Verification failed'; }
-  btn.disabled = false;
-});
-document.getElementById('auth-otp-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('auth-otp-verify-btn').click(); });
-document.getElementById('auth-phone-back-btn').addEventListener('click', () => {
-  document.getElementById('auth-otp-input').value = '';
-  document.getElementById('auth-phone-error').textContent = '';
-  _fbConfirmation = null;
-  _showAuthStep(1);
-  setTimeout(() => document.getElementById('auth-identifier')?.focus(), 50);
-});
-
-// Step 2b — email/password
 document.querySelectorAll('.auth-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     authMode = btn.dataset.authTab;
     document.querySelectorAll('.auth-tab').forEach(b => b.classList.toggle('active', b.dataset.authTab === authMode));
-    authTitle.textContent = authMode === 'login' ? (i18n.t('welcome-back') || 'Welcome Back') : (i18n.t('create-account') || 'Create Account');
-    authSubmit.dataset.i18n = authMode === 'login' ? 'auth-submit' : 'create-account';
-    authSubmit.textContent  = authMode === 'login' ? (i18n.t('auth-submit') || 'Sign In') : (i18n.t('create-account') || 'Create Account');
+    authTitle.textContent = authMode === 'login' ? 'Welcome Back' : 'Create Account';
+    authSubmit.textContent = authMode === 'login' ? 'Sign In' : 'Create Account';
     authError.textContent = '';
   });
 });
+
 authSubmit.addEventListener('click', async () => {
+  const email    = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   authError.textContent = '';
-  if (!password) { authError.textContent = 'Password required'; return; }
-  const prevText = authSubmit.textContent;
-  authSubmit.disabled = true; authSubmit.textContent = '...';
+  if (!email || !password) { authError.textContent = 'Email and password required'; return; }
+  authSubmit.disabled = true;
+  authSubmit.textContent = '...';
   try {
-    const data = await authApi('POST', `/api/auth/${authMode}`, { email: _pendingEmail, password });
+    const data = await authApi('POST', `/api/auth/${authMode}`, { email, password });
     onLoginSuccess(data, authMode === 'register');
-  } catch (e) { authError.textContent = e.message; }
-  finally { authSubmit.disabled = false; authSubmit.textContent = prevText; }
+  } catch (e) {
+    authError.textContent = e.message;
+  } finally {
+    authSubmit.disabled = false;
+    authSubmit.textContent = authMode === 'login' ? 'Sign In' : 'Create Account';
+  }
 });
-document.getElementById('auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') authSubmit.click(); });
-document.getElementById('auth-email-back-btn').addEventListener('click', () => {
-  document.getElementById('auth-password').value = '';
-  authError.textContent = '';
-  _showAuthStep(1);
-  setTimeout(() => document.getElementById('auth-identifier')?.focus(), 50);
+
+document.getElementById('auth-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') authSubmit.click();
 });
 
 document.getElementById('auth-guest-btn').addEventListener('click', () => {
@@ -445,7 +366,7 @@ document.getElementById('auth-guest-btn').addEventListener('click', () => {
 });
 
 document.getElementById('signin-btn').addEventListener('click', () => {
-  document.getElementById('auth-identifier-error').textContent = '';
+  authError.textContent = '';
   authModal.classList.add('active');
 });
 
@@ -461,7 +382,7 @@ function initGoogleAuth() {
         const data = await authApi('POST', '/api/auth/google', { idToken: credential });
         onLoginSuccess(data, false);
       } catch (e) {
-        document.getElementById('auth-identifier-error').textContent = e.message;
+        authError.textContent = e.message;
       }
     }
   });
@@ -471,6 +392,87 @@ function initGoogleAuth() {
   );
 }
 
+
+// ===== Phone OTP Auth =====
+(function () {
+  const trigger    = document.getElementById('phone-login-trigger');
+  const form       = document.getElementById('phone-login-form');
+  const step1      = document.getElementById('phone-step-1');
+  const step2      = document.getElementById('phone-step-2');
+  const phoneInput = document.getElementById('phone-number-input');
+  const otpInput   = document.getElementById('phone-otp-input');
+  const sendBtn    = document.getElementById('phone-send-btn');
+  const verifyBtn  = document.getElementById('phone-verify-btn');
+  const backBtn    = document.getElementById('phone-back-btn');
+  const hint       = document.getElementById('phone-sent-hint');
+  const errEl      = document.getElementById('phone-error');
+  if (!trigger) return;
+
+  let _fbConfirmation = null;
+
+  trigger.addEventListener('click', () => {
+    const open = form.style.display !== 'none';
+    form.style.display = open ? 'none' : '';
+    if (!open) phoneInput?.focus();
+  });
+
+  sendBtn?.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const phone = phoneInput.value.trim();
+    sendBtn.disabled = true;
+    try {
+      if (window._fbAuth) {
+        if (!window._fbRecaptcha) {
+          const { RecaptchaVerifier } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+          if (!document.getElementById('fb-recaptcha')) { const d = document.createElement('div'); d.id = 'fb-recaptcha'; document.body.appendChild(d); }
+          window._fbRecaptcha = new RecaptchaVerifier(window._fbAuth, 'fb-recaptcha', { size: 'invisible' });
+        }
+        const { signInWithPhoneNumber } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+        _fbConfirmation = await signInWithPhoneNumber(window._fbAuth, phone, window._fbRecaptcha);
+      } else {
+        await authApi('POST', '/api/auth/phone/send', { phone });
+      }
+      hint.textContent = i18n.t('otp-sent-to').replace('{phone}', phone);
+      step1.style.display = 'none';
+      step2.style.display = '';
+      otpInput.focus();
+    } catch (e) {
+      errEl.textContent = e.message || e.code || 'Failed to send code';
+      if (window._fbRecaptcha) { window._fbRecaptcha.clear(); window._fbRecaptcha = null; }
+    }
+    sendBtn.disabled = false;
+  });
+
+  verifyBtn?.addEventListener('click', async () => {
+    errEl.textContent = '';
+    const otp = otpInput.value.trim();
+    verifyBtn.disabled = true;
+    try {
+      let data;
+      if (_fbConfirmation) {
+        const cred    = await _fbConfirmation.confirm(otp);
+        const idToken = await cred.user.getIdToken();
+        data = await authApi('POST', '/api/auth/firebase-phone', { idToken });
+      } else {
+        data = await authApi('POST', '/api/auth/phone/verify', { phone: phoneInput.value.trim(), otp });
+      }
+      onLoginSuccess(data, false);
+    } catch (e) { errEl.textContent = e.message || e.code || 'Verification failed'; }
+    verifyBtn.disabled = false;
+  });
+
+  backBtn?.addEventListener('click', () => {
+    step2.style.display = 'none';
+    step1.style.display = '';
+    otpInput.value = '';
+    errEl.textContent = '';
+    _fbConfirmation = null;
+    phoneInput.focus();
+  });
+
+  otpInput?.addEventListener('keydown', e => { if (e.key === 'Enter') verifyBtn?.click(); });
+  phoneInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendBtn?.click(); });
+})();
 
 // ===== Password Show/Hide Toggles =====
 const _pwAutoHideTimers = new WeakMap();
@@ -2708,12 +2710,17 @@ window.addEventListener('load', async () => {
     } else {
       document.getElementById('google-btn-wrap').style.display = 'none';
     }
-    if (cfg.phoneAuthMode === 'firebase' && cfg.firebaseConfig) {
-      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js').then(({ initializeApp }) => {
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js').then(({ getAuth }) => {
-          window._fbAuth = getAuth(initializeApp(cfg.firebaseConfig, 'webdrop-phone'));
+    if (cfg.phoneAuth) {
+      hasSocial = true;
+      if (cfg.phoneAuthMode === 'firebase' && cfg.firebaseConfig) {
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js').then(({ initializeApp }) => {
+          import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js').then(({ getAuth }) => {
+            window._fbAuth = getAuth(initializeApp(cfg.firebaseConfig, 'webdrop-phone'));
+          });
         });
-      });
+      }
+    } else {
+      document.getElementById('phone-btn-wrap').style.display = 'none';
     }
     if (!hasSocial) document.getElementById('auth-divider').style.display = 'none';
   } catch {}

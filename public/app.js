@@ -326,7 +326,71 @@ const authModal    = document.getElementById('auth-modal');
 const authTitle    = document.getElementById('auth-title');
 const authError    = document.getElementById('auth-error');
 const authSubmit   = document.getElementById('auth-submit-btn');
-let authMode = 'login';
+let authMode  = 'login';
+let phoneMode = false; // false | 'step1' | 'step2'
+let _fbConfirmation = null;
+
+const _emailInput   = document.getElementById('auth-email');
+const _pwField      = document.querySelector('.auth-field.pw-field');
+const _pwInput      = document.getElementById('auth-password');
+const _authTabs     = document.querySelector('.auth-tabs');
+const _phoneHint    = document.getElementById('phone-sent-hint');
+const _phoneBackBtn = document.getElementById('phone-back-btn');
+
+function _toPhoneStep1() {
+  phoneMode = 'step1';
+  document.getElementById('phone-login-trigger').classList.add('active');
+  _emailInput.type = 'tel'; _emailInput.placeholder = '+886 912 345 678';
+  _emailInput.autocomplete = 'tel'; _emailInput.readOnly = false; _emailInput.value = '';
+  _pwField.style.display = 'none';
+  _authTabs.style.display = 'none';
+  _phoneHint.style.display = 'none';
+  _phoneBackBtn.style.display = 'none';
+  authSubmit.textContent = i18n.t('send-otp') || 'Send Code';
+  authError.textContent = '';
+  setTimeout(() => _emailInput.focus(), 50);
+}
+
+function _toPhoneStep2(phone) {
+  phoneMode = 'step2';
+  _phoneHint.textContent = i18n.t('otp-sent-to').replace('{phone}', phone);
+  _phoneHint.style.display = '';
+  _emailInput.readOnly = true;
+  _pwField.style.display = '';
+  _pwInput.type = 'text'; _pwInput.placeholder = '000000'; _pwInput.maxLength = 6;
+  _pwInput.pattern = '[0-9]*'; _pwInput.inputMode = 'numeric'; _pwInput.autocomplete = 'one-time-code';
+  _pwInput.style.cssText += ';letter-spacing:.25em;text-align:center;font-size:1.2rem';
+  _pwInput.value = '';
+  const toggle = _pwField.querySelector('.pw-toggle'); if (toggle) toggle.style.display = 'none';
+  _phoneBackBtn.style.display = '';
+  authSubmit.textContent = i18n.t('verify-otp') || 'Verify';
+  authError.textContent = '';
+  setTimeout(() => _pwInput.focus(), 50);
+}
+
+function _resetToEmail() {
+  phoneMode = false; _fbConfirmation = null;
+  document.getElementById('phone-login-trigger').classList.remove('active');
+  _emailInput.type = 'email'; _emailInput.placeholder = 'Email address';
+  _emailInput.autocomplete = 'email'; _emailInput.readOnly = false; _emailInput.value = '';
+  _pwField.style.display = '';
+  _pwInput.type = 'password'; _pwInput.placeholder = 'Password';
+  _pwInput.maxLength = 524288; _pwInput.pattern = ''; _pwInput.inputMode = '';
+  _pwInput.autocomplete = 'current-password'; _pwInput.value = '';
+  _pwInput.style.letterSpacing = ''; _pwInput.style.textAlign = ''; _pwInput.style.fontSize = '';
+  const toggle = _pwField.querySelector('.pw-toggle'); if (toggle) toggle.style.display = '';
+  _authTabs.style.display = '';
+  _phoneHint.style.display = 'none';
+  _phoneBackBtn.style.display = 'none';
+  authSubmit.textContent = authMode === 'login' ? (i18n.t('auth-submit') || 'Sign In') : (i18n.t('create-account') || 'Create Account');
+  authError.textContent = '';
+}
+
+document.getElementById('phone-login-trigger').addEventListener('click', () => {
+  phoneMode ? _resetToEmail() : _toPhoneStep1();
+});
+
+_phoneBackBtn.addEventListener('click', () => { _toPhoneStep1(); });
 
 document.querySelectorAll('.auth-tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -339,20 +403,56 @@ document.querySelectorAll('.auth-tab').forEach(btn => {
 });
 
 authSubmit.addEventListener('click', async () => {
-  const email    = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
   authError.textContent = '';
-  if (!email || !password) { authError.textContent = 'Email and password required'; return; }
   authSubmit.disabled = true;
+  const prevText = authSubmit.textContent;
   authSubmit.textContent = '...';
+
   try {
+    if (phoneMode === 'step1') {
+      const phone = _emailInput.value.trim();
+      if (!phone) { authError.textContent = 'Phone number required'; return; }
+      if (window._fbAuth) {
+        if (!window._fbRecaptcha) {
+          const { RecaptchaVerifier } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+          if (!document.getElementById('fb-recaptcha')) { const d = document.createElement('div'); d.id = 'fb-recaptcha'; document.body.appendChild(d); }
+          window._fbRecaptcha = new RecaptchaVerifier(window._fbAuth, 'fb-recaptcha', { size: 'invisible' });
+        }
+        const { signInWithPhoneNumber } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+        _fbConfirmation = await signInWithPhoneNumber(window._fbAuth, phone, window._fbRecaptcha);
+      } else {
+        await authApi('POST', '/api/auth/phone/send', { phone });
+      }
+      _toPhoneStep2(phone);
+      return;
+    }
+
+    if (phoneMode === 'step2') {
+      const otp = _pwInput.value.trim();
+      if (!otp) { authError.textContent = 'Code required'; return; }
+      let data;
+      if (_fbConfirmation) {
+        const cred = await _fbConfirmation.confirm(otp);
+        data = await authApi('POST', '/api/auth/firebase-phone', { idToken: await cred.user.getIdToken() });
+      } else {
+        data = await authApi('POST', '/api/auth/phone/verify', { phone: _emailInput.value.trim(), otp });
+      }
+      onLoginSuccess(data, false);
+      return;
+    }
+
+    // Email/password mode
+    const email    = _emailInput.value.trim();
+    const password = _pwInput.value;
+    if (!email || !password) { authError.textContent = 'Email and password required'; return; }
     const data = await authApi('POST', `/api/auth/${authMode}`, { email, password });
     onLoginSuccess(data, authMode === 'register');
   } catch (e) {
-    authError.textContent = e.message;
+    authError.textContent = e.message || e.code || 'Error';
+    if (phoneMode === 'step1' && window._fbRecaptcha) { window._fbRecaptcha.clear(); window._fbRecaptcha = null; }
   } finally {
     authSubmit.disabled = false;
-    authSubmit.textContent = authMode === 'login' ? 'Sign In' : 'Create Account';
+    if (phoneMode !== 'step2') authSubmit.textContent = prevText;
   }
 });
 
@@ -392,87 +492,6 @@ function initGoogleAuth() {
   );
 }
 
-
-// ===== Phone OTP Auth =====
-(function () {
-  const trigger    = document.getElementById('phone-login-trigger');
-  const form       = document.getElementById('phone-login-form');
-  const step1      = document.getElementById('phone-step-1');
-  const step2      = document.getElementById('phone-step-2');
-  const phoneInput = document.getElementById('phone-number-input');
-  const otpInput   = document.getElementById('phone-otp-input');
-  const sendBtn    = document.getElementById('phone-send-btn');
-  const verifyBtn  = document.getElementById('phone-verify-btn');
-  const backBtn    = document.getElementById('phone-back-btn');
-  const hint       = document.getElementById('phone-sent-hint');
-  const errEl      = document.getElementById('phone-error');
-  if (!trigger) return;
-
-  let _fbConfirmation = null;
-
-  trigger.addEventListener('click', () => {
-    const open = form.style.display !== 'none';
-    form.style.display = open ? 'none' : '';
-    if (!open) phoneInput?.focus();
-  });
-
-  sendBtn?.addEventListener('click', async () => {
-    errEl.textContent = '';
-    const phone = phoneInput.value.trim();
-    sendBtn.disabled = true;
-    try {
-      if (window._fbAuth) {
-        if (!window._fbRecaptcha) {
-          const { RecaptchaVerifier } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-          if (!document.getElementById('fb-recaptcha')) { const d = document.createElement('div'); d.id = 'fb-recaptcha'; document.body.appendChild(d); }
-          window._fbRecaptcha = new RecaptchaVerifier(window._fbAuth, 'fb-recaptcha', { size: 'invisible' });
-        }
-        const { signInWithPhoneNumber } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-        _fbConfirmation = await signInWithPhoneNumber(window._fbAuth, phone, window._fbRecaptcha);
-      } else {
-        await authApi('POST', '/api/auth/phone/send', { phone });
-      }
-      hint.textContent = i18n.t('otp-sent-to').replace('{phone}', phone);
-      step1.style.display = 'none';
-      step2.style.display = '';
-      otpInput.focus();
-    } catch (e) {
-      errEl.textContent = e.message || e.code || 'Failed to send code';
-      if (window._fbRecaptcha) { window._fbRecaptcha.clear(); window._fbRecaptcha = null; }
-    }
-    sendBtn.disabled = false;
-  });
-
-  verifyBtn?.addEventListener('click', async () => {
-    errEl.textContent = '';
-    const otp = otpInput.value.trim();
-    verifyBtn.disabled = true;
-    try {
-      let data;
-      if (_fbConfirmation) {
-        const cred    = await _fbConfirmation.confirm(otp);
-        const idToken = await cred.user.getIdToken();
-        data = await authApi('POST', '/api/auth/firebase-phone', { idToken });
-      } else {
-        data = await authApi('POST', '/api/auth/phone/verify', { phone: phoneInput.value.trim(), otp });
-      }
-      onLoginSuccess(data, false);
-    } catch (e) { errEl.textContent = e.message || e.code || 'Verification failed'; }
-    verifyBtn.disabled = false;
-  });
-
-  backBtn?.addEventListener('click', () => {
-    step2.style.display = 'none';
-    step1.style.display = '';
-    otpInput.value = '';
-    errEl.textContent = '';
-    _fbConfirmation = null;
-    phoneInput.focus();
-  });
-
-  otpInput?.addEventListener('keydown', e => { if (e.key === 'Enter') verifyBtn?.click(); });
-  phoneInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendBtn?.click(); });
-})();
 
 // ===== Password Show/Hide Toggles =====
 const _pwAutoHideTimers = new WeakMap();

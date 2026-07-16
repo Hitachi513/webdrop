@@ -341,6 +341,7 @@ function _toPhoneStep1() {
   phoneMode = 'step1';
   const trigger = document.getElementById('phone-login-trigger');
   trigger.classList.add('active');
+  trigger.querySelector('svg').outerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>';
   trigger.querySelector('span').textContent = '使用電子信箱';
   _emailInput.type = 'tel'; _emailInput.placeholder = '+886 912 345 678';
   _emailInput.autocomplete = 'tel'; _emailInput.readOnly = false; _emailInput.value = '';
@@ -374,6 +375,7 @@ function _resetToEmail() {
   phoneMode = false; _fbConfirmation = null;
   const trigger = document.getElementById('phone-login-trigger');
   trigger.classList.remove('active');
+  trigger.querySelector('svg').outerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.28h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.98a16 16 0 0 0 6 6l.97-.97a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
   trigger.querySelector('span').dataset.i18n = 'continue-phone';
   trigger.querySelector('span').textContent = i18n.t('continue-phone') || 'Continue with Phone';
   _emailInput.type = 'email'; _emailInput.placeholder = 'Email address';

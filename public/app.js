@@ -130,19 +130,89 @@ if (!roomId) {
 }
 
 // ===== Theme =====
-const html    = document.documentElement;
-const iconMoon = document.getElementById('icon-moon');
-const iconSun  = document.getElementById('icon-sun');
+const html = document.documentElement;
 
-function applyTheme(theme) {
-  html.setAttribute('data-theme', theme);
-  iconMoon.style.display = theme === 'dark' ? 'block' : 'none';
-  iconSun.style.display  = theme === 'light' ? 'block' : 'none';
-  localStorage.setItem('webdrop-theme', theme);
+const THEMES = [
+  { id: 'dark',     name: '星空黑', en: 'Dark',     bg: '#07071a', card: '#0e0e28', p: '#00d4ff', s: '#7b2ff7' },
+  { id: 'light',    name: '晴空白', en: 'Light',    bg: '#f2f4fb', card: '#ffffff', p: '#0095cc', s: '#6622cc' },
+  { id: 'midnight', name: '午夜紫', en: 'Midnight', bg: '#080618', card: '#0f0d2a', p: '#a78bfa', s: '#ec4899' },
+  { id: 'ocean',    name: '深海藍', en: 'Ocean',    bg: '#020e1c', card: '#051828', p: '#38bdf8', s: '#818cf8' },
+  { id: 'aurora',   name: '極光綠', en: 'Aurora',   bg: '#030e0a', card: '#071812', p: '#34d399', s: '#06b6d4' },
+  { id: 'sunset',   name: '落日橙', en: 'Sunset',   bg: '#140608', card: '#210c12', p: '#fb923c', s: '#f472b6' },
+  { id: 'forest',   name: '森林綠', en: 'Forest',   bg: '#030b05', card: '#061509', p: '#4ade80', s: '#a3e635' },
+  { id: 'rose',     name: '玫瑰粉', en: 'Rose',     bg: '#14040a', card: '#210812', p: '#fb7185', s: '#e879f9' },
+];
+
+function applyTheme(id) {
+  html.setAttribute('data-theme', id);
+  localStorage.setItem('webdrop-theme', id);
+  _refreshThemeCards();
+  // keep old Google Sign-In theme in sync (light vs dark)
+  const googleWrapper = document.getElementById('google-btn-wrap');
+  if (googleWrapper) {
+    const isLight = id === 'light';
+    const btn = googleWrapper.querySelector('.g_id_signin [data-type]');
+    if (btn) btn.setAttribute('data-theme', isLight ? 'outline' : 'filled_black');
+  }
 }
 applyTheme(localStorage.getItem('webdrop-theme') || 'dark');
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+
+// Theme Store
+function _buildThemePreview(t) {
+  const bg = t.id === 'light' ? t.bg : t.bg;
+  const textColor = t.id === 'light' ? '#1a1b2e' : 'rgba(255,255,255,.5)';
+  const lineColor = t.id === 'light' ? 'rgba(0,0,0,.12)' : 'rgba(255,255,255,.14)';
+  return `<div class="theme-preview">
+    <div class="tp-bg" style="background:${t.bg}">
+      <div class="tp-header" style="background:${t.card}">
+        <div class="tp-dot" style="background:${t.p}"></div>
+        <div class="tp-dot" style="background:${t.s};opacity:.7"></div>
+        <div class="tp-dot" style="background:${lineColor};flex:1;height:3px;border-radius:3px;margin-left:2px"></div>
+      </div>
+      <div class="tp-body">
+        <div class="tp-line" style="background:${lineColor};width:85%"></div>
+        <div class="tp-line" style="background:${lineColor};width:60%"></div>
+        <div class="tp-pill" style="background:linear-gradient(90deg,${t.p},${t.s})"></div>
+      </div>
+    </div>
+    <div class="tp-glow"></div>
+  </div>`;
+}
+
+function _buildThemeStore() {
+  const grid = document.getElementById('theme-store-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const cur = html.getAttribute('data-theme') || 'dark';
+  THEMES.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'theme-card' + (t.id === cur ? ' active' : '');
+    card.dataset.themeId = t.id;
+    card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small></div>`;
+    card.addEventListener('click', () => {
+      applyTheme(t.id);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function _refreshThemeCards() {
+  const cur = html.getAttribute('data-theme') || 'dark';
+  document.querySelectorAll('.theme-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.themeId === cur);
+  });
+}
+
+const themeStoreModal = document.getElementById('theme-store-modal');
+document.getElementById('theme-store-btn').addEventListener('click', () => {
+  _buildThemeStore();
+  themeStoreModal.classList.add('active');
+});
+document.getElementById('theme-store-close').addEventListener('click', () => {
+  themeStoreModal.classList.remove('active');
+});
+themeStoreModal.addEventListener('click', e => {
+  if (e.target === themeStoreModal) themeStoreModal.classList.remove('active');
 });
 
 // ===== Mobile Tabs =====
@@ -591,7 +661,7 @@ function initGoogleAuth() {
   });
   google.accounts.id.renderButton(
     document.getElementById('google-btn-wrap'),
-    { theme: html.getAttribute('data-theme') === 'dark' ? 'filled_black' : 'outline', size: 'large', width: 300, text: 'continue_with' }
+    { theme: html.getAttribute('data-theme') === 'light' ? 'outline' : 'filled_black', size: 'large', width: 300, text: 'continue_with' }
   );
 }
 

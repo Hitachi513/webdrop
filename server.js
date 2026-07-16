@@ -12,7 +12,8 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const compression = require('compression');
 const { OAuth2Client } = require('google-auth-library');
-const firebaseAdmin  = require('firebase-admin');
+const { initializeApp: fbInitializeApp, cert: fbCert } = require('firebase-admin/app');
+const { getAuth: fbGetAuth } = require('firebase-admin/auth');
 
 const app    = express();
 app.set('trust proxy', 1);
@@ -48,17 +49,18 @@ const FIREBASE_PRIVATE_KEY   = (process.env.FIREBASE_PRIVATE_KEY  || '').replace
 const FIREBASE_API_KEY       = process.env.FIREBASE_API_KEY        || '';
 const FIREBASE_APP_ID        = process.env.FIREBASE_APP_ID         || '';
 let firebaseApp = null;
+let firebaseInitError = null;
 if (FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY) {
   try {
-    firebaseApp = firebaseAdmin.initializeApp({
-      credential: firebaseAdmin.credential.cert({
+    firebaseApp = fbInitializeApp({
+      credential: fbCert({
         projectId:   FIREBASE_PROJECT_ID,
         clientEmail: FIREBASE_CLIENT_EMAIL,
         privateKey:  FIREBASE_PRIVATE_KEY,
       }),
     });
     console.log('[Firebase] Admin SDK initialized');
-  } catch (e) { console.error('[Firebase] init error:', e.message); }
+  } catch (e) { console.error('[Firebase] init error:', e.message); firebaseInitError = e.message; }
 }
 const USE_FIREBASE_PHONE = !!(firebaseApp && FIREBASE_API_KEY && FIREBASE_APP_ID);
 
@@ -567,9 +569,11 @@ app.get('/api/debug-firebase', (req, res) => {
     PROJECT_ID:   !!FIREBASE_PROJECT_ID,
     CLIENT_EMAIL: !!FIREBASE_CLIENT_EMAIL,
     PRIVATE_KEY:  !!FIREBASE_PRIVATE_KEY,
+    PRIVATE_KEY_starts: FIREBASE_PRIVATE_KEY.slice(0, 40),
     API_KEY:      !!FIREBASE_API_KEY,
     APP_ID:       !!FIREBASE_APP_ID,
     firebaseApp:  !!firebaseApp,
+    firebaseInitError,
     USE_FIREBASE_PHONE,
   });
 });
@@ -702,7 +706,7 @@ app.post('/api/auth/firebase-phone', async (req, res) => {
   const { idToken } = req.body || {};
   if (!idToken || typeof idToken !== 'string') return res.status(400).json({ error: 'idToken required' });
   try {
-    const decoded = await firebaseAdmin.auth(firebaseApp).verifyIdToken(idToken);
+    const decoded = await fbGetAuth(firebaseApp).verifyIdToken(idToken);
     const phone = decoded.phone_number;
     if (!phone) return res.status(400).json({ error: 'No phone number in token' });
 

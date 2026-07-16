@@ -563,21 +563,6 @@ app.get('/qr', async (req, res) => {
   } catch { res.status(500).send('QR generation failed'); }
 });
 
-// ===== Temporary Firebase diagnostic (remove after debugging) =====
-app.get('/api/debug-firebase', (req, res) => {
-  res.json({
-    PROJECT_ID:   !!FIREBASE_PROJECT_ID,
-    CLIENT_EMAIL: !!FIREBASE_CLIENT_EMAIL,
-    PRIVATE_KEY:  !!FIREBASE_PRIVATE_KEY,
-    PRIVATE_KEY_starts: FIREBASE_PRIVATE_KEY.slice(0, 40),
-    API_KEY:      !!FIREBASE_API_KEY,
-    APP_ID:       !!FIREBASE_APP_ID,
-    firebaseApp:  !!firebaseApp,
-    firebaseInitError,
-    USE_FIREBASE_PHONE,
-  });
-});
-
 // ===== Config endpoint =====
 const _configPayload = JSON.stringify({
   googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null,

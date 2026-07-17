@@ -31,6 +31,7 @@
   --safe-bottom:   env(safe-area-inset-bottom, 0px);
   --header-glass:  rgba(7,7,26,0.85);
   --tab-glass:     rgba(7,7,26,0.88);
+  --input-bg:      rgba(14,14,40,0.75);
 }
 
 :root[data-theme="light"] {
@@ -59,6 +60,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.12);
   --header-glass:  rgba(242,244,251,0.88);
   --tab-glass:     rgba(242,244,251,0.92);
+  --input-bg:      rgba(255,255,255,0.88);
 }
 
 /* ===========================
@@ -86,6 +88,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(14,0,64,0.88);
   --tab-glass:     rgba(14,0,64,0.92);
+  --input-bg:      rgba(10,0,52,0.78);
 }
 
 /* 深海藍 Ocean — vivid deep navy bg */
@@ -109,6 +112,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(0,24,64,0.88);
   --tab-glass:     rgba(0,24,64,0.92);
+  --input-bg:      rgba(0,12,32,0.78);
 }
 
 /* 極光綠 Aurora — vivid emerald-green bg */
@@ -132,6 +136,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(0,50,32,0.88);
   --tab-glass:     rgba(0,50,32,0.92);
+  --input-bg:      rgba(0,28,16,0.78);
 }
 
 /* 焰橙 Flame — warm dark amber bg */
@@ -155,6 +160,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(46,10,0,0.88);
   --tab-glass:     rgba(46,10,0,0.92);
+  --input-bg:      rgba(36,10,0,0.78);
 }
 
 /* 抹茶 Matcha — olive green bg with chartreuse accent */
@@ -178,6 +184,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(24,36,0,0.88);
   --tab-glass:     rgba(24,36,0,0.92);
+  --input-bg:      rgba(18,26,0,0.78);
 }
 
 /* 霓虹粉 Neon — deep magenta bg */
@@ -201,6 +208,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(32,0,32,0.88);
   --tab-glass:     rgba(32,0,32,0.92);
+  --input-bg:      rgba(24,0,24,0.78);
 }
 
 /* 💎 VIP 尊爵紫 — warm rose-amethyst, different from Cyber's cold purple */
@@ -224,6 +232,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(34,0,48,0.88);
   --tab-glass:     rgba(34,0,48,0.92);
+  --input-bg:      rgba(28,0,40,0.78);
 }
 
 /* 💼 Business 商務靛 — dark sapphire navy, different from Aurora's green */
@@ -247,6 +256,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(0,20,40,0.88);
   --tab-glass:     rgba(0,20,40,0.92);
+  --input-bg:      rgba(0,12,30,0.78);
 }
 
 /* 👑 Admin 王者金 — deep golden-amber bg */
@@ -270,6 +280,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(36,20,0,0.88);
   --tab-glass:     rgba(36,20,0,0.92);
+  --input-bg:      rgba(28,16,0,0.78);
 }
 
 /* ⚡ Super Admin 血焰赤 — pure crimson bg, max vivid red */
@@ -293,6 +304,7 @@
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
   --header-glass:  rgba(34,0,0,0.88);
   --tab-glass:     rgba(34,0,0,0.92);
+  --input-bg:      rgba(26,0,0,0.78);
 }
 
 /* ===========================
@@ -1718,16 +1730,11 @@ header {
   gap: 8px;
   padding: 10px 14px;
   padding-bottom: calc(10px + var(--safe-bottom));
-  border-top: 1px solid rgba(255,255,255,0.07);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
-  background: rgba(10,10,32,0.82);
+  background: var(--tab-glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-}
-:root[data-theme="light"] #input-bar {
-  background: rgba(248,249,254,0.9);
-  backdrop-filter: blur(16px);
-  border-top-color: rgba(0,0,0,0.08);
 }
 
 #file-input-chat { display:none; }
@@ -1736,9 +1743,9 @@ header {
   flex: 1;
   min-width: 0;
   padding: 10px 16px;
-  background: rgba(20,20,50,0.7);
+  background: var(--input-bg);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--border-strong);
   border-radius: 24px;
   color: var(--text);
   font-size: .9rem;
@@ -1751,10 +1758,6 @@ header {
   box-shadow: 0 0 0 3px var(--glow-primary), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 #message-input::placeholder { color:var(--text-muted); }
-:root[data-theme="light"] #message-input {
-  background: rgba(255,255,255,0.85);
-  border-color: rgba(0,0,0,0.12);
-}
 
 .btn-send {
   width: 40px;
@@ -1779,7 +1782,7 @@ header {
    Mobile Tab Bar
    =========================== */
 @media (max-width: 768px) {
-  :root { --radar-size: min(230px, 68vw); --tab-h: 60px; }
+  :root { --radar-size: min(230px, 68vw); --tab-h: 64px; }
 
   /* Notch / Dynamic Island safe area */
   #app { padding-top: env(safe-area-inset-top); }
@@ -1801,13 +1804,34 @@ header {
     background: var(--tab-glass);
     backdrop-filter: blur(24px) saturate(160%);
     -webkit-backdrop-filter: blur(24px) saturate(160%);
-    border-top: 1px solid rgba(255,255,255,0.07);
-    box-shadow: 0 -1px 0 rgba(var(--primary-rgb),0.07), 0 -6px 28px rgba(0,0,0,0.4);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -1px 0 rgba(var(--primary-rgb),0.1), 0 -8px 32px rgba(0,0,0,0.45);
     flex-shrink: 0;
     padding-bottom: var(--safe-bottom);
   }
-  .tab-btn { font-size: .72rem; gap: 4px; }
-  .tab-btn svg { width: 20px; height: 20px; }
+
+  /* Mobile tab bar: icon on top, label below (iOS/Android standard) */
+  .tab-btn {
+    flex-direction: column;
+    gap: 3px;
+    font-size: .68rem;
+    padding: 6px 0 4px;
+    letter-spacing: .01em;
+  }
+  .tab-btn svg { width: 22px; height: 22px; }
+  .tab-btn span { line-height: 1; }
+
+  /* Prevent iOS font-size zoom on input focus */
+  #message-input { font-size: 16px; }
+  #message-input:focus { font-size: 16px; }
+
+  /* Input bar tighter on mobile */
+  #input-bar { gap: 6px; padding: 8px 12px; padding-bottom: calc(8px + var(--safe-bottom)); }
+
+  /* Smooth momentum scroll on iOS */
+  #panel-files, #chat-messages {
+    -webkit-overflow-scrolling: touch;
+  }
 
   /* Hide both panels, only show active */
   .panel { display: none; }
@@ -1830,15 +1854,19 @@ header {
   /* Drop zone compact on mobile */
   #drop-zone { max-width: 100%; padding: 22px 16px; }
 
-  /* Wider chat bubbles — more screen real estate on mobile */
-  .chat-msg { max-width: 85%; }
+  /* Wider chat bubbles */
+  .chat-msg { max-width: 88%; }
   #chat-messages { padding: 12px 10px; }
 
   /* Notifications float just above tab bar */
   #notifications { bottom: calc(var(--tab-h) + var(--safe-bottom) + 8px); }
 
-  /* Mod toolbar — push above input bar (~62px) + tab bar to avoid blocking send button */
+  /* Mod toolbar above input bar + tab bar */
   .admin-panel-fab { bottom: calc(var(--tab-h) + var(--safe-bottom) + 72px); right: 10px; }
+
+  /* Active press feedback for touch */
+  .btn-icon:active { background: var(--primary-dim); color: var(--primary); }
+  .tab-btn:active  { color: var(--primary); }
 }
 
 .tab-btn {
@@ -1881,37 +1909,67 @@ header {
 @media (max-width: 480px) {
   /* Hide copy-link from room pill to save header space */
   #copy-link { display: none; }
+  /* Hide speedtest to unclutter the header */
+  #speedtest-btn { display: none; }
   /* Room pill becomes tappable to open QR (handled by JS) */
   .room-pill { cursor: pointer; }
 
   /* Smaller icon buttons */
-  .btn-icon { width: 30px; height: 30px; }
+  .btn-icon { width: 32px; height: 32px; }
   .btn-icon svg { width: 15px; height: 15px; }
 
   /* Sign-in: icon only */
   .btn-signin span { display: none; }
-  .btn-signin { padding: 6px 9px; }
+  .btn-signin { padding: 7px 10px; }
 
   /* Tighter header */
   header { padding: 0 10px; gap: 6px; }
   .logo svg { width: 24px; height: 24px; }
   .logo { gap: 7px; }
-  .header-actions { gap: 4px; }
+  .header-actions { gap: 5px; }
+
+  /* Room code narrower */
+  #room-code { max-width: 110px; }
 
   /* Tighter files panel */
-  #panel-files { padding: 12px 12px; gap: 12px; }
+  #panel-files { padding: 12px; gap: 14px; }
   #drop-zone { padding: 18px 14px; }
+  #drop-zone p { font-size: .82rem; }
+  #drop-zone .hint { font-size: .7rem; }
+
+  /* Tighter chat bubbles on narrow screens */
+  .chat-msg { max-width: 90%; }
+  #chat-messages { padding: 10px 8px; }
 
   /* Dropdown fits narrow screen */
-  .user-dropdown { right: 10px; min-width: 195px; }
-
+  .user-dropdown { right: 8px; min-width: 200px; }
   .drop-opt-btn { padding: 10px 14px; font-size: .82rem; }
+
+  /* Modals: less outer padding on small screens */
+  .modal { padding: 8px; }
+  .modal-box { border-radius: 20px; padding: 20px 16px; }
 }
 
 @media (max-width: 380px) {
   :root { --radar-size: min(200px, 66vw); }
   .logo h1 { display: none; }
   .center-icon { width: 54px; height: 54px; }
+  /* Very narrow: lang picker to dropdown only */
+  #lang-picker { display: none; }
+  /* Tighter room code */
+  #room-code { max-width: 95px; font-size: .8rem; }
+}
+
+@media (max-width: 360px) {
+  body { font-size: 14px; }
+  :root { --tab-h: 60px; }
+  .tab-btn { font-size: .64rem; gap: 2px; }
+  .tab-btn svg { width: 20px; height: 20px; }
+  /* Theme store: 2 columns on tiny screens */
+  .theme-store-grid { grid-template-columns: repeat(2, 1fr); }
+  .modal-box { border-radius: 16px; padding: 16px 12px; }
+  /* Compact input bar */
+  #input-bar { padding: 7px 10px; padding-bottom: calc(7px + var(--safe-bottom)); gap: 5px; }
 }
 
 /* ===========================

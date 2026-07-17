@@ -1347,6 +1347,23 @@ function rejoinRoom() {
   socket.emit('join-room', { roomId, name: myName, avatar: myAvatar, password: _roomPassword || undefined });
 }
 
+window.addEventListener('hashchange', () => {
+  const newId = window.location.hash.slice(1).toUpperCase();
+  if (!newId || newId === roomId) return;
+  // Logged-in users with a registered room are locked to it — revert the hash
+  if (currentUser?.customRoomId) {
+    history.replaceState(null, '', `#${roomId}`);
+    toast('你有已登記的房號，如需更換請使用右上角編輯按鈕', 'info', 3500);
+    return;
+  }
+  // Otherwise honour the hash change and properly switch rooms
+  roomId = newId;
+  _roomPassword = null;
+  roomCodeEl.textContent = roomId;
+  setShareUrl(null);
+  rejoinRoom();
+});
+
 let _hasConnectedOnce = false;
 
 socket.on('connect', () => {

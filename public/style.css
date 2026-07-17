@@ -1891,6 +1891,10 @@ header {
 
   /* Prevent rubber-band over-scroll inside modal on iOS */
   .modal-box { overscroll-behavior: contain; }
+
+  /* #no-devices overflows ~50px below radar; reserve that space so
+     the drop zone doesn't overlap the "Share QR Code" button */
+  #radar-section { min-height: calc(var(--radar-size) + 50px); }
 }
 
 .tab-btn {

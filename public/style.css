@@ -1871,6 +1871,25 @@ header {
   /* Active press feedback for touch */
   .btn-icon:active { background: var(--primary-dim); color: var(--primary); }
   .tab-btn:active  { color: var(--primary); }
+
+  /* Prevent horizontal scroll on mobile */
+  #app { overflow-x: hidden; }
+
+  /* Smaller peer icons: more peers fit in radar without overlap */
+  .peer-icon { width: 50px; height: 50px; }
+  .peer-icon svg { width: 22px; height: 22px; }
+
+  /* Slightly more legible peer names on small screens */
+  .peer-name, .peer-name-device { font-size: .72rem; }
+
+  /* Members panel: never wider than screen */
+  .members-panel { width: min(300px, 90vw); }
+
+  /* Free up ~32px in the input bar — zip is power-user feature */
+  #zip-toggle-btn { display: none; }
+
+  /* Prevent rubber-band over-scroll inside modal on iOS */
+  .modal-box { overscroll-behavior: contain; }
 }
 
 .tab-btn {
@@ -1956,7 +1975,17 @@ header {
 
   /* Modals: less outer padding on small screens */
   .modal { padding: 8px; }
-  .modal-box { border-radius: 20px; padding: 20px 16px; }
+  .modal-box { border-radius: 20px; padding: 20px 16px; max-width: 100%; }
+
+  /* Drop zone file/folder buttons: 44px tap targets, fill available width */
+  .drop-zone-opts { width: 100%; }
+  .drop-opt-btn { flex: 1; justify-content: center; min-height: 44px; }
+
+  /* Chat header: slightly taller for easier tapping */
+  .chat-header-bar { height: 52px; }
+
+  /* Chat header icon buttons: bigger tap targets */
+  .btn-icon-xs { width: 32px; height: 32px; }
 }
 
 @media (max-width: 380px) {

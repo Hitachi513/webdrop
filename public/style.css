@@ -1918,9 +1918,14 @@ header {
   /* Room pill becomes tappable to open QR (handled by JS) */
   .room-pill { cursor: pointer; }
 
-  /* Smaller icon buttons */
-  .btn-icon { width: 32px; height: 32px; }
+  /* Smaller icon buttons — min 44px touch area via padding trick */
+  .btn-icon { width: 32px; height: 32px; position: relative; }
   .btn-icon svg { width: 15px; height: 15px; }
+  .btn-icon::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
 
   /* Sign-in: icon only */
   .btn-signin span { display: none; }
@@ -4016,15 +4021,16 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
     width: 100%;
     max-width: 100%;
     border-radius: 28px 28px 0 0;
-    padding: 6px 16px calc(20px + var(--safe-bottom));
-    max-height: 85dvh;
+    padding: 6px 16px calc(24px + var(--safe-bottom));
+    max-height: 88dvh;
+    max-height: 88vh;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    transform: translateY(50%);
+    transform: translateY(100%);
     gap: 0;
   }
-  #theme-store-modal.active .modal-box { transform: translateY(0); }
+  #theme-store-modal.active .modal-box { transform: translateY(0) scale(1); }
   /* Drag handle */
   .theme-store-box::before {
     content: '';
@@ -4055,6 +4061,15 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   border: 1.5px solid transparent;
   transition: border-color .18s, background .18s, transform .15s;
   position: relative;
+  touch-action: manipulation;
+  /* reset button element default styles */
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  width: 100%;
 }
 .theme-card:hover { background: rgba(255,255,255,.05); transform: translateY(-1px); }
 .theme-card.active {
@@ -4163,6 +4178,7 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   font-size: 1.2rem;
   background: rgba(0,0,0,.45);
   border-radius: 10px;
+  pointer-events: none;
 }
 .theme-card.locked .theme-name { opacity: .6; }
 .theme-badge {

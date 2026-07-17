@@ -202,14 +202,16 @@ function _buildThemeStore() {
   THEMES.forEach(t => {
     const unlocked = _themeUnlocked(t);
     const isActive = t.id === cur;
-    const card = document.createElement('div');
+    const card = document.createElement('button');
+    card.type = 'button';
     card.className = 'theme-card' + (isActive ? ' active' : '') + (unlocked ? '' : ' locked');
     card.dataset.themeId = t.id;
     const badge = t.requiredRole
       ? `<span class="theme-badge theme-badge-${t.requiredRole}">${ROLE_BADGE_LABEL[t.requiredRole]}</span>`
       : '';
     card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small>${badge}</div>`;
-    card.addEventListener('click', () => {
+    card.addEventListener('click', e => {
+      e.stopPropagation();
       if (!unlocked) {
         const needed = ROLE_BADGE_LABEL[t.requiredRole] || t.requiredRole;
         toast(`此主題需要 ${needed} 權限才能使用`, 'error', 3500);

@@ -133,15 +133,28 @@ if (!roomId) {
 const html = document.documentElement;
 
 const THEMES = [
-  { id: 'dark',     name: '星空黑', en: 'Dark',     bg: '#07071a', card: '#0e0e28', p: '#00d4ff', s: '#7b2ff7' },
-  { id: 'light',    name: '晴空白', en: 'Light',    bg: '#f2f4fb', card: '#ffffff', p: '#0095cc', s: '#6622cc' },
-  { id: 'midnight', name: '午夜紫', en: 'Midnight', bg: '#080618', card: '#0f0d2a', p: '#a78bfa', s: '#ec4899' },
-  { id: 'ocean',    name: '深海藍', en: 'Ocean',    bg: '#020e1c', card: '#051828', p: '#38bdf8', s: '#818cf8' },
-  { id: 'aurora',   name: '極光綠', en: 'Aurora',   bg: '#030e0a', card: '#071812', p: '#34d399', s: '#06b6d4' },
-  { id: 'sunset',   name: '落日橙', en: 'Sunset',   bg: '#140608', card: '#210c12', p: '#fb923c', s: '#f472b6' },
-  { id: 'forest',   name: '森林綠', en: 'Forest',   bg: '#030b05', card: '#061509', p: '#4ade80', s: '#a3e635' },
-  { id: 'rose',     name: '玫瑰粉', en: 'Rose',     bg: '#14040a', card: '#210812', p: '#fb7185', s: '#e879f9' },
+  { id: 'dark',        name: '星空黑', en: 'Dark',       bg: '#07071a', card: '#0e0e28', p: '#00d4ff', s: '#7b2ff7' },
+  { id: 'light',       name: '晴空白', en: 'Light',      bg: '#f2f4fb', card: '#ffffff', p: '#0095cc', s: '#6622cc' },
+  { id: 'midnight',    name: '午夜紫', en: 'Midnight',   bg: '#080618', card: '#0f0d2a', p: '#a78bfa', s: '#ec4899' },
+  { id: 'ocean',       name: '深海藍', en: 'Ocean',      bg: '#020e1c', card: '#051828', p: '#38bdf8', s: '#818cf8' },
+  { id: 'aurora',      name: '極光綠', en: 'Aurora',     bg: '#030e0a', card: '#071812', p: '#34d399', s: '#06b6d4' },
+  { id: 'sunset',      name: '落日橙', en: 'Sunset',     bg: '#140608', card: '#210c12', p: '#fb923c', s: '#f472b6' },
+  { id: 'forest',      name: '森林綠', en: 'Forest',     bg: '#030b05', card: '#061509', p: '#4ade80', s: '#a3e635' },
+  { id: 'rose',        name: '玫瑰粉', en: 'Rose',       bg: '#14040a', card: '#210812', p: '#fb7185', s: '#e879f9' },
+  { id: 'vip',         name: '💎 尊爵紫', en: 'VIP',       bg: '#0e0719', card: '#160a2a', p: '#c084fc', s: '#e040fb', requiredRole: 'vip' },
+  { id: 'business',    name: '💼 商務靛', en: 'Business',  bg: '#021310', card: '#061e1a', p: '#10b981', s: '#06b6d4', requiredRole: 'business' },
+  { id: 'admin',       name: '👑 王者金', en: 'Admin',     bg: '#120900', card: '#1e1202', p: '#fbbf24', s: '#f97316', requiredRole: 'admin' },
+  { id: 'super-admin', name: '⚡ 血焰赤', en: 'Super Admin', bg: '#170206', card: '#260508', p: '#f43f5e', s: '#fb923c', requiredRole: 'super-admin' },
 ];
+
+const ROLE_RANK = { 'super-admin': 4, admin: 3, business: 2, vip: 1 };
+function _userRoleRank() {
+  return ROLE_RANK[currentUser && currentUser.role] || 0;
+}
+function _themeUnlocked(t) {
+  if (!t.requiredRole) return true;
+  return _userRoleRank() >= (ROLE_RANK[t.requiredRole] || 99);
+}
 
 function applyTheme(id) {
   html.setAttribute('data-theme', id);
@@ -179,17 +192,29 @@ function _buildThemePreview(t) {
   </div>`;
 }
 
+const ROLE_BADGE_LABEL = { vip: 'VIP', business: 'Business', admin: 'Admin', 'super-admin': 'Super Admin' };
+
 function _buildThemeStore() {
   const grid = document.getElementById('theme-store-grid');
   if (!grid) return;
   grid.innerHTML = '';
   const cur = html.getAttribute('data-theme') || 'dark';
   THEMES.forEach(t => {
+    const unlocked = _themeUnlocked(t);
+    const isActive = t.id === cur;
     const card = document.createElement('div');
-    card.className = 'theme-card' + (t.id === cur ? ' active' : '');
+    card.className = 'theme-card' + (isActive ? ' active' : '') + (unlocked ? '' : ' locked');
     card.dataset.themeId = t.id;
-    card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small></div>`;
+    const badge = t.requiredRole
+      ? `<span class="theme-badge theme-badge-${t.requiredRole}">${ROLE_BADGE_LABEL[t.requiredRole]}</span>`
+      : '';
+    card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small>${badge}</div>`;
     card.addEventListener('click', () => {
+      if (!unlocked) {
+        const needed = ROLE_BADGE_LABEL[t.requiredRole] || t.requiredRole;
+        toast(`此主題需要 ${needed} 權限才能使用`, 'error', 3500);
+        return;
+      }
       applyTheme(t.id);
     });
     grid.appendChild(card);
@@ -199,7 +224,9 @@ function _buildThemeStore() {
 function _refreshThemeCards() {
   const cur = html.getAttribute('data-theme') || 'dark';
   document.querySelectorAll('.theme-card').forEach(c => {
+    const t = THEMES.find(x => x.id === c.dataset.themeId);
     c.classList.toggle('active', c.dataset.themeId === cur);
+    if (t) c.classList.toggle('locked', !_themeUnlocked(t));
   });
 }
 

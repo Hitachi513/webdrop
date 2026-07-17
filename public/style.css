@@ -307,6 +307,29 @@
   --input-bg:      rgba(26,0,0,0.78);
 }
 
+:root[data-theme="liquid-glass"] {
+  --bg:             #060a14;
+  --bg-card:        #0d1828;
+  --bg-panel-r:     #080d1c;
+  --border:         rgba(140,220,255,0.10);
+  --border-strong:  rgba(140,220,255,0.22);
+  --primary:        #7ce8ff;
+  --primary-rgb:    124, 232, 255;
+  --primary-dim:    rgba(var(--primary-rgb), 0.13);
+  --secondary:      #c4a8ff;
+  --secondary-rgb:  196, 168, 255;
+  --text:           #e4f4ff;
+  --text-muted:     #4d7ea0;
+  --glow-primary:   rgba(var(--primary-rgb), 0.30);
+  --glow-secondary: rgba(var(--secondary-rgb), 0.22);
+  --chat-mine-bg:   rgba(var(--primary-rgb), 0.09);
+  --chat-mine-bd:   rgba(var(--primary-rgb), 0.20);
+  --radar-ring:     rgba(var(--primary-rgb), 0.09);
+  --header-glass:   rgba(6,10,20,0.82);
+  --tab-glass:      rgba(6,10,20,0.88);
+  --input-bg:       rgba(13,24,40,0.72);
+}
+
 /* ===========================
    Reset & Base
    =========================== */

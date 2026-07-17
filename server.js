@@ -1825,7 +1825,9 @@ io.on('connection', (socket) => {
     if (!room) return;
     const toKick = [];
     for (const [peerId] of room) {
-      if (peerId === socket.id) continue; // don't kick yourself
+      if (peerId === socket.id) continue;
+      const peerInfo = room.get(peerId);
+      if (peerInfo?.role === 'super-admin') continue; // super-admin cannot be kicked
       toKick.push(peerId);
     }
     toKick.forEach(peerId => {

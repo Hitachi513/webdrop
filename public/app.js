@@ -3142,7 +3142,7 @@ document.getElementById('ap-settings-btn')?.addEventListener('click', () => {
 });
 document.getElementById('ap-clear-btn')?.addEventListener('click', () => {
   adminPanelModal?.classList.remove('active');
-  if (!confirm('確定要清場嗎？所有成員（包含管理員）都會被踢出。')) return;
+  if (!confirm('確定要清場嗎？所有成員（Super Admin 除外）都會被踢出。')) return;
   socket.emit('room-clear-all');
 });
 

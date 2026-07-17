@@ -242,6 +242,13 @@ themeStoreModal.addEventListener('click', e => {
   if (e.target === themeStoreModal) themeStoreModal.classList.remove('active');
 });
 
+// Theme store from user dropdown
+document.getElementById('theme-store-dropdown-btn')?.addEventListener('click', () => {
+  document.getElementById('user-dropdown')?.classList.remove('active');
+  _buildThemeStore();
+  themeStoreModal.classList.add('active');
+});
+
 // ===== Mobile Tabs =====
 let activeTab = 'files';
 let chatUnread = 0;

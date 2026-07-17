@@ -1793,6 +1793,10 @@ header {
   .room-pill { padding: 4px 8px 4px 10px; gap: 3px; }
   #room-code { font-size: .84rem; letter-spacing: 2px; }
 
+  /* Consolidate header: hide secondary buttons — accessible in user dropdown */
+  #lang-picker   { display: none; }
+  #speedtest-btn { display: none; }
+
   /* Faster tap response on touch */
   button, a, label { touch-action: manipulation; }
 
@@ -4002,9 +4006,43 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   gap: 10px;
   width: 100%;
 }
+/* Mobile: theme store as bottom sheet */
+@media (max-width: 768px) {
+  #theme-store-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  #theme-store-modal .modal-box {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 28px 28px 0 0;
+    padding: 6px 16px calc(20px + var(--safe-bottom));
+    max-height: 85dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    transform: translateY(50%);
+    gap: 0;
+  }
+  #theme-store-modal.active .modal-box { transform: translateY(0); }
+  /* Drag handle */
+  .theme-store-box::before {
+    content: '';
+    display: block;
+    width: 40px; height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,.18);
+    margin: 8px auto 14px;
+    flex-shrink: 0;
+  }
+  .theme-store-head { margin-bottom: 14px; }
+  .theme-store-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .theme-card { padding: 10px 4px 9px; border-radius: 12px; min-height: 88px; }
+}
+
 @media (max-width: 480px) {
-  .theme-store-grid { grid-template-columns: repeat(3, 1fr); }
-  .theme-store-box { max-width: 100%; padding: 20px 16px 16px; }
+  .theme-store-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .theme-card { padding: 9px 4px 8px; }
 }
 .theme-card {
   display: flex;

@@ -203,57 +203,57 @@
   --tab-glass:     rgba(32,0,32,0.92);
 }
 
-/* 💎 VIP 尊爵紫 — deeper royal purple */
+/* 💎 VIP 尊爵紫 — warm rose-amethyst, different from Cyber's cold purple */
 :root[data-theme="vip"] {
-  --bg:            #1a0440;
-  --bg-card:       #2c0870;
-  --bg-panel-r:    #220558;
-  --border:        rgba(204,136,255,0.14);
-  --border-strong: rgba(204,136,255,0.26);
-  --primary:       #cc88ff;
-  --primary-rgb:   204, 136, 255;
+  --bg:            #220030;
+  --bg-card:       #380050;
+  --bg-panel-r:    #2c003e;
+  --border:        rgba(221,136,255,0.14);
+  --border-strong: rgba(221,136,255,0.26);
+  --primary:       #dd88ff;
+  --primary-rgb:   221, 136, 255;
   --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #ff66cc;
-  --secondary-rgb: 255, 102, 204;
-  --text:          #f0e0ff;
-  --text-muted:    #8050c0;
+  --secondary:     #ff66aa;
+  --secondary-rgb: 255, 102, 170;
+  --text:          #fce8ff;
+  --text-muted:    #8845aa;
   --glow-primary:  rgba(var(--primary-rgb), 0.32);
   --glow-secondary:rgba(var(--secondary-rgb), 0.22);
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(26,4,64,0.88);
-  --tab-glass:     rgba(26,4,64,0.92);
+  --header-glass:  rgba(34,0,48,0.88);
+  --tab-glass:     rgba(34,0,48,0.92);
 }
 
-/* 💼 Business 商務靛 — vivid teal bg */
+/* 💼 Business 商務靛 — dark sapphire navy, different from Aurora's green */
 :root[data-theme="business"] {
-  --bg:            #002a20;
-  --bg-card:       #004438;
-  --bg-panel-r:    #003830;
-  --border:        rgba(0,229,160,0.14);
-  --border-strong: rgba(0,229,160,0.26);
-  --primary:       #00e5a0;
-  --primary-rgb:   0, 229, 160;
+  --bg:            #001428;
+  --bg-card:       #002040;
+  --bg-panel-r:    #001a34;
+  --border:        rgba(0,187,255,0.14);
+  --border-strong: rgba(0,187,255,0.26);
+  --primary:       #00bbff;
+  --primary-rgb:   0, 187, 255;
   --primary-dim:   rgba(var(--primary-rgb), 0.12);
-  --secondary:     #00b4ff;
-  --secondary-rgb: 0, 180, 255;
-  --text:          #d0fff0;
-  --text-muted:    #3a9070;
+  --secondary:     #00ffcc;
+  --secondary-rgb: 0, 255, 204;
+  --text:          #d0eeff;
+  --text-muted:    #306888;
   --glow-primary:  rgba(var(--primary-rgb), 0.3);
   --glow-secondary:rgba(var(--secondary-rgb), 0.22);
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.08);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(0,42,32,0.88);
-  --tab-glass:     rgba(0,42,32,0.92);
+  --header-glass:  rgba(0,20,40,0.88);
+  --tab-glass:     rgba(0,20,40,0.92);
 }
 
-/* 👑 Admin 王者金 — dark amber bg with vivid gold */
+/* 👑 Admin 王者金 — deep golden-amber bg */
 :root[data-theme="admin"] {
-  --bg:            #201a00;
-  --bg-card:       #342c00;
-  --bg-panel-r:    #2a2200;
+  --bg:            #241400;
+  --bg-card:       #3c2000;
+  --bg-panel-r:    #301a00;
   --border:        rgba(255,204,0,0.14);
   --border-strong: rgba(255,204,0,0.26);
   --primary:       #ffcc00;
@@ -268,19 +268,19 @@
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(32,26,0,0.88);
-  --tab-glass:     rgba(32,26,0,0.92);
+  --header-glass:  rgba(36,20,0,0.88);
+  --tab-glass:     rgba(36,20,0,0.92);
 }
 
-/* ⚡ Super Admin 血焰赤 — deep blood red bg */
+/* ⚡ Super Admin 血焰赤 — pure crimson bg, max vivid red */
 :root[data-theme="super-admin"] {
-  --bg:            #280008;
-  --bg-card:       #400012;
-  --bg-panel-r:    #34000e;
-  --border:        rgba(255,17,68,0.14);
-  --border-strong: rgba(255,17,68,0.26);
-  --primary:       #ff1144;
-  --primary-rgb:   255, 17, 68;
+  --bg:            #220000;
+  --bg-card:       #3a0000;
+  --bg-panel-r:    #2e0000;
+  --border:        rgba(255,0,51,0.14);
+  --border-strong: rgba(255,0,51,0.26);
+  --primary:       #ff0033;
+  --primary-rgb:   255, 0, 51;
   --primary-dim:   rgba(var(--primary-rgb), 0.15);
   --secondary:     #ff8800;
   --secondary-rgb: 255, 136, 0;
@@ -291,8 +291,8 @@
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(40,0,8,0.88);
-  --tab-glass:     rgba(40,0,8,0.92);
+  --header-glass:  rgba(34,0,0,0.88);
+  --tab-glass:     rgba(34,0,0,0.92);
 }
 
 /* ===========================

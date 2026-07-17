@@ -141,10 +141,10 @@ const THEMES = [
   { id: 'sunset',      name: '焰橙',   en: 'Flame',     bg: '#2e0a00', card: '#481400', p: '#ff5500', s: '#ff0066' },
   { id: 'forest',      name: '抹茶',   en: 'Matcha',    bg: '#182400', card: '#263800', p: '#88ff00', s: '#22cc44' },
   { id: 'rose',        name: '霓虹粉', en: 'Neon Pink', bg: '#200020', card: '#340038', p: '#ff44cc', s: '#aa00ff' },
-  { id: 'vip',         name: '💎 尊爵紫', en: 'VIP',        bg: '#1a0440', card: '#2c0870', p: '#cc88ff', s: '#ff66cc', requiredRole: 'vip' },
-  { id: 'business',    name: '💼 商務靛', en: 'Business',   bg: '#002a20', card: '#004438', p: '#00e5a0', s: '#00b4ff', requiredRole: 'business' },
-  { id: 'admin',       name: '👑 王者金', en: 'Admin',      bg: '#201a00', card: '#342c00', p: '#ffcc00', s: '#ff7700', requiredRole: 'admin' },
-  { id: 'super-admin', name: '⚡ 血焰赤', en: 'Super Admin', bg: '#280008', card: '#400012', p: '#ff1144', s: '#ff8800', requiredRole: 'super-admin' },
+  { id: 'vip',         name: '💎 尊爵紫', en: 'VIP',        bg: '#220030', card: '#380050', p: '#dd88ff', s: '#ff66aa', requiredRole: 'vip' },
+  { id: 'business',    name: '💼 商務靛', en: 'Business',   bg: '#001428', card: '#002040', p: '#00bbff', s: '#00ffcc', requiredRole: 'business' },
+  { id: 'admin',       name: '👑 王者金', en: 'Admin',      bg: '#241400', card: '#3c2000', p: '#ffcc00', s: '#ff7700', requiredRole: 'admin' },
+  { id: 'super-admin', name: '⚡ 血焰赤', en: 'Super Admin', bg: '#220000', card: '#3a0000', p: '#ff0033', s: '#ff8800', requiredRole: 'super-admin' },
 ];
 
 const ROLE_RANK = { 'super-admin': 4, admin: 3, business: 2, vip: 1 };

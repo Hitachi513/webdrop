@@ -1815,22 +1815,17 @@ io.on('connection', (socket) => {
     adminNsp.emit('rooms', getRoomList());
   });
 
-  // Admin/super-admin: kick all non-admin members from current room
+  // Admin/super-admin: kick ALL members from current room (no exceptions)
   socket.on('room-clear-all', () => {
     const clearRole = socket.userRole;
     if (clearRole !== 'admin' && clearRole !== 'super-admin') return;
-    const isSuperAdmin = clearRole === 'super-admin';
     const roomId = socket.currentRoom;
     if (!roomId) return;
     const room = rooms.get(roomId);
     if (!room) return;
-    const host = isRoomHost(socket, roomId);
     const toKick = [];
     for (const [peerId] of room) {
-      if (peerId === socket.id) continue;
-      const peerInfo = room.get(peerId);
-      if (peerInfo?.role === 'super-admin') continue; // never kick super-admin
-      if (!host && !isSuperAdmin && peerInfo?.role === 'admin') continue; // non-host admin cannot clear other admins
+      if (peerId === socket.id) continue; // don't kick yourself
       toKick.push(peerId);
     }
     toKick.forEach(peerId => {

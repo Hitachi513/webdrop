@@ -133,18 +133,18 @@ if (!roomId) {
 const html = document.documentElement;
 
 const THEMES = [
-  { id: 'dark',        name: '星空黑', en: 'Dark',       bg: '#07071a', card: '#0e0e28', p: '#00d4ff', s: '#7b2ff7' },
-  { id: 'light',       name: '晴空白', en: 'Light',      bg: '#f2f4fb', card: '#ffffff', p: '#0095cc', s: '#6622cc' },
-  { id: 'midnight',    name: '午夜紫', en: 'Midnight',   bg: '#080618', card: '#0f0d2a', p: '#a78bfa', s: '#ec4899' },
-  { id: 'ocean',       name: '深海藍', en: 'Ocean',      bg: '#020e1c', card: '#051828', p: '#38bdf8', s: '#818cf8' },
-  { id: 'aurora',      name: '極光綠', en: 'Aurora',     bg: '#030e0a', card: '#071812', p: '#34d399', s: '#06b6d4' },
-  { id: 'sunset',      name: '落日橙', en: 'Sunset',     bg: '#140608', card: '#210c12', p: '#fb923c', s: '#f472b6' },
-  { id: 'forest',      name: '森林綠', en: 'Forest',     bg: '#030b05', card: '#061509', p: '#4ade80', s: '#a3e635' },
-  { id: 'rose',        name: '玫瑰粉', en: 'Rose',       bg: '#14040a', card: '#210812', p: '#fb7185', s: '#e879f9' },
-  { id: 'vip',         name: '💎 尊爵紫', en: 'VIP',       bg: '#0e0719', card: '#160a2a', p: '#c084fc', s: '#e040fb', requiredRole: 'vip' },
-  { id: 'business',    name: '💼 商務靛', en: 'Business',  bg: '#021310', card: '#061e1a', p: '#10b981', s: '#06b6d4', requiredRole: 'business' },
-  { id: 'admin',       name: '👑 王者金', en: 'Admin',     bg: '#120900', card: '#1e1202', p: '#fbbf24', s: '#f97316', requiredRole: 'admin' },
-  { id: 'super-admin', name: '⚡ 血焰赤', en: 'Super Admin', bg: '#170206', card: '#260508', p: '#f43f5e', s: '#fb923c', requiredRole: 'super-admin' },
+  { id: 'dark',        name: '星空黑', en: 'Dark',      bg: '#07071a', card: '#0e0e28', p: '#00d4ff', s: '#7b2ff7' },
+  { id: 'light',       name: '晴空白', en: 'Light',     bg: '#f2f4fb', card: '#ffffff', p: '#0095cc', s: '#6622cc' },
+  { id: 'midnight',    name: '賽博紫', en: 'Cyber',     bg: '#0e0040', card: '#1a0066', p: '#b060ff', s: '#ff2090' },
+  { id: 'ocean',       name: '深海藍', en: 'Ocean',     bg: '#001840', card: '#002860', p: '#00aaff', s: '#5566ff' },
+  { id: 'aurora',      name: '極光綠', en: 'Aurora',    bg: '#003320', card: '#005030', p: '#00ffaa', s: '#00ddff' },
+  { id: 'sunset',      name: '焰橙',   en: 'Flame',     bg: '#2e0a00', card: '#481400', p: '#ff5500', s: '#ff0066' },
+  { id: 'forest',      name: '抹茶',   en: 'Matcha',    bg: '#182400', card: '#263800', p: '#88ff00', s: '#22cc44' },
+  { id: 'rose',        name: '霓虹粉', en: 'Neon Pink', bg: '#200020', card: '#340038', p: '#ff44cc', s: '#aa00ff' },
+  { id: 'vip',         name: '💎 尊爵紫', en: 'VIP',        bg: '#1a0440', card: '#2c0870', p: '#cc88ff', s: '#ff66cc', requiredRole: 'vip' },
+  { id: 'business',    name: '💼 商務靛', en: 'Business',   bg: '#002a20', card: '#004438', p: '#00e5a0', s: '#00b4ff', requiredRole: 'business' },
+  { id: 'admin',       name: '👑 王者金', en: 'Admin',      bg: '#201a00', card: '#342c00', p: '#ffcc00', s: '#ff7700', requiredRole: 'admin' },
+  { id: 'super-admin', name: '⚡ 血焰赤', en: 'Super Admin', bg: '#280008', card: '#400012', p: '#ff1144', s: '#ff8800', requiredRole: 'super-admin' },
 ];
 
 const ROLE_RANK = { 'super-admin': 4, admin: 3, business: 2, vip: 1 };

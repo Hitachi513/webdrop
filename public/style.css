@@ -65,206 +65,234 @@
    Themes
    =========================== */
 
-/* 午夜紫 Midnight */
+/* 賽博紫 Cyber — vivid saturated purple bg */
 :root[data-theme="midnight"] {
-  --bg:            #080618;
-  --bg-card:       #0f0d2a;
-  --bg-panel-r:    #0b0920;
-  --border:        rgba(255,255,255,0.06);
-  --border-strong: rgba(167,139,250,0.18);
-  --primary:       #a78bfa;
-  --primary-rgb:   167, 139, 250;
+  --bg:            #0e0040;
+  --bg-card:       #1a0066;
+  --bg-panel-r:    #130050;
+  --border:        rgba(176,96,255,0.12);
+  --border-strong: rgba(176,96,255,0.24);
+  --primary:       #b060ff;
+  --primary-rgb:   176, 96, 255;
   --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #ec4899;
-  --secondary-rgb: 236, 72, 153;
-  --text:          #ede9fe;
-  --text-muted:    #6b638e;
-  --glow-primary:  rgba(var(--primary-rgb), 0.28);
-  --glow-secondary:rgba(var(--secondary-rgb), 0.2);
+  --secondary:     #ff2090;
+  --secondary-rgb: 255, 32, 144;
+  --text:          #eae0ff;
+  --text-muted:    #7055aa;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
-  --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(8,6,24,0.87);
-  --tab-glass:     rgba(8,6,24,0.9);
+  --header-glass:  rgba(14,0,64,0.88);
+  --tab-glass:     rgba(14,0,64,0.92);
 }
 
-/* 深海藍 Ocean */
+/* 深海藍 Ocean — vivid deep navy bg */
 :root[data-theme="ocean"] {
-  --bg:            #020e1c;
-  --bg-card:       #051828;
-  --bg-panel-r:    #041220;
-  --border:        rgba(255,255,255,0.06);
-  --border-strong: rgba(56,189,248,0.18);
-  --primary:       #38bdf8;
-  --primary-rgb:   56, 189, 248;
+  --bg:            #001840;
+  --bg-card:       #002860;
+  --bg-panel-r:    #002050;
+  --border:        rgba(0,170,255,0.12);
+  --border-strong: rgba(0,170,255,0.24);
+  --primary:       #00aaff;
+  --primary-rgb:   0, 170, 255;
   --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #818cf8;
-  --secondary-rgb: 129, 140, 248;
-  --text:          #e0f2fe;
-  --text-muted:    #406070;
-  --glow-primary:  rgba(var(--primary-rgb), 0.28);
-  --glow-secondary:rgba(var(--secondary-rgb), 0.2);
+  --secondary:     #5566ff;
+  --secondary-rgb: 85, 102, 255;
+  --text:          #d8eeff;
+  --text-muted:    #4070a0;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
-  --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(2,14,28,0.87);
-  --tab-glass:     rgba(2,14,28,0.9);
+  --header-glass:  rgba(0,24,64,0.88);
+  --tab-glass:     rgba(0,24,64,0.92);
 }
 
-/* 極光 Aurora */
+/* 極光綠 Aurora — vivid emerald-green bg */
 :root[data-theme="aurora"] {
-  --bg:            #030e0a;
-  --bg-card:       #071812;
-  --bg-panel-r:    #05130e;
-  --border:        rgba(255,255,255,0.06);
-  --border-strong: rgba(52,211,153,0.18);
-  --primary:       #34d399;
-  --primary-rgb:   52, 211, 153;
-  --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #06b6d4;
-  --secondary-rgb: 6, 182, 212;
-  --text:          #d1fae5;
-  --text-muted:    #3d6555;
-  --glow-primary:  rgba(var(--primary-rgb), 0.28);
-  --glow-secondary:rgba(var(--secondary-rgb), 0.2);
-  --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
+  --bg:            #003320;
+  --bg-card:       #005030;
+  --bg-panel-r:    #004028;
+  --border:        rgba(0,255,170,0.12);
+  --border-strong: rgba(0,255,170,0.24);
+  --primary:       #00ffaa;
+  --primary-rgb:   0, 255, 170;
+  --primary-dim:   rgba(var(--primary-rgb), 0.12);
+  --secondary:     #00ddff;
+  --secondary-rgb: 0, 221, 255;
+  --text:          #ccffee;
+  --text-muted:    #3a8860;
+  --glow-primary:  rgba(var(--primary-rgb), 0.3);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
+  --chat-mine-bg:  rgba(var(--primary-rgb), 0.08);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(3,14,10,0.87);
-  --tab-glass:     rgba(3,14,10,0.9);
+  --header-glass:  rgba(0,50,32,0.88);
+  --tab-glass:     rgba(0,50,32,0.92);
 }
 
-/* 落日橙 Sunset */
+/* 焰橙 Flame — warm dark amber bg */
 :root[data-theme="sunset"] {
-  --bg:            #140608;
-  --bg-card:       #210c12;
-  --bg-panel-r:    #1a0a0f;
-  --border:        rgba(255,255,255,0.06);
-  --border-strong: rgba(251,146,60,0.18);
-  --primary:       #fb923c;
-  --primary-rgb:   251, 146, 60;
+  --bg:            #2e0a00;
+  --bg-card:       #481400;
+  --bg-panel-r:    #3a0e00;
+  --border:        rgba(255,85,0,0.12);
+  --border-strong: rgba(255,85,0,0.24);
+  --primary:       #ff5500;
+  --primary-rgb:   255, 85, 0;
   --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #f472b6;
-  --secondary-rgb: 244, 114, 182;
-  --text:          #fef3c7;
-  --text-muted:    #7a5848;
-  --glow-primary:  rgba(var(--primary-rgb), 0.28);
-  --glow-secondary:rgba(var(--secondary-rgb), 0.2);
+  --secondary:     #ff0066;
+  --secondary-rgb: 255, 0, 102;
+  --text:          #fff0e0;
+  --text-muted:    #a06030;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
-  --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(20,6,8,0.87);
-  --tab-glass:     rgba(20,6,8,0.9);
+  --header-glass:  rgba(46,10,0,0.88);
+  --tab-glass:     rgba(46,10,0,0.92);
 }
 
-/* 森林 Forest */
+/* 抹茶 Matcha — olive green bg with chartreuse accent */
 :root[data-theme="forest"] {
-  --bg:            #030b05;
-  --bg-card:       #061509;
-  --bg-panel-r:    #051007;
-  --border:        rgba(255,255,255,0.06);
-  --border-strong: rgba(74,222,128,0.18);
-  --primary:       #4ade80;
-  --primary-rgb:   74, 222, 128;
-  --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #a3e635;
-  --secondary-rgb: 163, 230, 53;
-  --text:          #dcfce7;
-  --text-muted:    #3a6045;
+  --bg:            #182400;
+  --bg-card:       #263800;
+  --bg-panel-r:    #1e2e00;
+  --border:        rgba(136,255,0,0.12);
+  --border-strong: rgba(136,255,0,0.22);
+  --primary:       #88ff00;
+  --primary-rgb:   136, 255, 0;
+  --primary-dim:   rgba(var(--primary-rgb), 0.12);
+  --secondary:     #22cc44;
+  --secondary-rgb: 34, 204, 68;
+  --text:          #eeffcc;
+  --text-muted:    #608030;
   --glow-primary:  rgba(var(--primary-rgb), 0.28);
   --glow-secondary:rgba(var(--secondary-rgb), 0.2);
-  --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
+  --chat-mine-bg:  rgba(var(--primary-rgb), 0.08);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(3,11,5,0.87);
-  --tab-glass:     rgba(3,11,5,0.9);
+  --header-glass:  rgba(24,36,0,0.88);
+  --tab-glass:     rgba(24,36,0,0.92);
 }
 
-/* 玫瑰 Rose */
+/* 霓虹粉 Neon — deep magenta bg */
 :root[data-theme="rose"] {
-  --bg:            #14040a;
-  --bg-card:       #210812;
-  --bg-panel-r:    #1a060f;
-  --border:        rgba(255,255,255,0.06);
-  --border-strong: rgba(251,113,133,0.18);
-  --primary:       #fb7185;
-  --primary-rgb:   251, 113, 133;
+  --bg:            #200020;
+  --bg-card:       #340038;
+  --bg-panel-r:    #2a002a;
+  --border:        rgba(255,68,204,0.12);
+  --border-strong: rgba(255,68,204,0.24);
+  --primary:       #ff44cc;
+  --primary-rgb:   255, 68, 204;
   --primary-dim:   rgba(var(--primary-rgb), 0.15);
-  --secondary:     #e879f9;
-  --secondary-rgb: 232, 121, 249;
-  --text:          #ffe4e6;
-  --text-muted:    #7c4e5c;
-  --glow-primary:  rgba(var(--primary-rgb), 0.28);
-  --glow-secondary:rgba(var(--secondary-rgb), 0.2);
+  --secondary:     #aa00ff;
+  --secondary-rgb: 170, 0, 255;
+  --text:          #ffeeff;
+  --text-muted:    #884488;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
   --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
+  --radar-ring:    rgba(var(--primary-rgb), 0.1);
+  --header-glass:  rgba(32,0,32,0.88);
+  --tab-glass:     rgba(32,0,32,0.92);
+}
+
+/* 💎 VIP 尊爵紫 — deeper royal purple */
+:root[data-theme="vip"] {
+  --bg:            #1a0440;
+  --bg-card:       #2c0870;
+  --bg-panel-r:    #220558;
+  --border:        rgba(204,136,255,0.14);
+  --border-strong: rgba(204,136,255,0.26);
+  --primary:       #cc88ff;
+  --primary-rgb:   204, 136, 255;
+  --primary-dim:   rgba(var(--primary-rgb), 0.15);
+  --secondary:     #ff66cc;
+  --secondary-rgb: 255, 102, 204;
+  --text:          #f0e0ff;
+  --text-muted:    #8050c0;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
+  --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
+  --radar-ring:    rgba(var(--primary-rgb), 0.1);
+  --header-glass:  rgba(26,4,64,0.88);
+  --tab-glass:     rgba(26,4,64,0.92);
+}
+
+/* 💼 Business 商務靛 — vivid teal bg */
+:root[data-theme="business"] {
+  --bg:            #002a20;
+  --bg-card:       #004438;
+  --bg-panel-r:    #003830;
+  --border:        rgba(0,229,160,0.14);
+  --border-strong: rgba(0,229,160,0.26);
+  --primary:       #00e5a0;
+  --primary-rgb:   0, 229, 160;
+  --primary-dim:   rgba(var(--primary-rgb), 0.12);
+  --secondary:     #00b4ff;
+  --secondary-rgb: 0, 180, 255;
+  --text:          #d0fff0;
+  --text-muted:    #3a9070;
+  --glow-primary:  rgba(var(--primary-rgb), 0.3);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
+  --chat-mine-bg:  rgba(var(--primary-rgb), 0.08);
   --chat-mine-bd:  rgba(var(--primary-rgb), 0.2);
   --radar-ring:    rgba(var(--primary-rgb), 0.1);
-  --header-glass:  rgba(20,4,10,0.87);
-  --tab-glass:     rgba(20,4,10,0.9);
+  --header-glass:  rgba(0,42,32,0.88);
+  --tab-glass:     rgba(0,42,32,0.92);
 }
 
-:root[data-theme="vip"] {
-  --bg:#0e0719; --bg-card:#160a2a;
-  --primary:#c084fc; --primary-rgb:192,132,252;
-  --secondary:#e040fb; --secondary-rgb:224,64,251;
-  --text:#f5eeff; --text-muted:#9b78c8;
-  --border:rgba(192,132,252,0.15);
-  --input-bg:rgba(30,14,50,0.7);
-  --glow-primary:rgba(192,132,252,0.22);
-  --glow-secondary:rgba(224,64,251,0.18);
-  --chat-mine-bg:rgba(192,132,252,0.1);
-  --chat-mine-bd:rgba(192,132,252,0.22);
-  --radar-ring:rgba(192,132,252,0.1);
-  --header-glass:rgba(14,7,25,0.88);
-  --tab-glass:rgba(14,7,25,0.92);
-}
-
-:root[data-theme="business"] {
-  --bg:#021310; --bg-card:#061e1a;
-  --primary:#10b981; --primary-rgb:16,185,129;
-  --secondary:#06b6d4; --secondary-rgb:6,182,212;
-  --text:#e6faf6; --text-muted:#5fada0;
-  --border:rgba(16,185,129,0.15);
-  --input-bg:rgba(4,26,22,0.7);
-  --glow-primary:rgba(16,185,129,0.22);
-  --glow-secondary:rgba(6,182,212,0.18);
-  --chat-mine-bg:rgba(16,185,129,0.1);
-  --chat-mine-bd:rgba(16,185,129,0.22);
-  --radar-ring:rgba(16,185,129,0.1);
-  --header-glass:rgba(2,19,16,0.88);
-  --tab-glass:rgba(2,19,16,0.92);
-}
-
+/* 👑 Admin 王者金 — dark amber bg with vivid gold */
 :root[data-theme="admin"] {
-  --bg:#120900; --bg-card:#1e1202;
-  --primary:#fbbf24; --primary-rgb:251,191,36;
-  --secondary:#f97316; --secondary-rgb:249,115,22;
-  --text:#fff8e6; --text-muted:#b58a30;
-  --border:rgba(251,191,36,0.15);
-  --input-bg:rgba(24,14,2,0.7);
-  --glow-primary:rgba(251,191,36,0.22);
-  --glow-secondary:rgba(249,115,22,0.18);
-  --chat-mine-bg:rgba(251,191,36,0.1);
-  --chat-mine-bd:rgba(251,191,36,0.22);
-  --radar-ring:rgba(251,191,36,0.1);
-  --header-glass:rgba(18,9,0,0.88);
-  --tab-glass:rgba(18,9,0,0.92);
+  --bg:            #201a00;
+  --bg-card:       #342c00;
+  --bg-panel-r:    #2a2200;
+  --border:        rgba(255,204,0,0.14);
+  --border-strong: rgba(255,204,0,0.26);
+  --primary:       #ffcc00;
+  --primary-rgb:   255, 204, 0;
+  --primary-dim:   rgba(var(--primary-rgb), 0.15);
+  --secondary:     #ff7700;
+  --secondary-rgb: 255, 119, 0;
+  --text:          #fff8cc;
+  --text-muted:    #a08020;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
+  --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
+  --radar-ring:    rgba(var(--primary-rgb), 0.1);
+  --header-glass:  rgba(32,26,0,0.88);
+  --tab-glass:     rgba(32,26,0,0.92);
 }
 
+/* ⚡ Super Admin 血焰赤 — deep blood red bg */
 :root[data-theme="super-admin"] {
-  --bg:#170206; --bg-card:#260508;
-  --primary:#f43f5e; --primary-rgb:244,63,94;
-  --secondary:#fb923c; --secondary-rgb:251,146,60;
-  --text:#fff0f2; --text-muted:#b54060;
-  --border:rgba(244,63,94,0.15);
-  --input-bg:rgba(28,4,10,0.7);
-  --glow-primary:rgba(244,63,94,0.22);
-  --glow-secondary:rgba(251,146,60,0.18);
-  --chat-mine-bg:rgba(244,63,94,0.1);
-  --chat-mine-bd:rgba(244,63,94,0.22);
-  --radar-ring:rgba(244,63,94,0.1);
-  --header-glass:rgba(23,2,6,0.88);
-  --tab-glass:rgba(23,2,6,0.92);
+  --bg:            #280008;
+  --bg-card:       #400012;
+  --bg-panel-r:    #34000e;
+  --border:        rgba(255,17,68,0.14);
+  --border-strong: rgba(255,17,68,0.26);
+  --primary:       #ff1144;
+  --primary-rgb:   255, 17, 68;
+  --primary-dim:   rgba(var(--primary-rgb), 0.15);
+  --secondary:     #ff8800;
+  --secondary-rgb: 255, 136, 0;
+  --text:          #ffe0e8;
+  --text-muted:    #a03050;
+  --glow-primary:  rgba(var(--primary-rgb), 0.32);
+  --glow-secondary:rgba(var(--secondary-rgb), 0.22);
+  --chat-mine-bg:  rgba(var(--primary-rgb), 0.1);
+  --chat-mine-bd:  rgba(var(--primary-rgb), 0.22);
+  --radar-ring:    rgba(var(--primary-rgb), 0.1);
+  --header-glass:  rgba(40,0,8,0.88);
+  --tab-glass:     rgba(40,0,8,0.92);
 }
 
 /* ===========================

@@ -4243,6 +4243,28 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   pointer-events: none;
 }
 .theme-card.locked .theme-name { opacity: .6; }
+.tg-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 5px 8px;
+  background: rgba(255,255,255,.05);
+  border-radius: 8px;
+  font-size: .68rem;
+  color: var(--text-muted);
+  gap: 6px;
+  pointer-events: all;
+}
+.tg-color-input {
+  width: 28px; height: 20px;
+  border: 1.5px solid rgba(255,255,255,.18);
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 1px;
+  background: transparent;
+  flex-shrink: 0;
+}
 .theme-badge {
   font-size: .58rem;
   font-weight: 700;

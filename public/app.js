@@ -148,6 +148,56 @@ const THEMES = [
   { id: 'super-admin', name: '⚡ 血焰赤', en: 'Super Admin', bg: '#220000', card: '#3a0000', p: '#ff0033', s: '#ff8800', requiredRole: 'super-admin' },
 ];
 
+function _hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+  const n = parseInt(hex, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function _rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    h = (max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4) / 6;
+  }
+  return [h * 360, s, l];
+}
+function _hslToRgb(h, s, l) {
+  h /= 360;
+  if (!s) { const v = Math.round(l * 255); return [v, v, v]; }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => { t < 0 && (t += 1); t > 1 && (t -= 1); return Math.round((t < 1/6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2/3 ? p + (q - p) * (2/3 - t) * 6 : p) * 255); };
+  return [f(h + 1/3), f(h), f(h - 1/3)];
+}
+function _deriveGlassColors(hex) {
+  const [r, g, b] = _hexToRgb(hex);
+  const [h, s, l] = _rgbToHsl(r, g, b);
+  const sec = _hslToRgb((h + 150) % 360, Math.max(s, 0.65), Math.max(l, 0.62));
+  const bg  = _hslToRgb(h, 0.40, 0.05);
+  const cd  = _hslToRgb(h, 0.32, 0.09);
+  const mt  = _hslToRgb(h, 0.50, 0.55);
+  return { r, g, b, sec, bg, cd, mt };
+}
+function _applyCustomGlassVars(hex) {
+  const { r, g, b, sec, bg, cd, mt } = _deriveGlassColors(hex);
+  const bk = bg.map(v => Math.round(v * 0.85));
+  let el = document.getElementById('custom-glass-style');
+  if (!el) { el = document.createElement('style'); el.id = 'custom-glass-style'; document.head.appendChild(el); }
+  el.textContent = `:root[data-theme="liquid-glass"]{` +
+    `--bg:rgb(${bg});--bg-card:rgb(${cd});--bg-panel-r:rgb(${bk});` +
+    `--border:rgba(${r},${g},${b},.12);--border-strong:rgba(${r},${g},${b},.24);` +
+    `--primary:${hex};--primary-rgb:${r},${g},${b};--primary-dim:rgba(${r},${g},${b},.13);` +
+    `--secondary:rgb(${sec});--secondary-rgb:${sec};` +
+    `--text:#e8f2ff;--text-muted:rgba(${mt},.70);` +
+    `--glow-primary:rgba(${r},${g},${b},.32);--glow-secondary:rgba(${sec},.22);` +
+    `--chat-mine-bg:rgba(${r},${g},${b},.09);--chat-mine-bd:rgba(${r},${g},${b},.20);` +
+    `--radar-ring:rgba(${r},${g},${b},.09);` +
+    `--header-glass:rgba(${bg},.82);--tab-glass:rgba(${bg},.88);--input-bg:rgba(${cd},.72);}`;
+}
+
 const ROLE_RANK = { 'super-admin': 4, admin: 3, business: 2, vip: 1 };
 function _userRoleRank() {
   return ROLE_RANK[currentUser && currentUser.role] || 0;
@@ -170,6 +220,7 @@ function applyTheme(id) {
   }
 }
 applyTheme(localStorage.getItem('webdrop-theme') || 'dark');
+{ const gc = localStorage.getItem('webdrop-glass-color'); if (gc) _applyCustomGlassVars(gc); }
 
 // Theme Store
 function _buildThemePreview(t) {
@@ -210,7 +261,28 @@ function _buildThemeStore() {
     const badge = t.requiredRole
       ? `<span class="theme-badge theme-badge-${t.requiredRole}">${ROLE_BADGE_LABEL[t.requiredRole]}</span>`
       : '';
-    card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small>${badge}</div>`;
+    if (t.id === 'liquid-glass') {
+      const gc = localStorage.getItem('webdrop-glass-color') || t.p;
+      const { sec, bg, cd } = _deriveGlassColors(gc);
+      const pt = { ...t, bg: `rgb(${bg})`, card: `rgb(${cd})`, p: gc, s: `rgb(${sec})` };
+      card.innerHTML = `${_buildThemePreview(pt)}<div class="theme-name">${t.name}<small>${t.en}</small></div><div class="tg-color-row"><span>主題色</span><input type="color" class="tg-color-input" value="${gc}"></div>`;
+      const picker = card.querySelector('.tg-color-input');
+      picker.addEventListener('click', e => e.stopPropagation());
+      picker.addEventListener('input', e => {
+        const hex = e.target.value;
+        localStorage.setItem('webdrop-glass-color', hex);
+        _applyCustomGlassVars(hex);
+        const { sec: s2, bg: b2, cd: c2 } = _deriveGlassColors(hex);
+        const dots = card.querySelectorAll('.tp-dot');
+        dots[0]?.style.setProperty('background', hex);
+        dots[1]?.style.setProperty('background', `rgb(${s2})`);
+        card.querySelector('.tp-bg')?.style.setProperty('background', `rgb(${b2})`);
+        card.querySelector('.tp-header')?.style.setProperty('background', `rgb(${c2})`);
+        card.querySelector('.tp-pill')?.style.setProperty('background', `linear-gradient(90deg,${hex},rgb(${s2}))`);
+      });
+    } else {
+      card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small>${badge}</div>`;
+    }
     card.addEventListener('click', e => {
       e.stopPropagation();
       if (!unlocked) {

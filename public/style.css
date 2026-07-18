@@ -2045,9 +2045,6 @@ header {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2056,6 +2053,17 @@ header {
   pointer-events: none;
   transition: opacity .22s;
   padding: 16px;
+}
+/* Blur on ::before with pointer-events:none avoids iOS Safari compositing bug
+   where backdrop-filter on the overlay itself eats touch events on child buttons */
+.modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 .modal.active { opacity:1; pointer-events:all; }
 

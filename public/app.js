@@ -324,6 +324,8 @@ function _refreshThemeCards() {
 }
 
 const themeStoreModal = document.getElementById('theme-store-modal');
+// iOS Safari: empty touchstart on the container lets buttons inside fire click on first tap
+themeStoreModal.addEventListener('touchstart', () => {}, { passive: true });
 document.getElementById('theme-store-btn').addEventListener('click', () => {
   _buildThemeStore();
   themeStoreModal.classList.add('active');

@@ -123,25 +123,27 @@ function getDeviceIcon(name) {
 // ===== Room =====
 let myName = getDeviceName();
 let myAvatar = null;
+// Safe storage helpers — localStorage throws SecurityError in Safari private mode
+const _ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k,v) => { try { localStorage.setItem(k,v); } catch {} }, del: k => { try { localStorage.removeItem(k); } catch {} } };
+const _ss = { get: k => { try { return sessionStorage.getItem(k); } catch { return null; } }, set: (k,v) => { try { sessionStorage.setItem(k,v); } catch {} } };
+
 let roomId = window.location.hash.slice(1);
 // Priority: registered custom room (localStorage) → session room (sessionStorage) → URL hash → random
-const _storedCustomRoom = localStorage.getItem('webdrop-custom-room');
+const _storedCustomRoom = _ls.get('webdrop-custom-room');
 if (_storedCustomRoom) {
   roomId = _storedCustomRoom;
   history.replaceState(null, '', `#${roomId}`);
 } else {
-  const _sessionRoom = sessionStorage.getItem('webdrop-session-room');
+  const _sessionRoom = _ss.get('webdrop-session-room');
   if (_sessionRoom) {
-    // Same tab refresh — lock to the room that was already in use, ignore URL edit
     roomId = _sessionRoom;
     history.replaceState(null, '', `#${roomId}`);
   } else {
-    // New tab or fresh visit — honour URL hash (shared links) or generate random
     if (!roomId) {
       roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
       history.replaceState(null, '', `#${roomId}`);
     }
-    sessionStorage.setItem('webdrop-session-room', roomId);
+    _ss.set('webdrop-session-room', roomId);
   }
 }
 
@@ -225,7 +227,7 @@ function _themeUnlocked(t) {
 
 function applyTheme(id) {
   html.setAttribute('data-theme', id);
-  localStorage.setItem('webdrop-theme', id);
+  _ls.set('webdrop-theme', id);
   _refreshThemeCards();
   // keep old Google Sign-In theme in sync (light vs dark)
   const googleWrapper = document.getElementById('google-btn-wrap');
@@ -235,8 +237,8 @@ function applyTheme(id) {
     if (btn) btn.setAttribute('data-theme', isLight ? 'outline' : 'filled_black');
   }
 }
-applyTheme(localStorage.getItem('webdrop-theme') || 'dark');
-{ const gc = localStorage.getItem('webdrop-glass-color'); if (gc) _applyCustomGlassVars(gc); }
+applyTheme(_ls.get('webdrop-theme') || 'dark');
+{ const gc = _ls.get('webdrop-glass-color'); if (gc) _applyCustomGlassVars(gc); }
 
 // Theme Store
 function _buildThemePreview(t) {
@@ -278,15 +280,15 @@ function _buildThemeStore() {
       ? `<span class="theme-badge theme-badge-${t.requiredRole}">${ROLE_BADGE_LABEL[t.requiredRole]}</span>`
       : '';
     if (t.id === 'liquid-glass') {
-      const gc = localStorage.getItem('webdrop-glass-color') || t.p;
+      const gc = _ls.get('webdrop-glass-color') || t.p;
       const { sec, bg, cd } = _deriveGlassColors(gc);
       const pt = { ...t, bg: `rgb(${bg})`, card: `rgb(${cd})`, p: gc, s: `rgb(${sec})` };
       card.innerHTML = `${_buildThemePreview(pt)}<div class="theme-name">${t.name}<small>${t.en}</small></div><div class="tg-color-row"><span>主題色</span><input type="color" class="tg-color-input" value="${gc}"></div>`;
       const picker = card.querySelector('.tg-color-input');
-      picker.addEventListener('click', e => e.stopPropagation());
-      picker.addEventListener('input', e => {
+      picker?.addEventListener('click', e => e.stopPropagation());
+      picker?.addEventListener('input', e => {
         const hex = e.target.value;
-        localStorage.setItem('webdrop-glass-color', hex);
+        _ls.set('webdrop-glass-color', hex);
         _applyCustomGlassVars(hex);
         const { sec: s2, bg: b2, cd: c2 } = _deriveGlassColors(hex);
         const dots = card.querySelectorAll('.tp-dot');
@@ -414,11 +416,11 @@ async function authApi(method, path, body) {
 }
 
 function applyCustomRoom(customRoomId) {
-  if (customRoomId == null) { localStorage.removeItem('webdrop-custom-room'); return false; }
+  if (customRoomId == null) { _ls.del('webdrop-custom-room'); return false; }
   if (customRoomId === roomId) return false;
   roomId = customRoomId;
-  localStorage.setItem('webdrop-custom-room', customRoomId);
-  sessionStorage.setItem('webdrop-session-room', customRoomId);
+  _ls.set('webdrop-custom-room', customRoomId);
+  _ss.set('webdrop-session-room', customRoomId);
   history.replaceState(null, '', `#${roomId}`);
   roomCodeEl.textContent = roomId;
   setShareUrl(null);
@@ -511,7 +513,7 @@ function userLogout() {
   fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   userToken   = null;
   currentUser = null;
-  localStorage.removeItem('webdrop-custom-room');
+  _ls.del('webdrop-custom-room');
   socket.auth.userToken = null;
   socket.disconnect();
   socket.connect();
@@ -947,7 +949,7 @@ document.getElementById('user-lang-select').addEventListener('change', async (e)
   if (lang) {
     i18n.set(lang);
   } else {
-    localStorage.removeItem('wd-lang');
+    _ls.del('wd-lang');
     const nav = (navigator.language || 'en').replace('_', '-');
     const auto = nav.startsWith('zh') ? (nav.includes('TW') || nav.includes('HK') ? 'zh-TW' : 'zh-CN') : nav.split('-')[0];
     i18n.lang = auto;
@@ -1147,8 +1149,8 @@ function setNoDevicesHint(mode) {
 
 document.getElementById('room-closed-new').addEventListener('click', () => {
   const newId = Math.random().toString(36).slice(2, 8).toUpperCase();
-  sessionStorage.setItem('webdrop-session-room', newId);
-  localStorage.removeItem('webdrop-custom-room');
+  _ss.set('webdrop-session-room', newId);
+  _ls.del('webdrop-custom-room');
   window.location.href = `${window.location.origin}/#${newId}`;
   window.location.reload();
 });
@@ -1763,7 +1765,7 @@ document.getElementById('room-pw-input')?.addEventListener('keydown', e => {
 document.getElementById('chat-qr-btn')?.addEventListener('click', () => qrModal.classList.add('active'));
 
 // ===== Sound =====
-let _soundEnabled = localStorage.getItem('wd-chat-sound') !== '0';
+let _soundEnabled = _ls.get('wd-chat-sound') !== '0';
 
 (function initSoundBtn() {
   const btn = document.getElementById('chat-sound-btn');
@@ -1777,7 +1779,7 @@ let _soundEnabled = localStorage.getItem('wd-chat-sound') !== '0';
   applySound(_soundEnabled);
   btn?.addEventListener('click', () => {
     _soundEnabled = !_soundEnabled;
-    localStorage.setItem('wd-chat-sound', _soundEnabled ? '1' : '0');
+    _ls.set('wd-chat-sound', _soundEnabled ? '1' : '0');
     applySound(_soundEnabled);
     toast(_soundEnabled ? '🔊 音效已開啟' : '🔇 音效已靜音', 'info');
   });
@@ -3478,7 +3480,7 @@ if (location.search.includes('share=1')) {
     if (outcome === 'accepted') closeModal();
   });
 
-  if (localStorage.getItem('wd-install-dismissed')) return;
+  if (_ls.get('wd-install-dismissed')) return;
 
   const banner     = document.getElementById('install-banner');
   const subEl      = document.getElementById('install-banner-sub');
@@ -3491,7 +3493,7 @@ if (location.search.includes('share=1')) {
   function dismiss()    { banner.style.display = 'none'; }
 
   dismissBtn.addEventListener('click', dismiss);
-  neverBtn.addEventListener('click', () => { dismiss(); localStorage.setItem('wd-install-dismissed', '1'); });
+  neverBtn.addEventListener('click', () => { dismiss(); _ls.set('wd-install-dismissed', '1'); });
 
   if (isIosSafari) {
     subEl.textContent = '加入主畫面以使用系統分享功能';
@@ -3551,7 +3553,7 @@ document.addEventListener('keydown', e => {
 
 // ===== Onboarding Guide =====
 (function initOnboarding() {
-  if (localStorage.getItem('wd-onboarded') === '1') return;
+  if (_ls.get('wd-onboarded') === '1') return;
   const overlay = document.getElementById('onboarding-overlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
@@ -3575,7 +3577,7 @@ document.addEventListener('keydown', e => {
 
   function dismiss() {
     overlay.style.display = 'none';
-    localStorage.setItem('wd-onboarded', '1');
+    _ls.set('wd-onboarded', '1');
   }
   goStep(1);
 })();

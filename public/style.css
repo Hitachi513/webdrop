@@ -4088,11 +4088,10 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
     max-height: 88dvh;
     overflow-y: auto;
     overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
     transform: translateY(100%);
     gap: 0;
   }
-  #theme-store-modal.active .modal-box { transform: translateY(0) scale(1); }
+  #theme-store-modal.active .modal-box { transform: translateY(0); }
   /* Drag handle */
   .theme-store-box::before {
     content: '';

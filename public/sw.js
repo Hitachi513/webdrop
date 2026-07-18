@@ -1,4 +1,4 @@
-const CACHE = 'webdrop-v21';
+const CACHE = 'webdrop-v22';
 const STATIC = ['/', '/app.js', '/style.css', '/i18n.js', '/icon-192.svg', '/manifest.json'];
 const SHARE_DB = 'webdrop-share-v1';
 

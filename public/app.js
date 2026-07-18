@@ -124,14 +124,25 @@ function getDeviceIcon(name) {
 let myName = getDeviceName();
 let myAvatar = null;
 let roomId = window.location.hash.slice(1);
-// Registered custom room overrides whatever is in the URL hash (prevents refresh bypass)
+// Priority: registered custom room (localStorage) → session room (sessionStorage) → URL hash → random
 const _storedCustomRoom = localStorage.getItem('webdrop-custom-room');
 if (_storedCustomRoom) {
   roomId = _storedCustomRoom;
   history.replaceState(null, '', `#${roomId}`);
-} else if (!roomId) {
-  roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
-  history.replaceState(null, '', `#${roomId}`);
+} else {
+  const _sessionRoom = sessionStorage.getItem('webdrop-session-room');
+  if (_sessionRoom) {
+    // Same tab refresh — lock to the room that was already in use, ignore URL edit
+    roomId = _sessionRoom;
+    history.replaceState(null, '', `#${roomId}`);
+  } else {
+    // New tab or fresh visit — honour URL hash (shared links) or generate random
+    if (!roomId) {
+      roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
+      history.replaceState(null, '', `#${roomId}`);
+    }
+    sessionStorage.setItem('webdrop-session-room', roomId);
+  }
 }
 
 // ===== Theme =====
@@ -407,6 +418,7 @@ function applyCustomRoom(customRoomId) {
   if (customRoomId === roomId) return false;
   roomId = customRoomId;
   localStorage.setItem('webdrop-custom-room', customRoomId);
+  sessionStorage.setItem('webdrop-session-room', customRoomId);
   history.replaceState(null, '', `#${roomId}`);
   roomCodeEl.textContent = roomId;
   setShareUrl(null);
@@ -1367,6 +1379,7 @@ window.addEventListener('hashchange', () => {
   // Otherwise honour the hash change and properly switch rooms
   roomId = newId;
   _roomPassword = null;
+  sessionStorage.setItem('webdrop-session-room', roomId);
   roomCodeEl.textContent = roomId;
   setShareUrl(null);
   rejoinRoom();

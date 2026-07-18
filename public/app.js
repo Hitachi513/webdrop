@@ -124,7 +124,12 @@ function getDeviceIcon(name) {
 let myName = getDeviceName();
 let myAvatar = null;
 let roomId = window.location.hash.slice(1);
-if (!roomId) {
+// Registered custom room overrides whatever is in the URL hash (prevents refresh bypass)
+const _storedCustomRoom = localStorage.getItem('webdrop-custom-room');
+if (_storedCustomRoom) {
+  roomId = _storedCustomRoom;
+  history.replaceState(null, '', `#${roomId}`);
+} else if (!roomId) {
   roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
   history.replaceState(null, '', `#${roomId}`);
 }
@@ -398,8 +403,10 @@ async function authApi(method, path, body) {
 }
 
 function applyCustomRoom(customRoomId) {
-  if (!customRoomId || customRoomId === roomId) return false;
+  if (customRoomId == null) { localStorage.removeItem('webdrop-custom-room'); return false; }
+  if (customRoomId === roomId) return false;
   roomId = customRoomId;
+  localStorage.setItem('webdrop-custom-room', customRoomId);
   history.replaceState(null, '', `#${roomId}`);
   roomCodeEl.textContent = roomId;
   setShareUrl(null);
@@ -492,6 +499,7 @@ function userLogout() {
   fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   userToken   = null;
   currentUser = null;
+  localStorage.removeItem('webdrop-custom-room');
   socket.auth.userToken = null;
   socket.disconnect();
   socket.connect();

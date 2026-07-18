@@ -283,10 +283,16 @@ function _buildThemeStore() {
       const gc = _ls.get('webdrop-glass-color') || t.p;
       const { sec, bg, cd } = _deriveGlassColors(gc);
       const pt = { ...t, bg: `rgb(${bg})`, card: `rgb(${cd})`, p: gc, s: `rgb(${sec})` };
-      card.innerHTML = `${_buildThemePreview(pt)}<div class="theme-name">${t.name}<small>${t.en}</small></div><div class="tg-color-row"><span>主題色</span><input type="color" class="tg-color-input" value="${gc}"></div>`;
-      const picker = card.querySelector('.tg-color-input');
-      picker?.addEventListener('click', e => e.stopPropagation());
-      picker?.addEventListener('input', e => {
+      // Card button has NO <input> inside it — iOS Safari misbehaves when <input> is inside <button>
+      card.innerHTML = `${_buildThemePreview(pt)}<div class="theme-name">${t.name}<small>${t.en}</small></div>`;
+      // Color picker lives OUTSIDE the button as a sibling inside a wrapper div
+      const wrap = document.createElement('div');
+      wrap.className = 'tg-card-wrap';
+      const colorRow = document.createElement('div');
+      colorRow.className = 'tg-color-row';
+      colorRow.innerHTML = `<span>主題色</span><input type="color" class="tg-color-input" value="${gc}">`;
+      const picker = colorRow.querySelector('.tg-color-input');
+      picker.addEventListener('input', e => {
         const hex = e.target.value;
         _ls.set('webdrop-glass-color', hex);
         _applyCustomGlassVars(hex);
@@ -298,6 +304,14 @@ function _buildThemeStore() {
         card.querySelector('.tp-header')?.style.setProperty('background', `rgb(${c2})`);
         card.querySelector('.tp-pill')?.style.setProperty('background', `linear-gradient(90deg,${hex},rgb(${s2}))`);
       });
+      wrap.appendChild(card);
+      wrap.appendChild(colorRow);
+      card.addEventListener('click', e => {
+        e.stopPropagation();
+        applyTheme(t.id);
+      });
+      grid.appendChild(wrap);
+      return;
     } else {
       card.innerHTML = `${_buildThemePreview(t)}<div class="theme-name">${t.name}<small>${t.en}</small>${badge}</div>`;
     }

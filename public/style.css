@@ -2054,17 +2054,10 @@ header {
   transition: opacity .22s;
   padding: 16px;
 }
-/* Blur on ::before with pointer-events:none avoids iOS Safari compositing bug
-   where backdrop-filter on the overlay itself eats touch events on child buttons */
-.modal::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
-}
+/* Plain background overlay — no backdrop-filter, no ::before compositing layer.
+   iOS Safari: positioned ::before sits above flex children in stacking order and
+   its backdrop-filter compositing layer intercepts touches even with pointer-events:none. */
+.modal { background: rgba(0,0,0,.72); }
 .modal.active { opacity:1; pointer-events:all; }
 
 .modal-box {
@@ -4250,6 +4243,13 @@ mark.search-hl { background: rgba(251,191,36,.35); color: inherit; border-radius
   pointer-events: none;
 }
 .theme-card.locked .theme-name { opacity: .6; }
+/* Wrapper for liquid-glass card: button + color picker as separate siblings */
+.tg-card-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tg-card-wrap .theme-card { flex: 1; }
 .tg-color-row {
   display: flex;
   align-items: center;

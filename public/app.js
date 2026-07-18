@@ -1147,6 +1147,8 @@ function setNoDevicesHint(mode) {
 
 document.getElementById('room-closed-new').addEventListener('click', () => {
   const newId = Math.random().toString(36).slice(2, 8).toUpperCase();
+  sessionStorage.setItem('webdrop-session-room', newId);
+  localStorage.removeItem('webdrop-custom-room');
   window.location.href = `${window.location.origin}/#${newId}`;
   window.location.reload();
 });
@@ -1370,19 +1372,12 @@ function rejoinRoom() {
 window.addEventListener('hashchange', () => {
   const newId = window.location.hash.slice(1).toUpperCase();
   if (!newId || newId === roomId) return;
-  // Logged-in users with a registered room are locked to it — revert the hash
+  // Always revert — changing rooms via URL bar is not supported in any user type.
+  // To join a different room, open a new tab with the target URL.
+  history.replaceState(null, '', `#${roomId}`);
   if (currentUser?.customRoomId) {
-    history.replaceState(null, '', `#${roomId}`);
     toast('你有已登記的房號，如需更換請使用右上角編輯按鈕', 'info', 3500);
-    return;
   }
-  // Otherwise honour the hash change and properly switch rooms
-  roomId = newId;
-  _roomPassword = null;
-  sessionStorage.setItem('webdrop-session-room', roomId);
-  roomCodeEl.textContent = roomId;
-  setShareUrl(null);
-  rejoinRoom();
 });
 
 let _hasConnectedOnce = false;

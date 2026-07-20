@@ -11,8 +11,10 @@
   <meta name="apple-mobile-web-app-title" content="WebDrop">
   <link rel="icon" href="/icon-192.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icon-192.svg">
-  <link rel="preload" href="app.js" as="script">
+  <link rel="preload" href="style.css" as="style">
   <link rel="preload" href="i18n.js" as="script">
+  <link rel="preload" href="/socket.io/socket.io.js" as="script">
+  <link rel="preload" href="app.js" as="script">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -1149,9 +1151,9 @@
   <button class="reaction-opt" data-emoji="🔥">🔥</button>
 </div>
 
-<script src="i18n.js"></script>
+<script src="i18n.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
-<script src="/socket.io/socket.io.js"></script>
+<script src="/socket.io/socket.io.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

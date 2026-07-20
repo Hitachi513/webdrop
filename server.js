@@ -234,6 +234,18 @@ async function saveSettings() { await dbSet('settings', settings); }
 async function saveUsers()    { await dbSet('users',    users);    }
 async function savePromos()   { await dbSet('promos',   promos);   }
 
+// Debounced variants — batch rapid successive writes into one Upstash call (400ms window)
+let _saveUsersTimer = null;
+function saveUsersDebounced() {
+  clearTimeout(_saveUsersTimer);
+  _saveUsersTimer = setTimeout(() => saveUsers().catch(e => console.error('saveUsers error:', e.message)), 400);
+}
+let _savePromosTimer = null;
+function savePromosDebounced() {
+  clearTimeout(_savePromosTimer);
+  _savePromosTimer = setTimeout(() => savePromos().catch(e => console.error('savePromos error:', e.message)), 400);
+}
+
 // ===== Stats =====
 const stats = {
   startTime:           Date.now(),
@@ -633,11 +645,11 @@ app.post('/api/auth/google', async (req, res) => {
     if (!user) {
       user = { id: crypto.randomUUID(), email: p.email, name: p.name || p.email.split('@')[0], googleId: p.sub, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
       users.push(user);
-      saveUsers().catch(e => console.error("saveUsers error:", e.message));
+      saveUsersDebounced();
       adminNsp.emit('users', getUserList());
     } else if (!user.googleId) {
       user.googleId = p.sub;
-      saveUsers().catch(e => console.error("saveUsers error:", e.message));
+      saveUsersDebounced();
     }
     if (user.banned) return res.status(403).json({ error: user.banReason || 'Account suspended' });
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
@@ -686,7 +698,7 @@ app.post('/api/auth/phone/verify', async (req, res) => {
   if (!user) {
     user = { id: crypto.randomUUID(), email: null, phone, name: `User${phone.slice(-4)}`, googleId: null, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
     users.push(user);
-    saveUsers().catch(e => console.error('saveUsers error:', e.message));
+    saveUsersDebounced();
     adminNsp.emit('users', getUserList());
   }
   if (user.banned) return res.status(403).json({ error: user.banReason || 'suspended' });
@@ -709,7 +721,7 @@ app.post('/api/auth/firebase-phone', async (req, res) => {
     if (!user) {
       user = { id: crypto.randomUUID(), email: null, phone, name: `User${phone.slice(-4)}`, googleId: null, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
       users.push(user);
-      saveUsers().catch(e => console.error('saveUsers error:', e.message));
+      saveUsersDebounced();
       adminNsp.emit('users', getUserList());
     }
     if (user.banned) return res.status(403).json({ error: user.banReason || 'Account suspended' });
@@ -744,7 +756,7 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: new Date().toISOString()
     };
     users.push(user);
-    saveUsers().catch(e => console.error("saveUsers error:", e.message));
+    saveUsersDebounced();
     adminNsp.emit('users', getUserList());
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
     setAuthCookie(res, token);
@@ -800,7 +812,7 @@ app.put('/api/auth/profile', requireUser, (req, res) => {
       if (/^data:image\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/=\s]+$/.test(av) && av.length <= 200000) user.avatar = av;
     }
   }
-  saveUsers().catch(e => console.error("saveUsers error:", e.message));
+  saveUsersDebounced();
   adminNsp.emit('users', getUserList());
   // Notify the user's active sockets to update their avatar/name reference
   io.sockets.sockets.forEach(s => {
@@ -831,8 +843,8 @@ app.post('/api/auth/redeem', requireUser, (req, res) => {
       : null;
   }
   promo.usedCount++;
-  saveUsers().catch(e => console.error("saveUsers error:", e.message));
-  savePromos().catch(e => console.error("savePromos error:", e.message));
+  saveUsersDebounced();
+  savePromosDebounced();
   adminNsp.emit('promos', promos);
   adminNsp.emit('users', getUserList());
   const effRole = getEffectiveRole(user);
@@ -904,7 +916,7 @@ app.put('/api/auth/room', requireUser, (req, res) => {
     if (!ROOM_ID_RE.test(id)) return res.status(400).json({ error: 'Room ID must be 3–20 uppercase letters/numbers' });
     if (users.some(u => u.id !== user.id && u.customRoomId === id)) return res.status(409).json({ error: 'Room ID already taken' });
     user.customRoomId = id;
-    saveUsers().catch(e => console.error("saveUsers error:", e.message));
+    saveUsersDebounced();
     adminNsp.emit('users', getUserList());
     res.json({ ok: true, customRoomId: id });
   } catch (e) { console.error('PUT /api/auth/room error:', e); res.status(500).json({ error: 'Internal server error' }); }
@@ -1002,7 +1014,7 @@ app.put('/admin/api/users/:id', requireAdmin, requirePermission('users'), (req, 
       }
     });
   }
-  saveUsers().catch(e => console.error("saveUsers error:", e.message));
+  saveUsersDebounced();
   adminNsp.emit('users', getUserList());
   res.json({ ok: true });
 });
@@ -1220,7 +1232,7 @@ app.post('/admin/api/promos', requireAdmin, requireSuperAdmin, (req, res) => {
     enabled: true, createdAt: new Date().toISOString()
   };
   promos.push(promo);
-  savePromos().catch(e => console.error("savePromos error:", e.message));
+  savePromosDebounced();
   adminNsp.emit('promos', promos);
   res.status(201).json(promo);
 });
@@ -1245,7 +1257,7 @@ app.put('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) => 
     promo.grantRole = validRoles.includes(grantRole) ? grantRole : null;
     promo.roleDurationDays = promo.grantRole && parseInt(roleDurationDays) > 0 ? parseInt(roleDurationDays) : null;
   }
-  savePromos().catch(e => console.error("savePromos error:", e.message));
+  savePromosDebounced();
   adminNsp.emit('promos', promos);
   res.json(promo);
 });
@@ -1254,7 +1266,7 @@ app.delete('/admin/api/promos/:id', requireAdmin, requireSuperAdmin, (req, res) 
   const idx = promos.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Promo not found' });
   promos.splice(idx, 1);
-  savePromos().catch(e => console.error("savePromos error:", e.message));
+  savePromosDebounced();
   adminNsp.emit('promos', promos);
   res.json({ ok: true });
 });
@@ -1581,7 +1593,7 @@ io.on('connection', (socket) => {
     if (connUser) {
       connUser.lastSeenAt = new Date().toISOString();
       connUser.lastIp     = clientIp || null;
-      saveUsers().catch(e => console.error('saveUsers error:', e.message));
+      saveUsersDebounced();
     }
   }
 
@@ -1906,7 +1918,7 @@ io.on('connection', (socket) => {
     const user = users.find(u => u.id === targetSocket.userId);
     if (!user) return;
     user.role = newRole || null;
-    saveUsers().catch(() => {});
+    saveUsersDebounced();
     const effRole = getEffectiveRole(user);
     targetSocket.userRole = effRole;
     const roomId = socket.currentRoom;
@@ -2142,8 +2154,18 @@ async function init() {
     }
   }
 
+  // Fetch all persistent data in parallel — cuts Upstash round trips from 12 serial → 1 batch
+  const [
+    storedSecret, storedAdmins, storedSettings,
+    rawUsers, rawPromos, rawFeedback, rawBroadcastHistory,
+    rawRoomHistory, rawGlobalIpBans, rawWebhooks, rawAdminLog, rawChangelog
+  ] = await Promise.all([
+    dbGet('jwt_secret'), dbGet('admins'), dbGet('settings'),
+    dbGet('users'), dbGet('promos'), dbGet('feedback'), dbGet('broadcast-history'),
+    dbGet('room-history'), dbGet('global-ip-bans'), dbGet('webhooks'), dbGet('admin-log'), dbGet('changelog')
+  ]);
+
   // JWT Secret
-  const storedSecret = await dbGet('jwt_secret');
   if (storedSecret) {
     JWT_SECRET = storedSecret;
     console.log('[Init] JWT secret loaded from storage.');
@@ -2154,7 +2176,6 @@ async function init() {
   }
 
   // Admins
-  const storedAdmins = await dbGet('admins');
   if (Array.isArray(storedAdmins) && storedAdmins.length) {
     admins = storedAdmins;
     console.log(`[Init] Loaded ${admins.length} admin(s) from storage.`);
@@ -2172,46 +2193,36 @@ async function init() {
   }
 
   // Settings
-  const storedSettings = await dbGet('settings');
   settings = { ...defaultSettings, ...(Array.isArray(storedSettings) || typeof storedSettings !== 'object' ? {} : (storedSettings || {})) };
   settings.maintenanceMode = false;
   console.log('[Init] Settings loaded.');
 
   // Users & Promos
-  const rawUsers = await dbGet('users');
   users = Array.isArray(rawUsers) ? rawUsers : [];
   if (rawUsers != null && !Array.isArray(rawUsers)) console.error('[Init] users data was invalid, type:', typeof rawUsers);
   console.log(`[Init] Loaded ${users.length} user(s) from storage.`);
 
-  const rawPromos = await dbGet('promos');
   promos = Array.isArray(rawPromos) ? rawPromos : [];
   console.log(`[Init] Loaded ${promos.length} promo(s) from storage.`);
 
-  const rawFeedback = await dbGet('feedback');
   feedback = Array.isArray(rawFeedback) ? rawFeedback : [];
   console.log(`[Init] Loaded ${feedback.length} feedback(s) from storage.`);
 
-  const rawBroadcastHistory = await dbGet('broadcast-history');
   broadcastHistory = Array.isArray(rawBroadcastHistory) ? rawBroadcastHistory : [];
   console.log(`[Init] Loaded ${broadcastHistory.length} broadcast history entries from storage.`);
 
-  const rawRoomHistory = await dbGet('room-history');
   roomHistory = Array.isArray(rawRoomHistory) ? rawRoomHistory : [];
   console.log(`[Init] Loaded ${roomHistory.length} room history entries from storage.`);
 
-  const rawGlobalIpBans = await dbGet('global-ip-bans');
   globalIpBans = Array.isArray(rawGlobalIpBans) ? rawGlobalIpBans : [];
   console.log(`[Init] Loaded ${globalIpBans.length} global IP ban(s).`);
 
-  const rawWebhooks = await dbGet('webhooks');
   webhooks = Array.isArray(rawWebhooks) ? rawWebhooks : [];
   console.log(`[Init] Loaded ${webhooks.length} webhook(s).`);
 
-  const rawAdminLog = await dbGet('admin-log');
   adminLog = Array.isArray(rawAdminLog) ? rawAdminLog : [];
   console.log(`[Init] Loaded ${rawAdminLog ? rawAdminLog.length : 0} admin log entries.`);
 
-  const rawChangelog = await dbGet('changelog');
   changelog = Array.isArray(rawChangelog) ? rawChangelog : [];
   // Record this restart
   let gitSha = '';

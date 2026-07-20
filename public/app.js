@@ -264,10 +264,14 @@ function _buildThemePreview(t) {
 
 const ROLE_BADGE_LABEL = { vip: 'VIP', business: 'Business', admin: 'Admin', 'super-admin': 'Super Admin' };
 
+let _themeStoreBuilt = false;
+function _invalidateThemeStore() { _themeStoreBuilt = false; }
 function _buildThemeStore() {
   const grid = document.getElementById('theme-store-grid');
   if (!grid) return;
+  if (_themeStoreBuilt) { _refreshThemeCards(); return; }
   grid.innerHTML = '';
+  _themeStoreBuilt = true;
   const cur = html.getAttribute('data-theme') || 'dark';
   THEMES.forEach(t => {
     const unlocked = _themeUnlocked(t);
@@ -451,6 +455,7 @@ function setEditRoomBtnVisible(visible) {
 function onLoginSuccess(data, isNew = false) {
   userToken   = data.token;
   currentUser = data.user;
+  _invalidateThemeStore();
   applyCustomRoom(data.user.customRoomId);
   setEditRoomBtnVisible(!!data.user.canCustomRoom);
   // Update socket auth & reconnect to apply new per-user file limit
@@ -527,6 +532,7 @@ function showGuestMode() {
 
 function userLogout() {
   fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+  _invalidateThemeStore();
   userToken   = null;
   currentUser = null;
   _ls.del('webdrop-custom-room');

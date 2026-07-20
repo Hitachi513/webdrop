@@ -357,8 +357,11 @@ function getSystemHealth() {
   };
 }
 
+let _roomListCache = null, _roomListTs = 0;
+function _invalidateRoomCache() { _roomListCache = null; }
 function getRoomList() {
-  return Array.from(rooms.entries()).map(([roomId, peers]) => ({
+  if (_roomListCache && Date.now() - _roomListTs < 500) return _roomListCache;
+  _roomListCache = Array.from(rooms.entries()).map(([roomId, peers]) => ({
     roomId,
     peerCount: peers.size,
     peers: Array.from(peers.entries()).map(([socketId, p]) => ({ socketId, name: p.name, role: p.role || null })),
@@ -368,6 +371,8 @@ function getRoomList() {
     banCount: roomBans.get(roomId)?.size || 0,
     settings: roomSettings.get(roomId) || null,
   }));
+  _roomListTs = Date.now();
+  return _roomListCache;
 }
 
 // IP Geolocation (ip-api.com, free tier, HTTP only)
@@ -441,8 +446,11 @@ function containsProfanity(text) {
   return BLOCKED_WORDS.some(w => lower.includes(w.toLowerCase().replace(/\s+/g, '')));
 }
 
+let _userListCache = null, _userListTs = 0;
+function _invalidateUserCache() { _userListCache = null; }
 function getUserList() {
-  return users.map(u => ({
+  if (_userListCache && Date.now() - _userListTs < 1000) return _userListCache;
+  _userListCache = users.map(u => ({
     id: u.id,
     email: u.email,
     name: u.name,
@@ -464,6 +472,8 @@ function getUserList() {
     lastSeenAt: u.lastSeenAt || null,
     lastIp: u.lastIp || null
   }));
+  _userListTs = Date.now();
+  return _userListCache;
 }
 
 // ===== Auth Middleware =====
@@ -536,7 +546,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(compression({ level: 4, threshold: 1024 }));
+app.use(compression({ level: 6, threshold: 1024 }));
 
 const staticOpts = {
   maxAge: '7d',
@@ -1432,6 +1442,7 @@ app.use((err, req, res, next) => {
 });
 
 // ===== Admin Socket Namespace =====
+let _adminTickData = null, _adminTickTs = 0;
 const adminNsp = io.of('/admin');
 adminNsp.use((socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -1458,12 +1469,18 @@ adminNsp.on('connection', (socket) => {
 
   const tick = setInterval(() => {
     try {
-      socket.emit('stats',         getStats());
-      socket.emit('rooms',         getRoomList());
-      socket.emit('system-health', getSystemHealth());
-      const locs = [];
-      io.sockets.sockets.forEach(s => { if (s.geo) locs.push(s.geo); });
-      socket.emit('conn-locations', locs);
+      const now = Date.now();
+      // Shared across all admin sockets — recompute at most once per tick window
+      if (!_adminTickData || now - _adminTickTs > 1800) {
+        const locs = [];
+        io.sockets.sockets.forEach(s => { if (s.geo) locs.push(s.geo); });
+        _adminTickData = { stats: getStats(), rooms: getRoomList(), health: getSystemHealth(), locs };
+        _adminTickTs = now;
+      }
+      socket.emit('stats',          _adminTickData.stats);
+      socket.emit('rooms',          _adminTickData.rooms);
+      socket.emit('system-health',  _adminTickData.health);
+      socket.emit('conn-locations', _adminTickData.locs);
     } catch (e) { console.error('Admin tick error:', e.message); }
   }, 2000);
 

@@ -107,6 +107,7 @@ class ViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        print("★★★ WebDrop App v3 loaded ★★★")
         view.backgroundColor = UIColor(red: 0.016, green: 0.016, blue: 0.055, alpha: 1)
         setupWebView()
         setupSplash()

@@ -1,3 +1,8 @@
 node_modules
 data
 .env
+
+# Xcode
+ios/WebDrop.xcodeproj/xcuserdata/
+ios/WebDrop.xcodeproj/project.xcworkspace/xcuserdata/
+ios/DerivedData/

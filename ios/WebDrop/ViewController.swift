@@ -143,13 +143,26 @@ class ViewController: UIViewController {
     }
 
     private func injectAppMode() {
+        // Quick sanity test first — should turn header border red if JS runs
+        webView.evaluateJavaScript("document.head ? 'ok' : 'no-head'") { res, err in
+            print("★ JS sanity:", res ?? "nil", "err:", err?.localizedDescription ?? "none")
+        }
+
         let cssScript = Self.buildCSSScript()
         let domScript = Self.buildDOMScript()
         webView.evaluateJavaScript(cssScript) { _, err in
-            if let err = err { print("[WebDrop] CSS error:", err) }
+            if let err = err {
+                print("[WebDrop] CSS error:", err.localizedDescription)
+            } else {
+                print("[WebDrop] CSS injected OK")
+            }
         }
         webView.evaluateJavaScript(domScript) { _, err in
-            if let err = err { print("[WebDrop] DOM error:", err) }
+            if let err = err {
+                print("[WebDrop] DOM error:", err.localizedDescription)
+            } else {
+                print("[WebDrop] DOM tweaks OK")
+            }
         }
     }
 
@@ -231,6 +244,7 @@ class ViewController: UIViewController {
 
 extension ViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        print("★ didFinish - url:", webView.url?.absoluteString ?? "nil")
         refreshControl.endRefreshing()
         injectAppMode()
         hideSplash()

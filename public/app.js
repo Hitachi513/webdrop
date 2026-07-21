@@ -3483,10 +3483,10 @@ if (location.search.includes('share=1')) {
     else if (deferredPrompt)               panel = modalAndroid;
     else                                   panel = modalOther;
     if (panel) panel.style.display = 'block';
-    modal.style.display = 'flex';
+    modal.classList.add('active');
   }
   function closeModal() {
-    modal.style.display = 'none';
+    modal.classList.remove('active');
     allModalPanels.forEach(el => { if (el) el.style.display = 'none'; });
   }
 

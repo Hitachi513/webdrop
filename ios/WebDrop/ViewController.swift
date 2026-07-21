@@ -5,146 +5,185 @@ class ViewController: UIViewController {
 
     private var webView: WKWebView!
     private var splashView: UIView!
+    private var nativeHeader: UIView!
+    private var headerGradient: CAGradientLayer!
     private var refreshControl: UIRefreshControl!
 
-    // CSS injected after every page load.
-    // Uses explicit \n concatenation — no JS template literals, no escaping surprises.
-    private static func buildCSSScript() -> String {
-        let rules: [String] = [
-            // ── Fix safe areas ───────────────────────────────────────────────
-            "#app { padding-top: 0 !important; }",
-            "header { padding-top: env(safe-area-inset-top) !important; height: auto !important; min-height: calc(52px + env(safe-area-inset-top)) !important; }",
-            ".tab-bar { padding-bottom: env(safe-area-inset-bottom) !important; height: auto !important; min-height: calc(56px + env(safe-area-inset-bottom)) !important; }",
-            "#main { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }",
-            ".user-dropdown { top: calc(env(safe-area-inset-top) + 52px + 8px) !important; }",
-            ".speedtest-card { top: calc(env(safe-area-inset-top) + 52px + 8px) !important; }",
+    private let headerHeight: CGFloat = 52
 
-            // ── Header: deep glass ──────────────────────────────────────────
-            "header { background: rgba(4,4,14,0.97) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; backdrop-filter: blur(40px) saturate(180%) !important; border-bottom: 1px solid rgba(0,212,255,0.2) !important; box-shadow: 0 2px 32px rgba(0,0,0,0.9) !important; }",
-
-            // ── Tab bar: deep glass ─────────────────────────────────────────
-            ".tab-bar { background: rgba(4,4,14,0.97) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; backdrop-filter: blur(40px) saturate(180%) !important; border-top: 1px solid rgba(0,212,255,0.2) !important; box-shadow: 0 -4px 32px rgba(0,0,0,0.8) !important; }",
-            ".tab-btn { padding: 8px 0 6px !important; min-height: 56px !important; font-size: .72rem !important; font-weight: 600 !important; }",
-            ".tab-btn svg { width: 24px !important; height: 24px !important; }",
-            ".tab-btn.active { color: #00d4ff !important; }",
-            ".tab-btn.active svg { filter: drop-shadow(0 0 8px rgba(0,212,255,0.7)) !important; }",
-
-            // ── Radar: bigger ───────────────────────────────────────────────
-            "#radar { width: min(78vw, 288px) !important; height: min(78vw, 288px) !important; }",
-            "#radar-section { background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,212,255,0.07) 0%, rgba(123,47,247,0.04) 45%, transparent 70%) !important; padding-top: 16px !important; }",
-
-            // ── Drop zone: card style ───────────────────────────────────────
-            "#drop-zone { border-radius: 28px !important; border: 1.5px solid rgba(0,212,255,0.25) !important; background: linear-gradient(145deg, rgba(0,212,255,0.08) 0%, rgba(123,47,247,0.08) 100%) !important; padding: 28px 20px !important; margin: 0 10px !important; box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07) !important; }",
-            ".drop-icon-wrap svg { width: 56px !important; height: 56px !important; filter: drop-shadow(0 0 18px rgba(0,212,255,0.6)) !important; }",
-            "#drop-label { font-size: 1.05rem !important; font-weight: 700 !important; margin: 12px 0 18px !important; color: #00d4ff !important; }",
-            "label[for=folder-input] { display: none !important; }",
-            ".drop-opt-btn { border-radius: 18px !important; padding: 13px 26px !important; font-size: .98rem !important; font-weight: 700 !important; min-height: 50px !important; background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(123,47,247,0.18)) !important; border: 1px solid rgba(0,212,255,0.35) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important; }",
-
-            // ── Touch targets ───────────────────────────────────────────────
-            ".btn-icon { min-width: 44px !important; min-height: 44px !important; }",
-
-            // ── Chat input ──────────────────────────────────────────────────
-            "#input-bar { padding-bottom: max(10px, env(safe-area-inset-bottom)) !important; }",
-
-            // ── Bottom-sheet modals ─────────────────────────────────────────
-            ".modal { align-items: flex-end !important; }",
-            ".modal-box { border-radius: 28px 28px 0 0 !important; max-width: 100% !important; width: 100% !important; max-height: 88vh !important; overflow-y: auto !important; padding-top: 32px !important; padding-bottom: calc(28px + env(safe-area-inset-bottom)) !important; }",
-
-            // ── Hide web-only UI ────────────────────────────────────────────
-            "#install-hint-btn, #install-banner, .feedback-fab { display: none !important; }",
-
-            // ── No accidental text selection ────────────────────────────────
-            "body { -webkit-user-select: none !important; }",
-            "input, textarea, [contenteditable] { -webkit-user-select: text !important; }",
-        ]
-
-        // Build JS that concatenates each rule into a style element.
-        // Escape double-quotes inside each rule so the JS string stays valid.
-        let jsLines = rules.map { rule -> String in
-            let escaped = rule
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-            return "    lines.push(\"\(escaped)\");"
-        }.joined(separator: "\n")
-
-        return """
-        (function(){
-          try {
-            var old = document.getElementById('wd-app-css');
-            if (old) old.remove();
-            var lines = [];
-        \(jsLines)
-            var s = document.createElement('style');
-            s.id = 'wd-app-css';
-            s.textContent = lines.join('\\n');
-            document.head.appendChild(s);
-            console.log('[WebDrop] app-mode CSS injected (' + lines.length + ' rules)');
-          } catch(e) {
-            console.error('[WebDrop] CSS injection failed:', e);
-          }
-        })();
-        """
-    }
-
-    private static func buildDOMScript() -> String {
-        return """
-        (function(){
-          try {
-            document.documentElement.classList.add('wd-native-app');
-            var lbl = document.getElementById('drop-label');
-            if (lbl && !lbl.dataset.appFixed) {
-              lbl.textContent = '點擊傳送檔案或照片';
-              lbl.dataset.appFixed = '1';
-            }
-            document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, {passive:false});
-            console.log('[WebDrop] DOM tweaks applied');
-          } catch(e) {
-            console.error('[WebDrop] DOM tweak failed:', e);
-          }
-        })();
-        """
-    }
+    // ── Layout ────────────────────────────────────────────────────────────
+    // Structure:
+    //   [Native header] ← pure Swift, always visible, extends behind status bar
+    //   [WKWebView    ] ← website content, starts below header
+    //
+    // CSS is injected only to hide the website's own header and fix the
+    // bottom padding. No other CSS is required for the app-like look.
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        print("★★★ WebDrop App v3 loaded ★★★")
+        print("★★★ WebDrop Native v4 ★★★")
         view.backgroundColor = UIColor(red: 0.016, green: 0.016, blue: 0.055, alpha: 1)
         setupWebView()
+        setupNativeHeader()
         setupSplash()
         loadSite()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        headerGradient.frame = nativeHeader.bounds
+    }
+
+    // ── Native header ─────────────────────────────────────────────────────
+    private func setupNativeHeader() {
+        let safeTop = view.safeAreaInsets.top
+
+        nativeHeader = UIView()
+        nativeHeader.translatesAutoresizingMaskIntoConstraints = false
+
+        // Gradient background: deep navy → subtle cyan tint
+        headerGradient = CAGradientLayer()
+        headerGradient.colors = [
+            UIColor(red: 0.02, green: 0.02, blue: 0.09, alpha: 0.98).cgColor,
+            UIColor(red: 0.02, green: 0.05, blue: 0.12, alpha: 0.98).cgColor,
+        ]
+        headerGradient.startPoint = CGPoint(x: 0, y: 0)
+        headerGradient.endPoint   = CGPoint(x: 1, y: 1)
+        nativeHeader.layer.addSublayer(headerGradient)
+
+        // Bottom border line (cyan)
+        let border = UIView()
+        border.backgroundColor     = UIColor(red: 0, green: 0.83, blue: 1, alpha: 0.25)
+        border.translatesAutoresizingMaskIntoConstraints = false
+        nativeHeader.addSubview(border)
+
+        // Logo icon
+        let iconBox = UIView()
+        iconBox.layer.cornerRadius = 10
+        iconBox.layer.borderWidth  = 1.5
+        iconBox.layer.borderColor  = UIColor(red: 0, green: 0.83, blue: 1, alpha: 0.6).cgColor
+        iconBox.translatesAutoresizingMaskIntoConstraints = false
+
+        let arrowLabel = UILabel()
+        arrowLabel.text          = "↑"
+        arrowLabel.font          = .systemFont(ofSize: 16, weight: .bold)
+        arrowLabel.textColor     = UIColor(red: 0, green: 0.83, blue: 1, alpha: 1)
+        arrowLabel.textAlignment = .center
+        arrowLabel.translatesAutoresizingMaskIntoConstraints = false
+        iconBox.addSubview(arrowLabel)
+
+        // Title
+        let titleLabel = UILabel()
+        titleLabel.text      = "WebDrop"
+        titleLabel.font      = .systemFont(ofSize: 18, weight: .bold)
+        titleLabel.textColor = .white
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // Status dot
+        let dotView = UIView()
+        dotView.layer.cornerRadius = 4
+        dotView.backgroundColor    = UIColor(red: 0, green: 0.83, blue: 1, alpha: 0.8)
+        dotView.translatesAutoresizingMaskIntoConstraints = false
+        addPulseAnimation(to: dotView)
+
+        nativeHeader.addSubview(iconBox)
+        nativeHeader.addSubview(titleLabel)
+        nativeHeader.addSubview(dotView)
+        view.addSubview(nativeHeader)
+
+        // Constraints
+        NSLayoutConstraint.activate([
+            nativeHeader.topAnchor.constraint(equalTo: view.topAnchor),
+            nativeHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            nativeHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            nativeHeader.heightAnchor.constraint(equalToConstant: headerHeight + safeTop),
+
+            border.leadingAnchor.constraint(equalTo: nativeHeader.leadingAnchor),
+            border.trailingAnchor.constraint(equalTo: nativeHeader.trailingAnchor),
+            border.bottomAnchor.constraint(equalTo: nativeHeader.bottomAnchor),
+            border.heightAnchor.constraint(equalToConstant: 0.5),
+
+            iconBox.widthAnchor.constraint(equalToConstant: 32),
+            iconBox.heightAnchor.constraint(equalToConstant: 32),
+            iconBox.leadingAnchor.constraint(equalTo: nativeHeader.leadingAnchor, constant: 16),
+            iconBox.bottomAnchor.constraint(equalTo: nativeHeader.bottomAnchor, constant: -10),
+
+            arrowLabel.centerXAnchor.constraint(equalTo: iconBox.centerXAnchor),
+            arrowLabel.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
+
+            titleLabel.leadingAnchor.constraint(equalTo: iconBox.trailingAnchor, constant: 8),
+            titleLabel.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
+
+            dotView.widthAnchor.constraint(equalToConstant: 8),
+            dotView.heightAnchor.constraint(equalToConstant: 8),
+            dotView.trailingAnchor.constraint(equalTo: nativeHeader.trailingAnchor, constant: -16),
+            dotView.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
+        ])
+
+        // Keep webView below the header
+        updateWebViewTop()
+    }
+
+    private func updateWebViewTop() {
+        let safeTop = view.safeAreaInsets.top
+        let offset  = headerHeight + safeTop
+        webView.frame = CGRect(x: 0, y: offset,
+                               width: view.bounds.width,
+                               height: view.bounds.height - offset)
+    }
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        updateWebViewTop()
+    }
+
+    private func addPulseAnimation(to v: UIView) {
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue   = 0.9
+        pulse.toValue     = 0.3
+        pulse.duration    = 1.4
+        pulse.repeatCount = .infinity
+        pulse.autoreverses = true
+        v.layer.add(pulse, forKey: "pulse")
+    }
+
+    // ── WebView ───────────────────────────────────────────────────────────
     private func setupWebView() {
         let cfg = WKWebViewConfiguration()
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
 
-        // Register app-mode styles as UserScripts — injected by WebKit itself,
-        // not dependent on navigation delegate firing.
-        let cssScript = Self.buildCSSScript()
-        cfg.userContentController.addUserScript(
-            WKUserScript(source: cssScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        // Inject minimal CSS: just hide the website's own header and fix
+        // the bottom tab bar padding. Everything else is native.
+        let hideHeaderScript = WKUserScript(
+            source: """
+            (function(){
+              var s = document.createElement('style');
+              s.textContent =
+                'header { display:none!important; }' +
+                '#app { padding-top:0!important; }' +
+                '.tab-bar { padding-bottom:env(safe-area-inset-bottom)!important; }' +
+                '#main { padding-bottom:calc(64px + env(safe-area-inset-bottom))!important; }' +
+                '#install-hint-btn,#install-banner,.feedback-fab{display:none!important;}' +
+                'label[for=folder-input]{display:none!important;}';
+              document.head.appendChild(s);
+            })();
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
         )
-        cfg.userContentController.addUserScript(
-            WKUserScript(source: Self.buildDOMScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        )
+        cfg.userContentController.addUserScript(hideHeaderScript)
 
+        // Use frame-based layout so we can position below native header
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = false
-        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.scrollView.contentInsetAdjustmentBehavior = .automatic
         webView.scrollView.minimumZoomScale = 1.0
         webView.scrollView.maximumZoomScale = 1.0
-        webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(webView)
-
-        NSLayoutConstraint.activate([
-            webView.topAnchor.constraint(equalTo: view.topAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-        ])
 
         refreshControl = UIRefreshControl()
         refreshControl.tintColor = UIColor(white: 1, alpha: 0.4)
@@ -152,40 +191,17 @@ class ViewController: UIViewController {
         webView.scrollView.addSubview(refreshControl)
     }
 
-    private func injectAppMode() {
-        // Quick sanity test first — should turn header border red if JS runs
-        webView.evaluateJavaScript("document.head ? 'ok' : 'no-head'") { res, err in
-            print("★ JS sanity:", res ?? "nil", "err:", err?.localizedDescription ?? "none")
-        }
-
-        let cssScript = Self.buildCSSScript()
-        let domScript = Self.buildDOMScript()
-        webView.evaluateJavaScript(cssScript) { _, err in
-            if let err = err {
-                print("[WebDrop] CSS error:", err.localizedDescription)
-            } else {
-                print("[WebDrop] CSS injected OK")
-            }
-        }
-        webView.evaluateJavaScript(domScript) { _, err in
-            if let err = err {
-                print("[WebDrop] DOM error:", err.localizedDescription)
-            } else {
-                print("[WebDrop] DOM tweaks OK")
-            }
-        }
-    }
-
+    // ── Splash ────────────────────────────────────────────────────────────
     private func setupSplash() {
         splashView = UIView()
         splashView.backgroundColor = UIColor(red: 0.016, green: 0.016, blue: 0.055, alpha: 1)
         splashView.translatesAutoresizingMaskIntoConstraints = false
 
         let iconBox = UIView()
-        iconBox.translatesAutoresizingMaskIntoConstraints = false
         iconBox.layer.cornerRadius = 18
         iconBox.layer.borderWidth  = 1.5
         iconBox.layer.borderColor  = UIColor(red: 0, green: 0.83, blue: 1, alpha: 0.55).cgColor
+        iconBox.translatesAutoresizingMaskIntoConstraints = false
 
         let arrow = UILabel()
         arrow.text          = "↑"
@@ -220,15 +236,12 @@ class ViewController: UIViewController {
             splashView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             splashView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             splashView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-
             iconBox.widthAnchor.constraint(equalToConstant: 48),
             iconBox.heightAnchor.constraint(equalToConstant: 48),
             arrow.centerXAnchor.constraint(equalTo: iconBox.centerXAnchor),
             arrow.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
-
             row.centerXAnchor.constraint(equalTo: splashView.centerXAnchor),
             row.centerYAnchor.constraint(equalTo: splashView.centerYAnchor, constant: -20),
-
             spinner.centerXAnchor.constraint(equalTo: splashView.centerXAnchor),
             spinner.topAnchor.constraint(equalTo: row.bottomAnchor, constant: 28),
         ])
@@ -254,9 +267,8 @@ class ViewController: UIViewController {
 
 extension ViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("★ didFinish - url:", webView.url?.absoluteString ?? "nil")
+        print("★ didFinish")
         refreshControl.endRefreshing()
-        injectAppMode()
         hideSplash()
     }
 

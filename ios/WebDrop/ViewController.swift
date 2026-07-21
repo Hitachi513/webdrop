@@ -119,6 +119,16 @@ class ViewController: UIViewController {
         cfg.allowsInlineMediaPlayback = true
         cfg.mediaTypesRequiringUserActionForPlayback = []
 
+        // Register app-mode styles as UserScripts — injected by WebKit itself,
+        // not dependent on navigation delegate firing.
+        let cssScript = Self.buildCSSScript()
+        cfg.userContentController.addUserScript(
+            WKUserScript(source: cssScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
+        cfg.userContentController.addUserScript(
+            WKUserScript(source: Self.buildDOMScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
+
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
         webView.uiDelegate = self

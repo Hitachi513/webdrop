@@ -300,7 +300,11 @@
     <section id="section-admins" class="section">
       <div class="section-header">
         <h2>Admin Accounts</h2>
-        <button class="btn-primary" id="open-add-admin">+ Add Admin</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-sm btn-outline" onclick="openBulkPermModal('admin')">批量設定 Admin 權限</button>
+          <button class="btn-sm btn-outline" onclick="openBulkPermModal('staff')">批量設定 Staff 權限</button>
+          <button class="btn-primary" id="open-add-admin">+ Add Admin</button>
+        </div>
       </div>
       <div class="table-card">
         <table>

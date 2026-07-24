@@ -1140,6 +1140,32 @@ app.delete('/admin/api/admins/:id', requireAdmin, (req, res) => {
 });
 
 // Update permissions — super-admin only
+app.put('/admin/api/admins/bulk-permissions', requireAdmin, requireSuperAdmin, (req, res) => {
+  const { role, permissions: permsBody } = req.body || {};
+  if (!['admin', 'staff'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  const allowed = [
+    'rooms','users','promos','feedback','history','ipBans','webhooks','adminLog','health','settings',
+    'broadcast',
+    'roomsKick','roomsBan','roomsClose','roomsBanList',
+    'usersBan','usersRole','usersLimit','usersRoom','usersExport',
+    'promosCreate','promosEdit','promosDelete',
+    'feedbackMark','feedbackDelete',
+    'historyClear',
+    'ipBansAdd','ipBansRemove',
+    'webhooksAdd','webhooksToggle','webhooksDelete',
+    'adminLogClear',
+    'settingsSave',
+  ];
+  const perms = {};
+  allowed.forEach(key => { if (permsBody?.[key] === true) perms[key] = true; });
+  const targets = admins.filter(a => a.role === role);
+  targets.forEach(a => { a.permissions = { ...perms }; });
+  saveAdmins().catch(e => console.error('saveAdmins error:', e.message));
+  adminNsp.emit('admins', admins.map(({ passwordHash, ...a }) => a));
+  logAdminAction(req.adminUser.email, '批量更新後台權限', `role=${role} (${targets.length}人): ${Object.keys(perms).join(', ') || '無'}`);
+  res.json({ ok: true, count: targets.length });
+});
+
 app.put('/admin/api/admins/:id/permissions', requireAdmin, requireSuperAdmin, (req, res) => {
   const { id } = req.params;
   const target = admins.find(a => a.id === id);

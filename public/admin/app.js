@@ -683,6 +683,30 @@ async function removeAdmin(id, email) {
 
 // Permissions Modal
 let _permTargetId = null;
+let _permBulkRole = null;
+
+function openBulkPermModal(role) {
+  _permTargetId = null;
+  _permBulkRole = role;
+  const titleRole = role === 'admin' ? 'Admin' : 'Staff';
+  document.getElementById('staff-perm-email').textContent = `批量設定所有 ${titleRole} 帳號權限`;
+  const listEl = document.getElementById('staff-perm-list');
+  listEl.innerHTML = PERM_GROUPS.map(g => `
+    <div class="perm-group">
+      <div class="perm-group-label">${g.icon} ${g.label}</div>
+      <div class="perm-chips">
+        ${g.perms.map(p => `
+          <label class="perm-chip">
+            <input type="checkbox" name="${p.key}" class="perm-cb"
+              onchange="this.closest('.perm-chip').classList.toggle('perm-chip-on',this.checked)">
+            ${p.label}
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('staff-perm-modal').style.display = 'flex';
+}
 
 function openPermModal(id, email, role) {
   _permTargetId = id;
@@ -711,6 +735,7 @@ function openPermModal(id, email, role) {
 function closePermModal() {
   document.getElementById('staff-perm-modal').style.display = 'none';
   _permTargetId = null;
+  _permBulkRole = null;
 }
 
 function setAllPerms(checked) {
@@ -718,14 +743,19 @@ function setAllPerms(checked) {
 }
 
 async function saveStaffPerms() {
-  if (!_permTargetId) return;
   const permissions = {};
   document.querySelectorAll('#staff-perm-list input[type=checkbox]').forEach(cb => {
     if (cb.checked) permissions[cb.name] = true;
   });
   try {
-    await api('PUT', `/admin/api/admins/${_permTargetId}/permissions`, permissions);
-    toast('權限已更新', 'success');
+    if (_permBulkRole) {
+      const res = await api('PUT', '/admin/api/admins/bulk-permissions', { role: _permBulkRole, permissions });
+      toast(`已更新 ${res.count} 個 ${_permBulkRole === 'admin' ? 'Admin' : 'Staff'} 帳號權限`, 'success');
+    } else {
+      if (!_permTargetId) return;
+      await api('PUT', `/admin/api/admins/${_permTargetId}/permissions`, permissions);
+      toast('權限已更新', 'success');
+    }
     closePermModal();
   } catch (e) { toast(e.message, 'error'); }
 }

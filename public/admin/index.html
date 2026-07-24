@@ -279,7 +279,7 @@
       <div class="section-header">
         <h2>Registered Users</h2>
         <div style="display:flex;align-items:center;gap:8px">
-          <button class="btn-ghost" onclick="exportUsersCSV()" style="padding:5px 14px;font-size:.8rem">CSV 匯出</button>
+          <button class="btn-ghost" onclick="exportUsersCSV()" data-perm="usersExport" style="padding:5px 14px;font-size:.8rem">CSV 匯出</button>
           <span class="badge-pill" id="user-count-pill">0 users</span>
         </div>
       </div>
@@ -330,11 +330,11 @@
     <section id="section-promos" class="section">
       <div class="section-header">
         <h2>Promo Codes</h2>
-        <button class="btn-primary" id="open-add-promo" data-perm="promosWrite">+ New Code</button>
+        <button class="btn-primary" id="open-add-promo" data-perm="promosCreate">+ New Code</button>
       </div>
 
       <!-- Add Promo Form -->
-      <div id="add-promo-form" class="form-card" data-perm="promosWrite" style="display:none">
+      <div id="add-promo-form" class="form-card" data-perm="promosCreate" style="display:none">
         <h3>Create Promo Code</h3>
         <div class="field-row">
           <div class="field">
@@ -421,7 +421,7 @@
             <option value="compliment">❤️ 讚美</option>
             <option value="other">💬 其他</option>
           </select>
-          <button class="btn-ghost" id="clear-all-feedback" data-perm="feedbackWrite" style="padding:5px 14px;font-size:.8rem">Clear All</button>
+          <button class="btn-ghost" id="clear-all-feedback" data-perm="feedbackDelete" style="padding:5px 14px;font-size:.8rem">Clear All</button>
         </div>
       </div>
 
@@ -467,7 +467,7 @@
       <div id="history-tab-broadcast">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <span id="bh-count" style="font-size:.82rem;color:var(--muted)">0 筆記錄</span>
-          <button class="btn-ghost" id="clear-broadcast-history-btn" data-perm="historyWrite" style="padding:5px 12px;font-size:.8rem">清除全部</button>
+          <button class="btn-ghost" id="clear-broadcast-history-btn" data-perm="historyClear" style="padding:5px 12px;font-size:.8rem">清除全部</button>
         </div>
         <div class="table-card">
           <table>
@@ -481,7 +481,7 @@
       <div id="history-tab-rooms" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <span id="rh-count" style="font-size:.82rem;color:var(--muted)">0 筆記錄</span>
-          <button class="btn-ghost" id="clear-room-history-btn" data-perm="historyWrite" style="padding:5px 12px;font-size:.8rem">清除全部</button>
+          <button class="btn-ghost" id="clear-room-history-btn" data-perm="historyClear" style="padding:5px 12px;font-size:.8rem">清除全部</button>
         </div>
         <div class="table-card">
           <table>
@@ -671,14 +671,14 @@
           </div>
         </div>
       </div>
-      <button class="btn-primary" id="save-settings" data-perm="settingsWrite">Save Settings</button>
+      <button class="btn-primary" id="save-settings" data-perm="settingsSave">Save Settings</button>
     </section>
     <!-- ===== IP Bans ===== -->
     <div id="section-ip-bans" class="section">
       <div class="section-header">
         <h2>全域 IP 封鎖</h2>
       </div>
-      <div class="form-card" data-perm="ipBansWrite">
+      <div class="form-card" data-perm="ipBansAdd">
         <h3>新增封鎖</h3>
         <div class="field-row">
           <div class="field"><label>IP 位址</label><input type="text" id="new-ban-ip" placeholder="1.2.3.4"></div>
@@ -697,7 +697,7 @@
       <div class="section-header">
         <h2>Webhooks</h2>
       </div>
-      <div class="form-card" data-perm="webhooksWrite">
+      <div class="form-card" data-perm="webhooksAdd">
         <h3>新增 Webhook</h3>
         <div class="field-row">
           <div class="field"><label>目標 URL</label><input type="url" id="new-wh-url" placeholder="https://your-server.com/hook"></div>
@@ -722,7 +722,7 @@
     <div id="section-admin-log" class="section">
       <div class="section-header">
         <h2>管理員操作日誌</h2>
-        <button class="btn-ghost" data-perm="adminLogWrite" onclick="clearAdminLog()">清除日誌</button>
+        <button class="btn-ghost" data-perm="adminLogClear" onclick="clearAdminLog()">清除日誌</button>
       </div>
       <div class="table-card">
         <table><thead><tr><th>時間</th><th>管理員</th><th>操作</th><th>詳細</th></tr></thead>

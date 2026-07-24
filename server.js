@@ -522,7 +522,6 @@ function requirePermission(perm) {
     if (role === 'super-admin') return next();
     const adminObj = admins.find(a => a.id === req.adminUser.id);
     if (role === 'admin') {
-      // If no explicit permissions set, admin has full access (backward compat)
       if (!adminObj || adminObj.permissions === undefined) return next();
       if (adminObj.permissions[perm]) return next();
       return res.status(403).json({ error: 'Permission denied' });
@@ -532,6 +531,17 @@ function requirePermission(perm) {
     }
     res.status(403).json({ error: 'Permission denied' });
   };
+}
+// Inline permission check (use inside route handlers for field-level checks)
+function checkPerm(adminUser, perm) {
+  const role = adminUser.role;
+  if (role === 'super-admin') return true;
+  const adminObj = admins.find(a => a.id === adminUser.id);
+  if (role === 'admin') {
+    if (!adminObj || adminObj.permissions === undefined) return true;
+    return !!(adminObj.permissions[perm]);
+  }
+  return !!(adminObj?.permissions?.[perm]);
 }
 function requireUser(req, res, next) {
   const auth = req.headers.authorization;
@@ -968,10 +978,14 @@ app.get('/admin/api/settings', requireAdmin, requirePermission('settings'), (req
 app.get('/admin/api/promos',   requireAdmin, requirePermission('promos'), (req, res) => res.json(promos));
 app.get('/admin/api/users',    requireAdmin, requirePermission('users'), (req, res) => res.json(getUserList()));
 
-app.put('/admin/api/users/:id', requireAdmin, requirePermission('usersWrite'), (req, res) => {
+app.put('/admin/api/users/:id', requireAdmin, requirePermission('users'), (req, res) => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const { customFileSizeMB, banned, banReason, customRoomId, role } = req.body || {};
+  if (banned     !== undefined && !checkPerm(req.adminUser, 'usersBan'))   return res.status(403).json({ error: 'Permission denied' });
+  if (role       !== undefined && !checkPerm(req.adminUser, 'usersRole'))  return res.status(403).json({ error: 'Permission denied' });
+  if (customFileSizeMB !== undefined && !checkPerm(req.adminUser, 'usersLimit')) return res.status(403).json({ error: 'Permission denied' });
+  if (customRoomId !== undefined && !checkPerm(req.adminUser, 'usersRoom')) return res.status(403).json({ error: 'Permission denied' });
   if (customFileSizeMB !== undefined) {
     user.customFileSizeMB = customFileSizeMB === null ? null : parseInt(customFileSizeMB);
   }
@@ -1027,7 +1041,7 @@ app.put('/admin/api/users/:id', requireAdmin, requirePermission('usersWrite'), (
   res.json({ ok: true });
 });
 
-app.put('/admin/api/settings', requireAdmin, requirePermission('settingsWrite'), (req, res) => {
+app.put('/admin/api/settings', requireAdmin, requirePermission('settingsSave'), (req, res) => {
   settings = { ...settings, ...req.body };
   saveSettings().catch(e => console.error("saveSettings error:", e.message));
   io.emit('settings-updated', { maintenanceMode: settings.maintenanceMode });
@@ -1125,17 +1139,25 @@ app.delete('/admin/api/admins/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Update permissions for admin/staff (super-admin only for admin; super-admin or admin for staff)
-app.put('/admin/api/admins/:id/permissions', requireAdmin, (req, res) => {
-  const requestingRole = req.adminUser.role;
-  if (requestingRole !== 'super-admin' && requestingRole !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+// Update permissions — super-admin only
+app.put('/admin/api/admins/:id/permissions', requireAdmin, requireSuperAdmin, (req, res) => {
   const { id } = req.params;
   const target = admins.find(a => a.id === id);
   if (!target) return res.status(404).json({ error: 'Admin not found' });
   if (target.role === 'super-admin') return res.status(400).json({ error: 'Cannot restrict super-admin' });
-  if (requestingRole === 'admin' && target.role !== 'staff') return res.status(403).json({ error: 'Admins can only set permissions on staff' });
-  const allowed = ['users','rooms','broadcast','promos','feedback','history','ipBans','webhooks','adminLog','health','settings',
-                   'usersWrite','roomsWrite','promosWrite','feedbackWrite','historyWrite','ipBansWrite','webhooksWrite','adminLogWrite','settingsWrite'];
+  const allowed = [
+    'rooms','users','promos','feedback','history','ipBans','webhooks','adminLog','health','settings',
+    'broadcast',
+    'roomsKick','roomsBan','roomsClose','roomsBanList',
+    'usersBan','usersRole','usersLimit','usersRoom','usersExport',
+    'promosCreate','promosEdit','promosDelete',
+    'feedbackMark','feedbackDelete',
+    'historyClear',
+    'ipBansAdd','ipBansRemove',
+    'webhooksAdd','webhooksToggle','webhooksDelete',
+    'adminLogClear',
+    'settingsSave',
+  ];
   const perms = req.body || {};
   target.permissions = {};
   allowed.forEach(key => { if (perms[key] === true) target.permissions[key] = true; });
@@ -1145,7 +1167,7 @@ app.put('/admin/api/admins/:id/permissions', requireAdmin, (req, res) => {
   res.json({ ok: true, permissions: target.permissions });
 });
 
-app.delete('/admin/api/rooms/:roomId', requireAdmin, requirePermission('roomsWrite'), (req, res) => {
+app.delete('/admin/api/rooms/:roomId', requireAdmin, requirePermission('roomsClose'), (req, res) => {
   const { roomId } = req.params;
   if (!rooms.has(roomId)) return res.status(404).json({ error: 'Room not found' });
   io.in(roomId).emit('room-closed', { reason: 'Closed by admin' });
@@ -1160,7 +1182,7 @@ app.delete('/admin/api/rooms/:roomId', requireAdmin, requirePermission('roomsWri
   res.json({ ok: true });
 });
 
-app.post('/admin/api/rooms/:roomId/kick', requireAdmin, requirePermission('roomsWrite'), (req, res) => {
+app.post('/admin/api/rooms/:roomId/kick', requireAdmin, requirePermission('roomsKick'), (req, res) => {
   const { roomId } = req.params;
   const { socketId } = req.body || {};
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
@@ -1182,7 +1204,7 @@ app.post('/admin/api/rooms/:roomId/kick', requireAdmin, requirePermission('rooms
   res.json({ ok: true });
 });
 
-app.post('/admin/api/rooms/:roomId/ban', requireAdmin, requirePermission('roomsWrite'), (req, res) => {
+app.post('/admin/api/rooms/:roomId/ban', requireAdmin, requirePermission('roomsBan'), (req, res) => {
   const { roomId } = req.params;
   const { socketId } = req.body || {};
   if (!socketId) return res.status(400).json({ error: 'socketId required' });
@@ -1209,24 +1231,24 @@ app.post('/admin/api/rooms/:roomId/ban', requireAdmin, requirePermission('roomsW
   res.json({ ok: true });
 });
 
-app.get('/admin/api/rooms/:roomId/bans', requireAdmin, requirePermission('rooms'), (req, res) => {
+app.get('/admin/api/rooms/:roomId/bans', requireAdmin, requirePermission('roomsBanList'), (req, res) => {
   const bans = roomBans.get(req.params.roomId);
   res.json({ bans: bans ? Array.from(bans) : [] });
 });
 
-app.delete('/admin/api/rooms/:roomId/bans', requireAdmin, requirePermission('roomsWrite'), (req, res) => {
+app.delete('/admin/api/rooms/:roomId/bans', requireAdmin, requirePermission('roomsBanList'), (req, res) => {
   roomBans.delete(req.params.roomId);
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/rooms/:roomId/bans/:entry', requireAdmin, requirePermission('roomsWrite'), (req, res) => {
+app.delete('/admin/api/rooms/:roomId/bans/:entry', requireAdmin, requirePermission('roomsBanList'), (req, res) => {
   const bans = roomBans.get(req.params.roomId);
   if (bans) bans.delete(decodeURIComponent(req.params.entry));
   res.json({ ok: true });
 });
 
 // Admin Promo CRUD
-app.post('/admin/api/promos', requireAdmin, requirePermission('promosWrite'), (req, res) => {
+app.post('/admin/api/promos', requireAdmin, requirePermission('promosCreate'), (req, res) => {
   const { code, description, maxFileSizeMB, usageLimit, expiresAt, customRoomId, canCustomRoom, grantRole, roleDurationDays } = req.body || {};
   if (!code || !maxFileSizeMB) return res.status(400).json({ error: 'Code and maxFileSizeMB required' });
   if (promos.find(p => p.code.toUpperCase() === code.trim().toUpperCase())) return res.status(409).json({ error: 'Promo code already exists' });
@@ -1247,7 +1269,7 @@ app.post('/admin/api/promos', requireAdmin, requirePermission('promosWrite'), (r
   res.status(201).json(promo);
 });
 
-app.put('/admin/api/promos/:id', requireAdmin, requirePermission('promosWrite'), (req, res) => {
+app.put('/admin/api/promos/:id', requireAdmin, requirePermission('promosEdit'), (req, res) => {
   const promo = promos.find(p => p.id === req.params.id);
   if (!promo) return res.status(404).json({ error: 'Promo not found' });
   const { description, maxFileSizeMB, usageLimit, expiresAt, enabled, customRoomId, canCustomRoom, grantRole, roleDurationDays } = req.body || {};
@@ -1272,7 +1294,7 @@ app.put('/admin/api/promos/:id', requireAdmin, requirePermission('promosWrite'),
   res.json(promo);
 });
 
-app.delete('/admin/api/promos/:id', requireAdmin, requirePermission('promosWrite'), (req, res) => {
+app.delete('/admin/api/promos/:id', requireAdmin, requirePermission('promosDelete'), (req, res) => {
   const idx = promos.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Promo not found' });
   promos.splice(idx, 1);
@@ -1286,7 +1308,7 @@ app.get('/admin/api/feedback', requireAdmin, requirePermission('feedback'), (req
   res.json([...feedback].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
 });
 
-app.put('/admin/api/feedback/:id', requireAdmin, requirePermission('feedbackWrite'), (req, res) => {
+app.put('/admin/api/feedback/:id', requireAdmin, requirePermission('feedbackMark'), (req, res) => {
   const entry = feedback.find(f => f.id === req.params.id);
   if (!entry) return res.status(404).json({ error: 'Feedback not found' });
   if (req.body.read !== undefined) entry.read = !!req.body.read;
@@ -1295,7 +1317,7 @@ app.put('/admin/api/feedback/:id', requireAdmin, requirePermission('feedbackWrit
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/feedback/:id', requireAdmin, requirePermission('feedbackWrite'), (req, res) => {
+app.delete('/admin/api/feedback/:id', requireAdmin, requirePermission('feedbackDelete'), (req, res) => {
   const idx = feedback.findIndex(f => f.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Feedback not found' });
   feedback.splice(idx, 1);
@@ -1304,7 +1326,7 @@ app.delete('/admin/api/feedback/:id', requireAdmin, requirePermission('feedbackW
   res.json({ ok: true });
 });
 
-app.delete('/admin/api/feedback', requireAdmin, requirePermission('feedbackWrite'), (req, res) => {
+app.delete('/admin/api/feedback', requireAdmin, requirePermission('feedbackDelete'), (req, res) => {
   if (req.query.all !== 'true') return res.status(400).json({ error: 'Pass ?all=true to confirm' });
   feedback = [];
   saveFeedback().catch(e => console.error('saveFeedback error:', e.message));
@@ -1314,7 +1336,7 @@ app.delete('/admin/api/feedback', requireAdmin, requirePermission('feedbackWrite
 
 // ===== Global IP Bans =====
 app.get('/admin/api/ip-bans', requireAdmin, requirePermission('ipBans'), (req, res) => res.json(globalIpBans));
-app.post('/admin/api/ip-bans', requireAdmin, requirePermission('ipBansWrite'), (req, res) => {
+app.post('/admin/api/ip-bans', requireAdmin, requirePermission('ipBansAdd'), (req, res) => {
   const { ip, reason } = req.body || {};
   if (!ip || typeof ip !== 'string') return res.status(400).json({ error: 'IP required' });
   const ipTrimmed = ip.trim();
@@ -1332,7 +1354,7 @@ app.post('/admin/api/ip-bans', requireAdmin, requirePermission('ipBansWrite'), (
   adminNsp.emit('global-ip-bans', globalIpBans);
   res.json({ ok: true, entry });
 });
-app.delete('/admin/api/ip-bans/:ip', requireAdmin, requirePermission('ipBansWrite'), (req, res) => {
+app.delete('/admin/api/ip-bans/:ip', requireAdmin, requirePermission('ipBansRemove'), (req, res) => {
   const ip = decodeURIComponent(req.params.ip);
   const idx = globalIpBans.findIndex(b => b.ip === ip);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
@@ -1346,7 +1368,7 @@ app.delete('/admin/api/ip-bans/:ip', requireAdmin, requirePermission('ipBansWrit
 
 // ===== Admin Log =====
 app.get('/admin/api/admin-log', requireAdmin, requirePermission('adminLog'), (req, res) => res.json(adminLog));
-app.delete('/admin/api/admin-log', requireAdmin, requirePermission('adminLogWrite'), (req, res) => {
+app.delete('/admin/api/admin-log', requireAdmin, requirePermission('adminLogClear'), (req, res) => {
   adminLog = [];
   saveAdminLog().catch(() => {});
   adminNsp.emit('admin-log', adminLog);
@@ -1406,7 +1428,7 @@ app.post('/admin/api/changelog', requireAdmin, requireSuperAdmin, (req, res) => 
 
 // ===== Webhooks =====
 app.get('/admin/api/webhooks', requireAdmin, requirePermission('webhooks'), (req, res) => res.json(webhooks));
-app.post('/admin/api/webhooks', requireAdmin, requirePermission('webhooksWrite'), (req, res) => {
+app.post('/admin/api/webhooks', requireAdmin, requirePermission('webhooksAdd'), (req, res) => {
   const { url, events } = req.body || {};
   if (!url || typeof url !== 'string' || !url.startsWith('http')) return res.status(400).json({ error: 'Valid URL required' });
   const evList = Array.isArray(events) ? events : ['*'];
@@ -1418,7 +1440,7 @@ app.post('/admin/api/webhooks', requireAdmin, requirePermission('webhooksWrite')
   adminNsp.emit('webhooks', webhooks);
   res.json({ ok: true, entry });
 });
-app.put('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooksWrite'), (req, res) => {
+app.put('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooksToggle'), (req, res) => {
   const wh = webhooks.find(w => w.id === req.params.id);
   if (!wh) return res.status(404).json({ error: 'Not found' });
   if (typeof req.body.enabled === 'boolean') wh.enabled = req.body.enabled;
@@ -1427,7 +1449,7 @@ app.put('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooksWrit
   adminNsp.emit('webhooks', webhooks);
   res.json({ ok: true });
 });
-app.delete('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooksWrite'), (req, res) => {
+app.delete('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooksDelete'), (req, res) => {
   const idx = webhooks.findIndex(w => w.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
   const url = webhooks[idx].url;
@@ -1441,14 +1463,14 @@ app.delete('/admin/api/webhooks/:id', requireAdmin, requirePermission('webhooksW
 
 // Broadcast history & Room history
 app.get('/admin/api/broadcast-history', requireAdmin, requirePermission('history'), (req, res) => { res.json(broadcastHistory); });
-app.delete('/admin/api/broadcast-history', requireAdmin, requirePermission('historyWrite'), (req, res) => {
+app.delete('/admin/api/broadcast-history', requireAdmin, requirePermission('historyClear'), (req, res) => {
   broadcastHistory.length = 0;
   saveBroadcastHistory().catch(e => console.error('saveBroadcastHistory error:', e.message));
   adminNsp.emit('broadcast-history', []);
   res.json({ ok: true });
 });
 app.get('/admin/api/room-history', requireAdmin, requirePermission('history'), (req, res) => { res.json(roomHistory); });
-app.delete('/admin/api/room-history', requireAdmin, requirePermission('historyWrite'), (req, res) => {
+app.delete('/admin/api/room-history', requireAdmin, requirePermission('historyClear'), (req, res) => {
   roomHistory.length = 0;
   saveRoomHistory().catch(e => console.error('saveRoomHistory error:', e.message));
   adminNsp.emit('room-history', []);

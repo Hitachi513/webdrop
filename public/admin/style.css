@@ -1213,36 +1213,47 @@ body.dark ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-ra
 .modal-close-btn:active { transform: scale(.9); }
 .staff-perm-subtitle { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
 .perm-quick-btns { display: flex; gap: 6px; margin-bottom: 14px; }
-.staff-perm-list { margin-bottom: 20px; }
+.staff-perm-list { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
 
-/* Permission table (view / write columns) */
-.perm-table { display: grid; grid-template-columns: 1fr 80px 80px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-.perm-table-header {
-  display: contents;
-}
-.perm-table-header > span {
-  background: var(--hover, rgba(0,0,0,.06));
-  padding: 7px 10px;
-  font-size: .7rem;
+/* Permission groups (chip layout) */
+.perm-group { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.perm-group-label {
+  font-size: .78rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
   color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: 7px 12px;
+  background: var(--hover, rgba(0,0,0,.04));
   border-bottom: 1px solid var(--border);
 }
-.perm-table-row {
-  display: contents;
-}
-.perm-table-row > span {
-  padding: 9px 10px;
-  border-bottom: 1px solid var(--border);
+.perm-chips {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
 }
-.perm-table-row:last-child > span { border-bottom: none; }
-.perm-table-row:hover > span { background: var(--hover); }
-.perm-table-label { font-size: .84rem; font-weight: 600; }
-.perm-cb { width: 16px; height: 16px; accent-color: var(--accent, #818cf8); cursor: pointer; margin: auto; }
+.perm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  font-size: .78rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--muted);
+  transition: background .15s, border-color .15s, color .15s;
+  user-select: none;
+}
+.perm-chip:hover { border-color: var(--accent, #818cf8); color: var(--text); }
+.perm-chip-on {
+  background: rgba(129,140,248,.12);
+  border-color: var(--accent, #818cf8);
+  color: var(--accent, #818cf8);
+}
+.perm-cb { width: 13px; height: 13px; accent-color: var(--accent, #818cf8); cursor: pointer; flex-shrink: 0; }
 .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
 
 /* User role badge in sidebar */

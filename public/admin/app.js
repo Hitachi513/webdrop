@@ -27,19 +27,63 @@ let currentAdmin = null;
 let adminSocket = null;
 let currentSettings = {};
 
-// Permission table: each row = { label, viewKey (section access), writeKey (action), writeLabel }
-const PERM_TABLE = [
-  { label: 'Live Rooms',  viewKey: 'rooms',    writeKey: 'roomsWrite',    writeLabel: '踢出/封鎖/關閉' },
-  { label: 'Users',       viewKey: 'users',    writeKey: 'usersWrite',    writeLabel: '封禁/設角色/限制' },
-  { label: '廣播訊息',   viewKey: null,       writeKey: 'broadcast',     writeLabel: '發送廣播' },
-  { label: 'Promo Codes', viewKey: 'promos',   writeKey: 'promosWrite',   writeLabel: '新增/編輯/刪除' },
-  { label: 'Feedback',    viewKey: 'feedback', writeKey: 'feedbackWrite', writeLabel: '標記/清除' },
-  { label: '歷史記錄',   viewKey: 'history',  writeKey: 'historyWrite',  writeLabel: '清除記錄' },
-  { label: 'IP 封鎖',    viewKey: 'ipBans',   writeKey: 'ipBansWrite',   writeLabel: '新增/移除' },
-  { label: 'Webhooks',    viewKey: 'webhooks', writeKey: 'webhooksWrite', writeLabel: '新增/刪除' },
-  { label: '操作日誌',   viewKey: 'adminLog', writeKey: 'adminLogWrite', writeLabel: '清除日誌' },
-  { label: '系統健康',   viewKey: 'health',   writeKey: null,            writeLabel: null },
-  { label: 'Settings',    viewKey: 'settings', writeKey: 'settingsWrite', writeLabel: '儲存設定' },
+// Grouped permission definitions
+const PERM_GROUPS = [
+  { label: 'Live Rooms', icon: '🏠', perms: [
+    { key: 'rooms',        label: '查看房間列表' },
+    { key: 'roomsKick',    label: '踢出成員' },
+    { key: 'roomsBan',     label: '封鎖成員' },
+    { key: 'roomsClose',   label: '關閉房間' },
+    { key: 'roomsBanList', label: '查看/管理封鎖名單' },
+  ]},
+  { label: 'Users', icon: '👤', perms: [
+    { key: 'users',       label: '查看用戶列表' },
+    { key: 'usersBan',    label: '封禁/解封帳號' },
+    { key: 'usersRole',   label: '設定用戶角色' },
+    { key: 'usersLimit',  label: '設定檔案限制' },
+    { key: 'usersRoom',   label: '設定自訂房號' },
+    { key: 'usersExport', label: 'CSV 匯出' },
+  ]},
+  { label: '廣播訊息', icon: '📢', perms: [
+    { key: 'broadcast', label: '發送全站廣播' },
+  ]},
+  { label: 'Promo Codes', icon: '🎫', perms: [
+    { key: 'promos',       label: '查看優惠碼' },
+    { key: 'promosCreate', label: '新增優惠碼' },
+    { key: 'promosEdit',   label: '編輯/開關優惠碼' },
+    { key: 'promosDelete', label: '刪除優惠碼' },
+  ]},
+  { label: 'Feedback', icon: '💬', perms: [
+    { key: 'feedback',       label: '查看意見回饋' },
+    { key: 'feedbackMark',   label: '標記已讀/未讀' },
+    { key: 'feedbackDelete', label: '刪除意見回饋' },
+  ]},
+  { label: '歷史記錄', icon: '📋', perms: [
+    { key: 'history',      label: '查看歷史記錄' },
+    { key: 'historyClear', label: '清除歷史記錄' },
+  ]},
+  { label: 'IP 封鎖', icon: '🚫', perms: [
+    { key: 'ipBans',       label: '查看 IP 封鎖列表' },
+    { key: 'ipBansAdd',    label: '新增 IP 封鎖' },
+    { key: 'ipBansRemove', label: '移除 IP 封鎖' },
+  ]},
+  { label: 'Webhooks', icon: '🔗', perms: [
+    { key: 'webhooks',       label: '查看 Webhooks' },
+    { key: 'webhooksAdd',    label: '新增 Webhook' },
+    { key: 'webhooksToggle', label: '啟用/停用 Webhook' },
+    { key: 'webhooksDelete', label: '刪除 Webhook' },
+  ]},
+  { label: '操作日誌', icon: '📝', perms: [
+    { key: 'adminLog',      label: '查看操作日誌' },
+    { key: 'adminLogClear', label: '清除操作日誌' },
+  ]},
+  { label: '系統健康', icon: '💻', perms: [
+    { key: 'health', label: '查看系統狀態' },
+  ]},
+  { label: 'Settings', icon: '⚙️', perms: [
+    { key: 'settings',     label: '查看系統設定' },
+    { key: 'settingsSave', label: '儲存系統設定' },
+  ]},
 ];
 
 const SECTION_PERM_MAP = {
@@ -492,12 +536,12 @@ function renderRoomsTable() {
     <tr>
       <td><code>${esc(r.roomId)}</code></td>
       <td><strong>${r.peerCount}</strong></td>
-      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['super-admin','admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role === 'super-admin' ? 'super' : p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}${canDoAction('roomsWrite',currentAdmin)?`<span class="peer-chip-actions"><button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button><button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button></span>`:''}` + '</span>').join('')}</div></td>
+      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['super-admin','admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role === 'super-admin' ? 'super' : p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}${(canDoAction('roomsKick',currentAdmin)||canDoAction('roomsBan',currentAdmin))?`<span class="peer-chip-actions">${canDoAction('roomsKick',currentAdmin)?`<button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button>`:''}${canDoAction('roomsBan',currentAdmin)?`<button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button>`:''}</span>`:''}` + '</span>').join('')}</div></td>
       <td style="font-size:.82rem">${locHtml}</td>
       <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}${durationStr}</td>
       <td><strong>${r.filesTransferred || 0}</strong></td>
       <td>${banBadge}</td>
-      <td>${canDoAction('roomsWrite',currentAdmin)?`<button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button>`:''}</td>
+      <td>${canDoAction('roomsClose',currentAdmin)?`<button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button>`:''}</td>
     </tr>`;
   }).join('');
 }
@@ -610,17 +654,15 @@ function renderAdmins(adminList) {
     let actions = '';
     if (isSelf) {
       actions = '<span style="color:var(--muted);font-size:.78rem">You</span>';
-    } else if (isAdminOrSuper) {
-      actions = '';
-      // Super-admin can manage permissions on admin and staff; admin can only manage staff
-      const canSetPerms = isSuperAdmin && a.role !== 'super-admin';
-      const canSetPermsOnStaff = !isSuperAdmin && a.role === 'staff';
-      if (canSetPerms || canSetPermsOnStaff) {
+    } else if (isSuperAdmin) {
+      // Only super admin can manage everyone
+      if (a.role !== 'super-admin') {
         actions += `<button class="btn-sm btn-outline" onclick="openPermModal('${a.id}','${esc(a.email)}','${a.role}')">⚙️ 權限</button> `;
-      }
-      if (isSuperAdmin || a.role === 'staff') {
         actions += `<button class="btn-danger" onclick="removeAdmin('${a.id}','${esc(a.email)}')">Remove</button>`;
       }
+    } else if (isAdminOrSuper && a.role === 'staff') {
+      // Admin can only remove staff (no permission management)
+      actions += `<button class="btn-danger" onclick="removeAdmin('${a.id}','${esc(a.email)}')">Remove</button>`;
     }
     return `<tr>
       <td>${esc(a.name || '')} <span style="color:var(--muted);font-size:.8rem">${esc(a.email)}</span></td>
@@ -645,32 +687,24 @@ let _permTargetId = null;
 function openPermModal(id, email, role) {
   _permTargetId = id;
   const titleRole = role === 'admin' ? 'Admin' : 'Staff';
-  document.getElementById('staff-perm-email').textContent = `設定 ${titleRole} 權限 — ${email}`;
+  document.getElementById('staff-perm-email').textContent = `設定 ${titleRole} 後台權限 — ${email}`;
   const adminObj = window._latestAdmins?.find(a => a.id === id);
   const currentPerms = adminObj?.permissions || {};
   const listEl = document.getElementById('staff-perm-list');
-  listEl.innerHTML = `
-    <div class="perm-table">
-      <div class="perm-table-header">
-        <span>功能</span><span style="text-align:center">可查看</span><span style="text-align:center">可操作</span>
+  listEl.innerHTML = PERM_GROUPS.map(g => `
+    <div class="perm-group">
+      <div class="perm-group-label">${g.icon} ${g.label}</div>
+      <div class="perm-chips">
+        ${g.perms.map(p => `
+          <label class="perm-chip${currentPerms[p.key] ? ' perm-chip-on' : ''}">
+            <input type="checkbox" name="${p.key}" class="perm-cb" ${currentPerms[p.key] ? 'checked' : ''}
+              onchange="this.closest('.perm-chip').classList.toggle('perm-chip-on',this.checked)">
+            ${p.label}
+          </label>
+        `).join('')}
       </div>
-      ${PERM_TABLE.map(p => `
-        <div class="perm-table-row">
-          <span class="perm-table-label">${p.label}</span>
-          <span style="text-align:center">
-            ${p.viewKey
-              ? `<input type="checkbox" name="${p.viewKey}" class="perm-cb" ${currentPerms[p.viewKey] ? 'checked' : ''}>`
-              : '<span style="color:var(--muted)">—</span>'}
-          </span>
-          <span style="text-align:center">
-            ${p.writeKey
-              ? `<input type="checkbox" name="${p.writeKey}" class="perm-cb" title="${p.writeLabel}" ${currentPerms[p.writeKey] ? 'checked' : ''}>`
-              : '<span style="color:var(--muted)">—</span>'}
-          </span>
-        </div>
-      `).join('')}
     </div>
-  `;
+  `).join('');
   document.getElementById('staff-perm-modal').style.display = 'flex';
 }
 
@@ -828,19 +862,20 @@ function renderUsersTable() {
     const statusBadge = u.banned
       ? `<span class="status-banned">Banned</span>`
       : `<span class="status-active">Active</span>`;
-    const canWrite = canDoAction('usersWrite', currentAdmin);
+    const canBan   = canDoAction('usersBan',   currentAdmin);
+    const canLimit = canDoAction('usersLimit', currentAdmin);
     const actions = u.banned
-      ? (canWrite ? `<button class="btn-sm" onclick="unbanUser('${u.id}','${esc(u.email)}')">Unban</button>` : '')
-      : (canWrite ? `<button class="btn-sm" onclick="setUserLimit('${u.id}','${esc(u.email)}',${u.customFileSizeMB ?? ''})">Limit</button>
-         ${u.customFileSizeMB != null ? `<button class="btn-sm" onclick="clearUserLimit('${u.id}')">Reset</button> ` : ''}
-         <button class="btn-danger" onclick="banUser('${u.id}','${esc(u.email)}')">Ban</button>` : '');
+      ? (canBan ? `<button class="btn-sm" onclick="unbanUser('${u.id}','${esc(u.email)}')">Unban</button>` : '')
+      : `${canLimit ? `<button class="btn-sm" onclick="setUserLimit('${u.id}','${esc(u.email)}',${u.customFileSizeMB ?? ''})">Limit</button>
+         ${u.customFileSizeMB != null ? `<button class="btn-sm" onclick="clearUserLimit('${u.id}')">Reset</button> ` : ''}` : ''}${canBan ? `<button class="btn-danger" onclick="banUser('${u.id}','${esc(u.email)}')">Ban</button>` : ''}`;
     const langDisplay = u.language
       ? `<span title="${esc(u.language)}">${LANG_FLAGS[u.language] || '🌐'} ${esc(u.language)}</span>`
       : `<span style="color:var(--muted);font-size:.75rem">—</span>`;
+    const canRoom  = canDoAction('usersRoom',  currentAdmin);
     const roomDisplay = u.customRoomId
-      ? `<code style="color:var(--primary);font-size:.8rem">${esc(u.customRoomId)}</code>
-         <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`
-      : `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>`;
+      ? `<code style="color:var(--primary);font-size:.8rem">${esc(u.customRoomId)}</code>${canRoom?`
+         <button class="btn-sm" style="margin-left:4px" onclick="clearUserRoom('${u.id}')">✕</button>`:''}`
+      : (canRoom ? `<button class="btn-sm" onclick="setUserRoom('${u.id}','${esc(u.email)}')">Set</button>` : '—');
     const ROLE_COLORS = { 'super-admin': '#ef4444', admin: '#f59e0b', vip: '#a855f7', business: '#10b981' };
     const permRoleBadge = u.role
       ? `<span style="display:inline-block;padding:1px 8px;border-radius:12px;font-size:.72rem;font-weight:700;background:${ROLE_COLORS[u.role] || '#6b7280'}22;color:${ROLE_COLORS[u.role] || '#6b7280'};border:1px solid ${ROLE_COLORS[u.role] || '#6b7280'}55">${esc(u.role)}</span>`
@@ -852,11 +887,12 @@ function renderUsersTable() {
           return `<span style="display:inline-block;margin-left:2px;padding:1px 8px;border-radius:12px;font-size:.70rem;font-weight:700;background:${ROLE_COLORS[u.promoRole] || '#6b7280'}15;color:${expired ? '#9ca3af' : (ROLE_COLORS[u.promoRole] || '#6b7280')};border:1px dashed ${ROLE_COLORS[u.promoRole] || '#6b7280'}66" title="臨時角色：${expired ? '已過期' : expiresStr}">📋${esc(u.promoRole)}</span>`;
         })()
       : '';
+    const canRole  = canDoAction('usersRole',  currentAdmin);
     const roleDisplay = (u.role || u.promoRole)
-      ? `${permRoleBadge}${promoRoleBadge}${canWrite ? `
+      ? `${permRoleBadge}${promoRoleBadge}${canRole ? `
          <button class="btn-sm" style="margin-left:2px" onclick="setUserRole('${u.id}','${esc(u.email)}','${esc(u.role || '')}')">✎</button>
          ${u.role ? `<button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>` : ''}` : ''}`
-      : (canWrite ? `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>` : '—');
+      : (canRole ? `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>` : '—');
     const lastSeenDisplay = u.lastSeenAt
       ? `<span title="${new Date(u.lastSeenAt).toLocaleString()}">${timeAgo(new Date(u.lastSeenAt).getTime())}</span>`
       : `<span style="color:var(--muted)">—</span>`;
@@ -1005,14 +1041,13 @@ function renderPromos(promos) {
       <td>${usageLabel}</td>
       <td style="${expired ? 'color:var(--danger)' : ''}">${expires}${expired ? ' ⚠' : ''}</td>
       <td>
-        <label class="toggle" title="${p.enabled ? 'Enabled' : 'Disabled'}">
-          <input type="checkbox" ${p.enabled ? 'checked' : ''} onchange="togglePromo('${p.id}', this.checked)">
-          <span class="slider"></span>
-        </label>
+        ${canDoAction('promosEdit',currentAdmin)
+          ? `<label class="toggle" title="${p.enabled ? 'Enabled' : 'Disabled'}"><input type="checkbox" ${p.enabled ? 'checked' : ''} onchange="togglePromo('${p.id}', this.checked)"><span class="slider"></span></label>`
+          : `<span style="font-size:.78rem;color:var(--muted)">${p.enabled?'啟用':'停用'}</span>`}
       </td>
       <td style="white-space:nowrap">
-        ${canDoAction('promosWrite',currentAdmin)?`<button class="btn-sm" onclick="openEditPromo('${p.id}')">Edit</button>
-        <button class="btn-danger" onclick="deletePromo('${p.id}','${esc(p.code)}')">Delete</button>`:''}
+        ${canDoAction('promosEdit',currentAdmin)?`<button class="btn-sm" onclick="openEditPromo('${p.id}')">Edit</button>`:''}
+        ${canDoAction('promosDelete',currentAdmin)?`<button class="btn-danger" onclick="deletePromo('${p.id}','${esc(p.code)}')">Delete</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -1102,8 +1137,8 @@ function renderFeedbackTable() {
       <td style="max-width:320px;font-size:.82rem;word-break:break-word">${esc(f.message)}</td>
       <td><span class="status-${f.read ? 'active' : 'banned'}" style="font-size:.72rem">${f.read ? '已讀' : '未讀'}</span></td>
       <td style="white-space:nowrap">
-        ${canDoAction('feedbackWrite',currentAdmin)?`<button class="btn-sm" onclick="toggleFeedbackRead('${f.id}',${!f.read})">${f.read ? '標為未讀' : '標為已讀'}</button>
-        <button class="btn-danger" onclick="deleteFeedback('${f.id}')">Delete</button>`:''}
+        ${canDoAction('feedbackMark',currentAdmin)?`<button class="btn-sm" onclick="toggleFeedbackRead('${f.id}',${!f.read})">${f.read ? '標為未讀' : '標為已讀'}</button>`:''}
+        ${canDoAction('feedbackDelete',currentAdmin)?`<button class="btn-danger" onclick="deleteFeedback('${f.id}')">Delete</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -1356,7 +1391,7 @@ function renderIpBans(list) {
       <td style="font-size:.82rem">${esc(b.reason || '—')}</td>
       <td style="font-size:.78rem;color:var(--muted)">${b.bannedAt ? new Date(b.bannedAt).toLocaleString() : '—'}</td>
       <td style="font-size:.78rem">${esc(b.bannedBy || '—')}</td>
-      <td>${canDoAction('ipBansWrite',currentAdmin)?`<button class="btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="removeIpBan('${esc(b.ip)}')">解除</button>`:''}</td>
+      <td>${canDoAction('ipBansRemove',currentAdmin)?`<button class="btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="removeIpBan('${esc(b.ip)}')">解除</button>`:''}</td>
     </tr>`).join('');
 }
 async function addIpBan() {
@@ -1387,9 +1422,9 @@ function renderWebhooks(list) {
     <tr>
       <td style="font-size:.8rem;max-width:240px;overflow:hidden;text-overflow:ellipsis"><code title="${esc(w.url)}">${esc(w.url)}</code></td>
       <td><span class="badge-pill" style="font-size:.68rem">${esc(Array.isArray(w.events) ? w.events.join(', ') : '*')}</span></td>
-      <td>${canDoAction('webhooksWrite',currentAdmin)?`<label class="toggle" title="${w.enabled?'啟用':'停用'}"><input type="checkbox" ${w.enabled?'checked':''} onchange="toggleWebhook('${w.id}',this.checked)"><span class="slider"></span></label>`:`<span style="font-size:.78rem;color:var(--muted)">${w.enabled?'啟用':'停用'}</span>`}</td>
+      <td>${canDoAction('webhooksToggle',currentAdmin)?`<label class="toggle" title="${w.enabled?'啟用':'停用'}"><input type="checkbox" ${w.enabled?'checked':''} onchange="toggleWebhook('${w.id}',this.checked)"><span class="slider"></span></label>`:`<span style="font-size:.78rem;color:var(--muted)">${w.enabled?'啟用':'停用'}</span>`}</td>
       <td style="font-size:.75rem;color:var(--muted)">${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}</td>
-      <td>${canDoAction('webhooksWrite',currentAdmin)?`<button class="btn-danger" onclick="deleteWebhook('${w.id}')">刪除</button>`:''}</td>
+      <td>${canDoAction('webhooksDelete',currentAdmin)?`<button class="btn-danger" onclick="deleteWebhook('${w.id}')">刪除</button>`:''}</td>
     </tr>`).join('');
 }
 async function addWebhook() {

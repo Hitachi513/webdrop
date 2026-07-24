@@ -780,7 +780,7 @@ document.getElementById('submit-add-admin').addEventListener('click', async () =
   const email    = document.getElementById('new-admin-email').value.trim();
   const password = document.getElementById('new-admin-pass').value;
   const role     = document.getElementById('new-admin-role').value;
-  if (!email || !password) { toast('Email and password required', 'error'); return; }
+  if (!email || !password) { toast('帳號和密碼不能為空', 'error'); return; }
   try {
     await api('POST', '/admin/api/admins', { email, password, role });
     toast('Admin created', 'success');

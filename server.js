@@ -1056,8 +1056,8 @@ app.post('/admin/api/admins', requireAdmin, async (req, res) => {
   const requestingRole = req.adminUser.role;
   if (requestingRole !== 'super-admin' && requestingRole !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { email, password, role } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  if (admins.find(a => a.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: 'Admin already exists' });
+  if (!email || !password) return res.status(400).json({ error: '帳號和密碼不能為空' });
+  if (admins.find(a => a.email.toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: '帳號已存在' });
   // admin role can only create staff; super-admin can create any role
   let newRole = 'staff';
   if (requestingRole === 'super-admin') {

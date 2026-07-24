@@ -213,7 +213,7 @@
         </div>
         <div class="broadcast-input-row">
           <textarea id="broadcast-text" rows="2" placeholder="輸入廣播訊息…" style="flex:1;resize:vertical;background:var(--bg,#0e0e28);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:.88rem;min-height:60px;font-family:inherit;box-sizing:border-box;width:100%"></textarea>
-          <button class="btn-primary" id="send-broadcast-btn" style="flex-shrink:0;padding:10px 20px;white-space:nowrap">
+          <button class="btn-primary" id="send-broadcast-btn" data-perm="broadcast" style="flex-shrink:0;padding:10px 20px;white-space:nowrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:middle;margin-right:4px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             發送
           </button>
@@ -330,11 +330,11 @@
     <section id="section-promos" class="section">
       <div class="section-header">
         <h2>Promo Codes</h2>
-        <button class="btn-primary" id="open-add-promo">+ New Code</button>
+        <button class="btn-primary" id="open-add-promo" data-perm="promosWrite">+ New Code</button>
       </div>
 
       <!-- Add Promo Form -->
-      <div id="add-promo-form" class="form-card" style="display:none">
+      <div id="add-promo-form" class="form-card" data-perm="promosWrite" style="display:none">
         <h3>Create Promo Code</h3>
         <div class="field-row">
           <div class="field">
@@ -421,7 +421,7 @@
             <option value="compliment">❤️ 讚美</option>
             <option value="other">💬 其他</option>
           </select>
-          <button class="btn-ghost" id="clear-all-feedback" style="padding:5px 14px;font-size:.8rem">Clear All</button>
+          <button class="btn-ghost" id="clear-all-feedback" data-perm="feedbackWrite" style="padding:5px 14px;font-size:.8rem">Clear All</button>
         </div>
       </div>
 
@@ -467,7 +467,7 @@
       <div id="history-tab-broadcast">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <span id="bh-count" style="font-size:.82rem;color:var(--muted)">0 筆記錄</span>
-          <button class="btn-ghost" id="clear-broadcast-history-btn" style="padding:5px 12px;font-size:.8rem">清除全部</button>
+          <button class="btn-ghost" id="clear-broadcast-history-btn" data-perm="historyWrite" style="padding:5px 12px;font-size:.8rem">清除全部</button>
         </div>
         <div class="table-card">
           <table>
@@ -481,7 +481,7 @@
       <div id="history-tab-rooms" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <span id="rh-count" style="font-size:.82rem;color:var(--muted)">0 筆記錄</span>
-          <button class="btn-ghost" id="clear-room-history-btn" style="padding:5px 12px;font-size:.8rem">清除全部</button>
+          <button class="btn-ghost" id="clear-room-history-btn" data-perm="historyWrite" style="padding:5px 12px;font-size:.8rem">清除全部</button>
         </div>
         <div class="table-card">
           <table>
@@ -671,14 +671,14 @@
           </div>
         </div>
       </div>
-      <button class="btn-primary" id="save-settings">Save Settings</button>
+      <button class="btn-primary" id="save-settings" data-perm="settingsWrite">Save Settings</button>
     </section>
     <!-- ===== IP Bans ===== -->
     <div id="section-ip-bans" class="section">
       <div class="section-header">
         <h2>全域 IP 封鎖</h2>
       </div>
-      <div class="form-card">
+      <div class="form-card" data-perm="ipBansWrite">
         <h3>新增封鎖</h3>
         <div class="field-row">
           <div class="field"><label>IP 位址</label><input type="text" id="new-ban-ip" placeholder="1.2.3.4"></div>
@@ -697,7 +697,7 @@
       <div class="section-header">
         <h2>Webhooks</h2>
       </div>
-      <div class="form-card">
+      <div class="form-card" data-perm="webhooksWrite">
         <h3>新增 Webhook</h3>
         <div class="field-row">
           <div class="field"><label>目標 URL</label><input type="url" id="new-wh-url" placeholder="https://your-server.com/hook"></div>
@@ -722,7 +722,7 @@
     <div id="section-admin-log" class="section">
       <div class="section-header">
         <h2>管理員操作日誌</h2>
-        <button class="btn-ghost" onclick="clearAdminLog()">清除日誌</button>
+        <button class="btn-ghost" data-perm="adminLogWrite" onclick="clearAdminLog()">清除日誌</button>
       </div>
       <div class="table-card">
         <table><thead><tr><th>時間</th><th>管理員</th><th>操作</th><th>詳細</th></tr></thead>
@@ -814,15 +814,19 @@
   </div>
 </div>
 
-<!-- Staff Permissions Modal -->
+<!-- Permissions Modal -->
 <div id="staff-perm-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closePermModal()">
   <div class="modal-box staff-perm-box">
     <div class="modal-header">
-      <h3>⚙️ Staff 權限設定</h3>
+      <h3>⚙️ 後台帳號權限</h3>
       <button class="modal-close-btn" onclick="closePermModal()">✕</button>
     </div>
     <p id="staff-perm-email" class="staff-perm-subtitle"></p>
-    <div id="staff-perm-list" class="staff-perm-list"></div>
+    <div class="perm-quick-btns">
+      <button class="btn-ghost" style="padding:3px 10px;font-size:.75rem" onclick="setAllPerms(true)">全選</button>
+      <button class="btn-ghost" style="padding:3px 10px;font-size:.75rem" onclick="setAllPerms(false)">全取消</button>
+    </div>
+    <div id="staff-perm-list"></div>
     <div class="modal-footer">
       <button class="btn-ghost" onclick="closePermModal()">取消</button>
       <button class="btn-primary" onclick="saveStaffPerms()">儲存權限</button>

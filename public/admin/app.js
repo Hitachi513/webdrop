@@ -27,25 +27,26 @@ let currentAdmin = null;
 let adminSocket = null;
 let currentSettings = {};
 
-const STAFF_PERMISSIONS = [
-  { key: 'users',     label: '用戶管理',   desc: '查看及編輯用戶、封禁帳號' },
-  { key: 'rooms',     label: '房間管理',   desc: '查看即時房間、踢人、關閉房間' },
-  { key: 'broadcast', label: '廣播訊息',   desc: '發送全站廣播通知' },
-  { key: 'promos',    label: '優惠碼',     desc: '查看優惠碼清單' },
-  { key: 'feedback',  label: '意見回饋',   desc: '查看及處理用戶意見' },
-  { key: 'history',   label: '歷史記錄',   desc: '查看廣播及房間歷史' },
-  { key: 'ipBans',    label: 'IP 封鎖',    desc: '查看及管理全域 IP 封鎖' },
-  { key: 'webhooks',  label: 'Webhooks',   desc: '查看及設定 Webhook 通知' },
-  { key: 'adminLog',  label: '操作日誌',   desc: '查看管理員操作記錄' },
-  { key: 'health',    label: '系統健康',   desc: '查看系統狀態監控' },
-  { key: 'settings',  label: '系統設定',   desc: '查看及修改全域設定（謹慎授予）' },
+// Permission table: each row = { label, viewKey (section access), writeKey (action), writeLabel }
+const PERM_TABLE = [
+  { label: 'Live Rooms',  viewKey: 'rooms',    writeKey: 'roomsWrite',    writeLabel: '踢出/封鎖/關閉' },
+  { label: 'Users',       viewKey: 'users',    writeKey: 'usersWrite',    writeLabel: '封禁/設角色/限制' },
+  { label: '廣播訊息',   viewKey: null,       writeKey: 'broadcast',     writeLabel: '發送廣播' },
+  { label: 'Promo Codes', viewKey: 'promos',   writeKey: 'promosWrite',   writeLabel: '新增/編輯/刪除' },
+  { label: 'Feedback',    viewKey: 'feedback', writeKey: 'feedbackWrite', writeLabel: '標記/清除' },
+  { label: '歷史記錄',   viewKey: 'history',  writeKey: 'historyWrite',  writeLabel: '清除記錄' },
+  { label: 'IP 封鎖',    viewKey: 'ipBans',   writeKey: 'ipBansWrite',   writeLabel: '新增/移除' },
+  { label: 'Webhooks',    viewKey: 'webhooks', writeKey: 'webhooksWrite', writeLabel: '新增/刪除' },
+  { label: '操作日誌',   viewKey: 'adminLog', writeKey: 'adminLogWrite', writeLabel: '清除日誌' },
+  { label: '系統健康',   viewKey: 'health',   writeKey: null,            writeLabel: null },
+  { label: 'Settings',    viewKey: 'settings', writeKey: 'settingsWrite', writeLabel: '儲存設定' },
 ];
 
 const SECTION_PERM_MAP = {
   overview: null, rooms: 'rooms', users: 'users',
   admins: '__admin__', promos: 'promos', feedback: 'feedback',
   history: 'history', 'ip-bans': 'ipBans', webhooks: 'webhooks',
-  'admin-log': 'adminLog', health: 'health', settings: 'settings',
+  'admin-log': 'adminLog', changelog: null, health: 'health', settings: 'settings',
 };
 
 // ===== API helper =====
@@ -100,19 +101,27 @@ function showDashboard(admin) {
 function canAccessSection(sectionKey, admin) {
   const role = admin.role;
   if (role === 'super-admin') return true;
-  if (role === 'admin') return sectionKey !== '__admin__'; // admin can't manage admins beyond creating staff
-  // staff
+  if (SECTION_PERM_MAP[sectionKey] === '__admin__') return false; // only super-admin manages admins
+  if (role === 'admin' && admin.permissions === null) return true; // no restrictions set
   const permKey = SECTION_PERM_MAP[sectionKey];
-  if (!permKey) return true;           // null = always visible (overview)
-  if (permKey === '__admin__') return false; // staff can't manage admins
+  if (!permKey) return true; // always visible (overview, changelog)
   return !!(admin.permissions?.[permKey]);
+}
+
+function canDoAction(actionKey, admin) {
+  if (!actionKey) return true;
+  if (admin.role === 'super-admin') return true;
+  if (admin.role === 'admin' && admin.permissions === null) return true;
+  return !!(admin.permissions?.[actionKey]);
 }
 
 function applyNavPermissions(admin) {
   document.querySelectorAll('.nav-item[data-section]').forEach(item => {
     const sec = item.dataset.section;
-    const allowed = canAccessSection(sec, admin);
-    item.style.display = allowed ? '' : 'none';
+    item.style.display = canAccessSection(sec, admin) ? '' : 'none';
+  });
+  document.querySelectorAll('[data-perm]').forEach(el => {
+    el.style.display = canDoAction(el.dataset.perm, admin) ? '' : 'none';
   });
 }
 
@@ -129,7 +138,7 @@ function logout() {
 // Try to restore session via HttpOnly cookie
 api('GET', '/admin/api/me').then(data => {
   token = data.token;
-  showDashboard({ email: data.email, role: data.role, id: data.id, name: data.name || null, permissions: data.permissions || {} });
+  showDashboard({ email: data.email, role: data.role, id: data.id, name: data.name || null, permissions: data.permissions ?? null });
 }).catch(() => {});
 
 // Login form
@@ -145,7 +154,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   try {
     const res = await api('POST', '/admin/api/login', { email, password });
     token = res.token;
-    showDashboard({ ...res.admin, permissions: res.admin.permissions || {} });
+    showDashboard({ ...res.admin, permissions: res.admin.permissions ?? null });
   } catch (e) {
     err.textContent = e.message;
   } finally {
@@ -483,12 +492,12 @@ function renderRoomsTable() {
     <tr>
       <td><code>${esc(r.roomId)}</code></td>
       <td><strong>${r.peerCount}</strong></td>
-      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['super-admin','admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role === 'super-admin' ? 'super' : p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}<span class="peer-chip-actions"><button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button><button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button></span></span>`).join('')}</div></td>
+      <td><div class="peer-chips">${r.peers.map(p => `<span class="peer-chip">${esc(p.name)}${['super-admin','admin','business'].includes(p.role) ? ` <span class="role-badge role-${p.role === 'super-admin' ? 'super' : p.role}" style="font-size:.58rem;padding:1px 5px;">${p.role}</span>` : ''}${canDoAction('roomsWrite',currentAdmin)?`<span class="peer-chip-actions"><button class="btn-xs" onclick="adminKickPeer('${esc(r.roomId)}','${p.socketId}')">踢</button><button class="btn-xs btn-danger-xs" onclick="adminBanPeer('${esc(r.roomId)}','${p.socketId}','${esc(p.name)}')">封</button></span>`:''}` + '</span>').join('')}</div></td>
       <td style="font-size:.82rem">${locHtml}</td>
       <td>${r.createdAt ? timeAgo(r.createdAt) : '—'}${durationStr}</td>
       <td><strong>${r.filesTransferred || 0}</strong></td>
       <td>${banBadge}</td>
-      <td><button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button></td>
+      <td>${canDoAction('roomsWrite',currentAdmin)?`<button class="btn-danger" onclick="closeRoom('${r.roomId}')">Close</button>`:''}</td>
     </tr>`;
   }).join('');
 }
@@ -587,20 +596,29 @@ document.getElementById('ban-modal-overlay').addEventListener('click', e => {
 function renderAdmins(adminList) {
   window._latestAdmins = adminList;
   const tbody = document.getElementById('admins-tbody');
-  const isAdminOrSuper = currentAdmin?.role === 'super-admin' || currentAdmin?.role === 'admin';
+  const isSuperAdmin = currentAdmin?.role === 'super-admin';
+  const isAdminOrSuper = isSuperAdmin || currentAdmin?.role === 'admin';
   tbody.innerHTML = adminList.map(a => {
     const roleCls = a.role === 'super-admin' ? 'role-super' : a.role === 'staff' ? 'role-staff' : 'role-admin';
     const roleLabel = a.role === 'super-admin' ? 'Super Admin' : a.role === 'staff' ? 'Staff' : 'Admin';
-    const permCount = a.role === 'staff' ? Object.keys(a.permissions || {}).length : null;
-    const permBadge = permCount !== null ? `<span class="perm-count-badge" title="${permCount} 個權限">${permCount} perms</span>` : '';
+    const hasExplicitPerms = a.role !== 'super-admin' && a.permissions !== null && a.permissions !== undefined;
+    const permCount = hasExplicitPerms ? Object.keys(a.permissions || {}).length : null;
+    const permBadge = hasExplicitPerms
+      ? `<span class="perm-count-badge" title="${permCount} 個已授予權限">${permCount} perms</span>`
+      : (a.role === 'admin' ? '<span class="perm-count-badge" style="background:rgba(245,158,11,.15);color:#f59e0b" title="未設限制，擁有完整權限">Full</span>' : '');
     const isSelf = a.id === currentAdmin?.id;
     let actions = '';
     if (isSelf) {
       actions = '<span style="color:var(--muted);font-size:.78rem">You</span>';
     } else if (isAdminOrSuper) {
       actions = '';
-      if (a.role === 'staff') actions += `<button class="btn-sm btn-outline" onclick="openPermModal('${a.id}','${esc(a.email)}')">⚙️ 權限</button> `;
-      if (currentAdmin?.role === 'super-admin' || a.role === 'staff') {
+      // Super-admin can manage permissions on admin and staff; admin can only manage staff
+      const canSetPerms = isSuperAdmin && a.role !== 'super-admin';
+      const canSetPermsOnStaff = !isSuperAdmin && a.role === 'staff';
+      if (canSetPerms || canSetPermsOnStaff) {
+        actions += `<button class="btn-sm btn-outline" onclick="openPermModal('${a.id}','${esc(a.email)}','${a.role}')">⚙️ 權限</button> `;
+      }
+      if (isSuperAdmin || a.role === 'staff') {
         actions += `<button class="btn-danger" onclick="removeAdmin('${a.id}','${esc(a.email)}')">Remove</button>`;
       }
     }
@@ -621,25 +639,38 @@ async function removeAdmin(id, email) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-// Staff Permissions Modal
+// Permissions Modal
 let _permTargetId = null;
 
-function openPermModal(id, email) {
+function openPermModal(id, email, role) {
   _permTargetId = id;
-  document.getElementById('staff-perm-email').textContent = `設定 ${email} 的後台存取權限`;
-  // Find in the latest rendered data
+  const titleRole = role === 'admin' ? 'Admin' : 'Staff';
+  document.getElementById('staff-perm-email').textContent = `設定 ${titleRole} 權限 — ${email}`;
   const adminObj = window._latestAdmins?.find(a => a.id === id);
   const currentPerms = adminObj?.permissions || {};
   const listEl = document.getElementById('staff-perm-list');
-  listEl.innerHTML = STAFF_PERMISSIONS.map(p => `
-    <label class="perm-row">
-      <input type="checkbox" name="${p.key}" ${currentPerms[p.key] ? 'checked' : ''}>
-      <div class="perm-info">
-        <div class="perm-label">${p.label}</div>
-        <div class="perm-desc">${p.desc}</div>
+  listEl.innerHTML = `
+    <div class="perm-table">
+      <div class="perm-table-header">
+        <span>功能</span><span style="text-align:center">可查看</span><span style="text-align:center">可操作</span>
       </div>
-    </label>
-  `).join('');
+      ${PERM_TABLE.map(p => `
+        <div class="perm-table-row">
+          <span class="perm-table-label">${p.label}</span>
+          <span style="text-align:center">
+            ${p.viewKey
+              ? `<input type="checkbox" name="${p.viewKey}" class="perm-cb" ${currentPerms[p.viewKey] ? 'checked' : ''}>`
+              : '<span style="color:var(--muted)">—</span>'}
+          </span>
+          <span style="text-align:center">
+            ${p.writeKey
+              ? `<input type="checkbox" name="${p.writeKey}" class="perm-cb" title="${p.writeLabel}" ${currentPerms[p.writeKey] ? 'checked' : ''}>`
+              : '<span style="color:var(--muted)">—</span>'}
+          </span>
+        </div>
+      `).join('')}
+    </div>
+  `;
   document.getElementById('staff-perm-modal').style.display = 'flex';
 }
 
@@ -648,11 +679,16 @@ function closePermModal() {
   _permTargetId = null;
 }
 
+function setAllPerms(checked) {
+  document.querySelectorAll('#staff-perm-list input[type=checkbox]').forEach(cb => cb.checked = checked);
+}
+
 async function saveStaffPerms() {
   if (!_permTargetId) return;
-  const checkboxes = document.querySelectorAll('#staff-perm-list input[type=checkbox]');
   const permissions = {};
-  checkboxes.forEach(cb => { if (cb.checked) permissions[cb.name] = true; });
+  document.querySelectorAll('#staff-perm-list input[type=checkbox]').forEach(cb => {
+    if (cb.checked) permissions[cb.name] = true;
+  });
   try {
     await api('PUT', `/admin/api/admins/${_permTargetId}/permissions`, permissions);
     toast('權限已更新', 'success');
@@ -792,11 +828,12 @@ function renderUsersTable() {
     const statusBadge = u.banned
       ? `<span class="status-banned">Banned</span>`
       : `<span class="status-active">Active</span>`;
+    const canWrite = canDoAction('usersWrite', currentAdmin);
     const actions = u.banned
-      ? `<button class="btn-sm" onclick="unbanUser('${u.id}','${esc(u.email)}')">Unban</button>`
-      : `<button class="btn-sm" onclick="setUserLimit('${u.id}','${esc(u.email)}',${u.customFileSizeMB ?? ''})">Limit</button>
+      ? (canWrite ? `<button class="btn-sm" onclick="unbanUser('${u.id}','${esc(u.email)}')">Unban</button>` : '')
+      : (canWrite ? `<button class="btn-sm" onclick="setUserLimit('${u.id}','${esc(u.email)}',${u.customFileSizeMB ?? ''})">Limit</button>
          ${u.customFileSizeMB != null ? `<button class="btn-sm" onclick="clearUserLimit('${u.id}')">Reset</button> ` : ''}
-         <button class="btn-danger" onclick="banUser('${u.id}','${esc(u.email)}')">Ban</button>`;
+         <button class="btn-danger" onclick="banUser('${u.id}','${esc(u.email)}')">Ban</button>` : '');
     const langDisplay = u.language
       ? `<span title="${esc(u.language)}">${LANG_FLAGS[u.language] || '🌐'} ${esc(u.language)}</span>`
       : `<span style="color:var(--muted);font-size:.75rem">—</span>`;
@@ -816,10 +853,10 @@ function renderUsersTable() {
         })()
       : '';
     const roleDisplay = (u.role || u.promoRole)
-      ? `${permRoleBadge}${promoRoleBadge}
+      ? `${permRoleBadge}${promoRoleBadge}${canWrite ? `
          <button class="btn-sm" style="margin-left:2px" onclick="setUserRole('${u.id}','${esc(u.email)}','${esc(u.role || '')}')">✎</button>
-         ${u.role ? `<button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>` : ''}`
-      : `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>`;
+         ${u.role ? `<button class="btn-sm" onclick="clearUserRole('${u.id}')">✕</button>` : ''}` : ''}`
+      : (canWrite ? `<button class="btn-sm" onclick="setUserRole('${u.id}','${esc(u.email)}','')">Set</button>` : '—');
     const lastSeenDisplay = u.lastSeenAt
       ? `<span title="${new Date(u.lastSeenAt).toLocaleString()}">${timeAgo(new Date(u.lastSeenAt).getTime())}</span>`
       : `<span style="color:var(--muted)">—</span>`;
@@ -974,8 +1011,8 @@ function renderPromos(promos) {
         </label>
       </td>
       <td style="white-space:nowrap">
-        <button class="btn-sm" onclick="openEditPromo('${p.id}')">Edit</button>
-        <button class="btn-danger" onclick="deletePromo('${p.id}','${esc(p.code)}')">Delete</button>
+        ${canDoAction('promosWrite',currentAdmin)?`<button class="btn-sm" onclick="openEditPromo('${p.id}')">Edit</button>
+        <button class="btn-danger" onclick="deletePromo('${p.id}','${esc(p.code)}')">Delete</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -1065,8 +1102,8 @@ function renderFeedbackTable() {
       <td style="max-width:320px;font-size:.82rem;word-break:break-word">${esc(f.message)}</td>
       <td><span class="status-${f.read ? 'active' : 'banned'}" style="font-size:.72rem">${f.read ? '已讀' : '未讀'}</span></td>
       <td style="white-space:nowrap">
-        <button class="btn-sm" onclick="toggleFeedbackRead('${f.id}',${!f.read})">${f.read ? '標為未讀' : '標為已讀'}</button>
-        <button class="btn-danger" onclick="deleteFeedback('${f.id}')">Delete</button>
+        ${canDoAction('feedbackWrite',currentAdmin)?`<button class="btn-sm" onclick="toggleFeedbackRead('${f.id}',${!f.read})">${f.read ? '標為未讀' : '標為已讀'}</button>
+        <button class="btn-danger" onclick="deleteFeedback('${f.id}')">Delete</button>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -1319,7 +1356,7 @@ function renderIpBans(list) {
       <td style="font-size:.82rem">${esc(b.reason || '—')}</td>
       <td style="font-size:.78rem;color:var(--muted)">${b.bannedAt ? new Date(b.bannedAt).toLocaleString() : '—'}</td>
       <td style="font-size:.78rem">${esc(b.bannedBy || '—')}</td>
-      <td><button class="btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="removeIpBan('${esc(b.ip)}')">解除</button></td>
+      <td>${canDoAction('ipBansWrite',currentAdmin)?`<button class="btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="removeIpBan('${esc(b.ip)}')">解除</button>`:''}</td>
     </tr>`).join('');
 }
 async function addIpBan() {
@@ -1350,9 +1387,9 @@ function renderWebhooks(list) {
     <tr>
       <td style="font-size:.8rem;max-width:240px;overflow:hidden;text-overflow:ellipsis"><code title="${esc(w.url)}">${esc(w.url)}</code></td>
       <td><span class="badge-pill" style="font-size:.68rem">${esc(Array.isArray(w.events) ? w.events.join(', ') : '*')}</span></td>
-      <td><label class="toggle" title="${w.enabled?'啟用':'停用'}"><input type="checkbox" ${w.enabled?'checked':''} onchange="toggleWebhook('${w.id}',this.checked)"><span class="slider"></span></label></td>
+      <td>${canDoAction('webhooksWrite',currentAdmin)?`<label class="toggle" title="${w.enabled?'啟用':'停用'}"><input type="checkbox" ${w.enabled?'checked':''} onchange="toggleWebhook('${w.id}',this.checked)"><span class="slider"></span></label>`:`<span style="font-size:.78rem;color:var(--muted)">${w.enabled?'啟用':'停用'}</span>`}</td>
       <td style="font-size:.75rem;color:var(--muted)">${w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '—'}</td>
-      <td><button class="btn-danger" onclick="deleteWebhook('${w.id}')">刪除</button></td>
+      <td>${canDoAction('webhooksWrite',currentAdmin)?`<button class="btn-danger" onclick="deleteWebhook('${w.id}')">刪除</button>`:''}</td>
     </tr>`).join('');
 }
 async function addWebhook() {

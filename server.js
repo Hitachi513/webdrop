@@ -12,8 +12,6 @@ const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const compression = require('compression');
 const { OAuth2Client } = require('google-auth-library');
-const { initializeApp: fbInitializeApp, cert: fbCert } = require('firebase-admin/app');
-const { getAuth: fbGetAuth } = require('firebase-admin/auth');
 
 const app    = express();
 app.set('trust proxy', 1);
@@ -32,42 +30,11 @@ const io     = new Server(server, {
 });
 
 const GOOGLE_CLIENT_ID    = process.env.GOOGLE_CLIENT_ID    || '';
-const TWILIO_ACCOUNT_SID  = process.env.TWILIO_ACCOUNT_SID  || '';
-const TWILIO_AUTH_TOKEN   = process.env.TWILIO_AUTH_TOKEN   || '';
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '';
 const TURNSTILE_SECRET    = (process.env.TURNSTILE_SECRET    || '').trim();
 const TURNSTILE_SITE_KEY  = (process.env.TURNSTILE_SITE_KEY  || '').trim();
 const USE_CAPTCHA = !!(TURNSTILE_SECRET && TURNSTILE_SITE_KEY);
 const googleClient  = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
-const twilioClient  = (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN)
-  ? require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
 
-// Firebase Phone Auth (optional — set FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY)
-const FIREBASE_PROJECT_ID    = process.env.FIREBASE_PROJECT_ID    || '';
-const FIREBASE_CLIENT_EMAIL  = process.env.FIREBASE_CLIENT_EMAIL  || '';
-const FIREBASE_PRIVATE_KEY   = (process.env.FIREBASE_PRIVATE_KEY  || '').replace(/\\n/g, '\n');
-const FIREBASE_API_KEY       = process.env.FIREBASE_API_KEY        || '';
-const FIREBASE_APP_ID        = process.env.FIREBASE_APP_ID         || '';
-let firebaseApp = null;
-let firebaseInitError = null;
-if (FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY) {
-  try {
-    firebaseApp = fbInitializeApp({
-      credential: fbCert({
-        projectId:   FIREBASE_PROJECT_ID,
-        clientEmail: FIREBASE_CLIENT_EMAIL,
-        privateKey:  FIREBASE_PRIVATE_KEY,
-      }),
-    });
-    console.log('[Firebase] Admin SDK initialized');
-  } catch (e) { console.error('[Firebase] init error:', e.message); firebaseInitError = e.message; }
-}
-const USE_FIREBASE_PHONE = !!(firebaseApp && FIREBASE_API_KEY && FIREBASE_APP_ID);
-
-// phone OTP store: phone → { otp, expiresAt }
-const _otpStore   = new Map();
-// rate-limit: phone → { count, windowStart }
-const _otpRateMap = new Map();
 // admin login rate-limit: ip → { count, windowStart }
 const _adminLoginMap = new Map();
 function checkAdminRateLimit(ip) {
@@ -604,13 +571,6 @@ app.get('/qr', async (req, res) => {
 // ===== Config endpoint =====
 const _configPayload = JSON.stringify({
   googleAuth: !!GOOGLE_CLIENT_ID, googleClientId: GOOGLE_CLIENT_ID || null,
-  phoneAuth: !!(twilioClient || USE_FIREBASE_PHONE),
-  phoneAuthMode: twilioClient ? 'twilio' : USE_FIREBASE_PHONE ? 'firebase' : null,
-  firebaseConfig: USE_FIREBASE_PHONE ? {
-    apiKey:    FIREBASE_API_KEY,
-    projectId: FIREBASE_PROJECT_ID,
-    appId:     FIREBASE_APP_ID,
-  } : null,
   captcha: USE_CAPTCHA, turnstileSiteKey: TURNSTILE_SITE_KEY || null
 });
 app.get('/api/config', (req, res) => {
@@ -672,79 +632,6 @@ app.post('/api/auth/google', async (req, res) => {
     setAuthCookie(res, token);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
   } catch (e) { console.error('Google auth error:', e.message); res.status(401).json({ error: 'Invalid Google token' }); }
-});
-
-// ===== Phone OTP Auth =====
-app.post('/api/auth/phone/send', async (req, res) => {
-  if (!twilioClient) return res.status(501).json({ error: 'Phone auth not configured' });
-  const { phone } = req.body || {};
-  if (!phone || !/^\+[1-9]\d{6,14}$/.test(phone)) return res.status(400).json({ error: 'Invalid phone number (use E.164 format, e.g. +886912345678)' });
-
-  // Rate limit: max 3 sends per 10 minutes per number
-  const now = Date.now();
-  const rl = _otpRateMap.get(phone) || { count: 0, windowStart: now };
-  if (now - rl.windowStart > 10 * 60 * 1000) { rl.count = 0; rl.windowStart = now; }
-  if (rl.count >= 3) return res.status(429).json({ error: 'Too many OTP requests. Try again in 10 minutes.' });
-  rl.count++; _otpRateMap.set(phone, rl);
-
-  const _otpIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.socket?.remoteAddress || '';
-  addIpRisk(_otpIp, 3);
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
-  _otpStore.set(phone, { otp, expiresAt: now + 5 * 60 * 1000 });
-  try {
-    await twilioClient.messages.create({ body: `Your WebDrop verification code is: ${otp}`, from: TWILIO_PHONE_NUMBER, to: phone });
-    res.json({ ok: true });
-  } catch (e) { console.error('Twilio error:', e.message); res.status(500).json({ error: 'Failed to send SMS' }); }
-});
-
-app.post('/api/auth/phone/verify', async (req, res) => {
-  if (!twilioClient) return res.status(501).json({ error: 'Phone auth not configured' });
-  const { phone, otp } = req.body || {};
-  if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
-  const entry = _otpStore.get(phone);
-  if (entry) {
-    entry.attempts = (entry.attempts || 0) + 1;
-    if (entry.attempts > 5) return res.status(429).json({ error: 'Too many attempts. Request a new OTP.' });
-  }
-  if (!entry || Date.now() > entry.expiresAt) return res.status(401).json({ error: 'OTP expired or not found' });
-  if (entry.otp !== String(otp).trim()) return res.status(401).json({ error: 'Incorrect OTP' });
-  _otpStore.delete(phone);
-
-  let user = users.find(u => u.phone === phone);
-  if (!user) {
-    user = { id: crypto.randomUUID(), email: null, phone, name: `User${phone.slice(-4)}`, googleId: null, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
-    users.push(user);
-    saveUsersDebounced();
-    adminNsp.emit('users', getUserList());
-  }
-  if (user.banned) return res.status(403).json({ error: user.banReason || 'suspended' });
-  const token = jwt.sign({ id: user.id, email: user.email || user.phone, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-  setAuthCookie(res, token);
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
-});
-
-// ===== Firebase Phone Auth =====
-app.post('/api/auth/firebase-phone', async (req, res) => {
-  if (!firebaseApp) return res.status(501).json({ error: 'Firebase phone auth not configured' });
-  const { idToken } = req.body || {};
-  if (!idToken || typeof idToken !== 'string') return res.status(400).json({ error: 'idToken required' });
-  try {
-    const decoded = await fbGetAuth(firebaseApp).verifyIdToken(idToken);
-    const phone = decoded.phone_number;
-    if (!phone) return res.status(400).json({ error: 'No phone number in token' });
-
-    let user = users.find(u => u.phone === phone);
-    if (!user) {
-      user = { id: crypto.randomUUID(), email: null, phone, name: `User${phone.slice(-4)}`, googleId: null, passwordHash: null, activePromoId: null, customFileSizeMB: null, banned: false, banReason: null, bannedAt: null, language: null, customRoomId: null, canCustomRoom: false, role: null, avatar: null, createdAt: new Date().toISOString() };
-      users.push(user);
-      saveUsersDebounced();
-      adminNsp.emit('users', getUserList());
-    }
-    if (user.banned) return res.status(403).json({ error: user.banReason || 'Account suspended' });
-    const token = jwt.sign({ id: user.id, email: user.email || user.phone, name: user.name, type: 'user' }, JWT_SECRET, { expiresIn: '30d' });
-    setAuthCookie(res, token);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, activePromoId: user.activePromoId, effectiveMaxFileSizeMB: getUserEffectiveLimit(user.id), customRoomId: user.customRoomId || null, canCustomRoom: !!user.canCustomRoom, role: getEffectiveRole(user), avatar: user.avatar || null } });
-  } catch (e) { console.error('Firebase phone auth error:', e.message); res.status(401).json({ error: 'Invalid or expired token' }); }
 });
 
 app.post('/api/auth/register', async (req, res) => {

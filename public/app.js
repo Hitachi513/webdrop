@@ -3397,3 +3397,28 @@ document.addEventListener('keydown', e => {
   }
   goStep(1);
 })();
+
+// ===== Browser extension bridge =====
+// Lets the WebDrop Chrome extension (content script) trigger sends through
+// this page's own transfer pipeline, instead of re-implementing it.
+window.addEventListener('message', (e) => {
+  if (e.source !== window) return;
+  const d = e.data;
+  if (!d || d.source !== 'webdrop-ext') return;
+
+  if (d.type === 'get-status') {
+    window.postMessage({
+      source: 'webdrop-page',
+      type: 'status',
+      requestId: d.requestId,
+      roomId: roomId || null,
+      connected: peers.size > 0,
+      peerCount: peers.size,
+    }, '*');
+  } else if (d.type === 'send-files' && Array.isArray(d.files) && d.files.length) {
+    handleFiles(d.files);
+  } else if (d.type === 'send-text' && typeof d.text === 'string' && d.text.trim()) {
+    messageInputEl.value = d.text;
+    doSendMessage();
+  }
+});

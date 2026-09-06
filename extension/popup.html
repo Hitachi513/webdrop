@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>WebDrop</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="">
+    <h1>WebDrop</h1>
+  </header>
+
+  <div id="state-loading" class="state">
+    <div class="spinner"></div>
+    <p>檢查連線狀態…</p>
+  </div>
+
+  <div id="state-not-found" class="state hidden">
+    <p class="msg">找不到已開啟的 WebDrop 分頁</p>
+    <p class="hint">先開啟網站並加入房間，右鍵傳送和拖曳投遞才能使用。</p>
+    <button id="open-site-btn" class="btn-primary">開啟 WebDrop</button>
+  </div>
+
+  <div id="state-connected" class="state hidden">
+    <div class="badge" id="conn-badge"><span class="dot"></span><span id="conn-label">已連線</span></div>
+
+    <div class="room-block">
+      <span class="label">房間代碼</span>
+      <div class="room-code" id="room-code">------</div>
+      <button id="copy-link-btn" class="btn-outline">複製邀請連結</button>
+    </div>
+
+    <img id="qr-img" class="qr" alt="QR Code">
+
+    <p class="peer-count" id="peer-count"></p>
+  </div>
+
+  <footer>
+    <p>右鍵圖片/連結/選取文字 → 傳送到 WebDrop</p>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

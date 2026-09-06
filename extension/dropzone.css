@@ -1,0 +1,38 @@
+#webdrop-ext-widget {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #0f0f1a;
+  border: 2px solid rgba(0, 212, 255, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483647;
+  opacity: 0.55;
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s, width 0.15s, height 0.15s;
+  pointer-events: none;
+}
+
+#webdrop-ext-widget img {
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+}
+
+#webdrop-ext-widget.webdrop-ext-widget-active {
+  opacity: 1;
+  width: 96px;
+  height: 96px;
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 6px rgba(0, 212, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+#webdrop-ext-widget.webdrop-ext-widget-active img {
+  width: 44px;
+  height: 44px;
+}
